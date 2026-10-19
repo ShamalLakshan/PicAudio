@@ -9,21 +9,33 @@ Dialog {
     modal: true
     focus: true
     anchors.centerIn: Overlay.overlay
-    width: 460
-    height: isSmart ? 320 : 250
+    width: Math.min(460, Overlay.overlay ? Overlay.overlay.width - 32 : 460)
+    height: Math.min(isSmart ? 340 : 260, Overlay.overlay ? Overlay.overlay.height - 32 : (isSmart ? 340 : 260))
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     property bool isSmart: false
+    property bool isEdit: false
 
     function openSmart() {
+        isEdit = false;
         isSmart = true;
         open();
     }
 
+    function openSmartEdit(name, rules) {
+        isEdit = true;
+        isSmart = true;
+        open();
+        playlistNameInput.text = name;
+        smartCriteriaInput.text = rules;
+    }
+
     onAboutToShow: {
-        playlistNameInput.text = "";
-        smartCriteriaInput.text = "";
+        if (!isEdit) {
+            playlistNameInput.text = "";
+            smartCriteriaInput.text = "";
+        }
         playlistNameInput.forceActiveFocus();
     }
 
@@ -271,10 +283,15 @@ Dialog {
         var name = playlistNameInput.text.trim();
         if (!name) return;
         if (root.isSmart) {
-            bridge.createSmartPlaylist(name, smartCriteriaInput.text.trim());
+            if (root.isEdit) {
+                bridge.updateSmartPlaylistRules(name, smartCriteriaInput.text.trim());
+            } else {
+                bridge.createSmartPlaylist(name, smartCriteriaInput.text.trim());
+            }
         } else {
             bridge.createPlaylist(name);
         }
+        isEdit = false;
         root.close();
     }
 }

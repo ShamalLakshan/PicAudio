@@ -42,6 +42,19 @@ public:
   void clearQueue();
   void shuffleRemaining();
 
+  /**
+   * @brief Restores the queue state, up next sequence, and history stack.
+   * @param currentTrack Active track if any.
+   * @param upNext List of upcoming manually queued tracks.
+   * @param mainStream Main playback stream tracks.
+   * @param mainStreamIndex Current index in the main stream.
+   * @param history Previous tracks history stack.
+   */
+  void restoreState(const std::optional<Track> &currentTrack,
+                    const std::vector<Track> &upNext,
+                    const std::vector<Track> &mainStream,
+                    size_t mainStreamIndex, const std::vector<Track> &history);
+
   // Modes
   void setRepeatMode(RepeatMode mode);
   [[nodiscard]] RepeatMode getRepeatMode() const noexcept {

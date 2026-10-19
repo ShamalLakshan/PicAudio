@@ -18,7 +18,7 @@ struct ThemeTokens {
     // Meta
     QString id{"dark-studio"};
     QString name{"Dark Studio"};
-    QString author{"Parakeet"};
+    QString author{"PicAudio"};
     QString version{"1.0.0"};
     QString apiVersion{"0.1-unstable"};
     QString description{"Default dark theme"};

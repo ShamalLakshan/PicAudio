@@ -33,6 +33,8 @@ public:
   // Albums
   virtual std::vector<Album> getAllAlbums() = 0;
   virtual std::optional<Album> getAlbumById(const std::string &id) = 0;
+  virtual void setGroupAlbumsByTitle(bool enabled) = 0;
+  virtual bool groupAlbumsByTitle() const = 0;
 
   // Library Maintenance
   virtual bool clearLibrary() = 0;

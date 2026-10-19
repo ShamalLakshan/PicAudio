@@ -9,8 +9,8 @@ Dialog {
     modal: true
     focus: true
     anchors.centerIn: Overlay.overlay
-    width: 480
-    height: 400
+    width: Math.min(480, Overlay.overlay ? Overlay.overlay.width - 32 : 480)
+    height: Math.min(420, Overlay.overlay ? Overlay.overlay.height - 32 : 420)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -47,7 +47,7 @@ Dialog {
                 }
 
                 Text {
-                    text: "About Parakeet"
+                    text: "About PicAudio"
                     font.pixelSize: Theme.fontSizeLarge
                     font.bold: true
                     color: Theme.textPrimary
@@ -99,13 +99,18 @@ Dialog {
                     color: Theme.surfaceElevated
                     border.color: Theme.panelBorder
                     border.width: 1
+                    clip: true
 
-                    VectorIcon {
+                    Image {
                         anchors.centerIn: parent
-                        name: "music"
-                        width: 32
-                        height: 32
-                        color: Theme.accent
+                        source: "qrc:/icons/picaudio.png"
+                        width: 52
+                        height: 52
+                        sourceSize.width: 52
+                        sourceSize.height: 52
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        mipmap: true
                     }
                 }
 
@@ -113,7 +118,7 @@ Dialog {
                     spacing: 2
 
                     Text {
-                        text: "PARAKEET"
+                        text: "PICAUDIO"
                         font.pixelSize: 18
                         font.bold: true
                         font.letterSpacing: 2.0
@@ -168,7 +173,7 @@ Dialog {
                     Layout.fillWidth: true
                     Text { text: "Repository:"; font.pixelSize: Theme.fontSizeSmall; color: Theme.textSecondary; Layout.preferredWidth: 120 }
                     Text {
-                        text: "github.com/ShamalLakshan/Parakeet"
+                        text: "github.com/ShamalLakshan/PicAudio"
                         font.pixelSize: Theme.fontSizeSmall
                         font.underline: repoMouse.containsMouse
                         color: Theme.accent
@@ -180,7 +185,7 @@ Dialog {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Qt.openUrlExternally("https://github.com/ShamalLakshan/Parakeet")
+                            onClicked: Qt.openUrlExternally("https://github.com/ShamalLakshan/PicAudio")
                         }
                     }
                 }

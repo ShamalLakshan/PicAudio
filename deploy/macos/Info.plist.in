@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>PicAudio</string>
+    <key>CFBundleGetInfoString</key>
+    <string>PicAudio Music Player</string>
+    <key>CFBundleIconFile</key>
+    <string>picaudio.icns</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.picaudio.picaudio</string>
+    <key>CFBundleName</key>
+    <string>PicAudio</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@PROJECT_VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@PROJECT_VERSION@</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Audio Track</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Default</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>flac</string>
+                <string>wav</string>
+                <string>aiff</string>
+                <string>aif</string>
+                <string>mp3</string>
+                <string>m4a</string>
+                <string>aac</string>
+                <string>ogg</string>
+                <string>oga</string>
+                <string>opus</string>
+                <string>ape</string>
+                <string>wv</string>
+                <string>wma</string>
+                <string>dsf</string>
+                <string>dff</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Playlist File</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Default</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>m3u</string>
+                <string>m3u8</string>
+                <string>pls</string>
+                <string>cue</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

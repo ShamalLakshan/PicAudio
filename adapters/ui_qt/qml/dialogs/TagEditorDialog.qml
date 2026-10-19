@@ -9,7 +9,8 @@ Dialog {
     modal: true
     focus: true
     anchors.centerIn: Overlay.overlay
-    width: 480
+    width: Math.min(520, Overlay.overlay ? Overlay.overlay.width - 32 : 520)
+    height: Math.min(480, Overlay.overlay ? Overlay.overlay.height - 32 : 480)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -105,14 +106,18 @@ Dialog {
 
         // Form Fields Container
         ScrollView {
+            id: formScrollView
             Layout.fillWidth: true
-            Layout.preferredHeight: 340
+            Layout.fillHeight: true
+            leftPadding: Theme.panelPadding
+            rightPadding: Theme.panelPadding
+            topPadding: Theme.spacingMedium
+            bottomPadding: Theme.spacingMedium
             clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
             ColumnLayout {
-                width: root.width - (Theme.panelPadding * 2)
-                Layout.margins: Theme.panelPadding
+                width: formScrollView.availableWidth
                 spacing: Theme.spacingLarge
 
                 Text {

@@ -1,9 +1,9 @@
 {
-  "$schema": "https://parakeet-audio.org/schemas/theme-v1.json",
+  "$schema": "https://picaudio.org/schemas/theme-v1.json",
   "meta": {
     "id": "dark-studio",
     "name": "Dark Studio",
-    "author": "Parakeet",
+    "author": "PicAudio",
     "version": "1.0.0",
     "apiVersion": "0.1-unstable",
     "description": "Default professional dark studio theme engineered for deep listening"

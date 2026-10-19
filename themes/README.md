@@ -1,6 +1,6 @@
-# Parakeet Visual Themes
+# PicAudio Visual Themes
 
-Parakeet features a dynamic, community-driven JSON theme engine with hot-reloading support. This directory contains bundled base themes and serves as a reference for creating and sharing custom themes.
+PicAudio features a dynamic, community-driven JSON theme engine with hot-reloading support. This directory contains bundled base themes and serves as a reference for creating and sharing custom themes.
 
 ---
 
@@ -24,7 +24,7 @@ Every theme is defined as a standalone `.json` file that complies with [`docs/th
 
 ```json
 {
-  "$schema": "https://parakeet-audio.org/schemas/theme-v1.json",
+  "$schema": "https://picaudio.org/schemas/theme-v1.json",
   "meta": {
     "id": "my-custom-theme",
     "name": "My Custom Theme",
@@ -72,14 +72,14 @@ Every theme is defined as a standalone `.json` file that complies with [`docs/th
 
 ## Theme Discovery & Search Paths
 
-Parakeet discovers themes dynamically at startup and watches for changes in real time. Theme search paths are scanned in the following priority order (higher overrides lower):
+PicAudio discovers themes dynamically at startup and watches for changes in real time. Theme search paths are scanned in the following priority order (higher overrides lower):
 
 1. **User Themes Directory** *(Highest priority; allows overriding bundled themes)*:
-   - **Linux**: `~/.local/share/Parakeet/themes/`
-   - **macOS**: `~/Library/Application Support/Parakeet/themes/`
-   - **Windows**: `%APPDATA%/Parakeet/themes/`
+   - **Linux**: `~/.local/share/PicAudio/themes/`
+   - **macOS**: `~/Library/Application Support/PicAudio/themes/`
+   - **Windows**: `%APPDATA%/PicAudio/themes/`
 2. **System & Application Directories**:
-   - `<install-prefix>/share/parakeet/themes/`
+   - `<install-prefix>/share/picaudio/themes/`
    - `<binary-directory>/themes/`
    - Current working directory `./themes/`
 3. **Embedded Qt Resources** *(Fail-safe bundled fallback)*:
@@ -89,4 +89,4 @@ Parakeet discovers themes dynamically at startup and watches for changes in real
 
 ## Real-Time Hot Reloading
 
-When developing themes, any modification to a `.json` file in a watched directory immediately reloads the theme tokens and live-updates Parakeet's UI without restarting the application.
+When developing themes, any modification to a `.json` file in a watched directory immediately reloads the theme tokens and live-updates PicAudio's UI without restarting the application.

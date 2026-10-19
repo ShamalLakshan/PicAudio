@@ -33,6 +33,8 @@ public:
   // Albums
   std::vector<core::Album> getAllAlbums() override;
   std::optional<core::Album> getAlbumById(const std::string &id) override;
+  void setGroupAlbumsByTitle(bool enabled) override;
+  bool groupAlbumsByTitle() const override;
 
   // Library Maintenance
   bool clearLibrary() override;
@@ -47,6 +49,7 @@ private:
   sqlite3 *m_db{nullptr};
   std::mutex m_mutex;
   std::string m_dbPath;
+  bool m_groupAlbumsByTitle{true};
 };
 
 } // namespace adapters

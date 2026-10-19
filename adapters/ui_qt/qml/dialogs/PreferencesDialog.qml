@@ -8,10 +8,10 @@ import "../components"
 Dialog {
     id: root
     title: "Preferences & Settings"
-    width: 840
-    height: 600
+    width: Math.min(840, Overlay.overlay ? Overlay.overlay.width - 32 : 840)
+    height: Math.min(620, Overlay.overlay ? Overlay.overlay.height - 32 : 620)
     modal: true
-    anchors.centerIn: parent
+    anchors.centerIn: Overlay.overlay
 
     property int activeCategory: 1 // default to Themes & Appearance
 
@@ -229,8 +229,8 @@ Dialog {
         id: confirmClearDbDialog
         title: "Clear Entire Music Library"
         modal: true
-        anchors.centerIn: parent
-        width: 420
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(420, Overlay.overlay ? Overlay.overlay.width - 32 : 420)
         standardButtons: Dialog.Ok | Dialog.Cancel
         background: Rectangle {
             color: Theme.surface
@@ -263,8 +263,8 @@ Dialog {
         id: resetFactoryDefaultsDialog
         title: "Reset All Preferences to Defaults"
         modal: true
-        anchors.centerIn: parent
-        width: 420
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(420, Overlay.overlay ? Overlay.overlay.width - 32 : 420)
         standardButtons: Dialog.Ok | Dialog.Cancel
         background: Rectangle {
             color: Theme.surface
@@ -293,6 +293,33 @@ Dialog {
         }
     }
 
+    FileDialog {
+        id: importKeymapDialog
+        title: "Import Keymap JSON"
+        nameFilters: ["Keymap JSON files (*.json)", "All files (*)"]
+        onAccepted: {
+            if (bridge.importHotkeys(selectedFile.toString())) {
+                bridge.showToast("Keymap imported successfully", "success");
+            } else {
+                bridge.showToast("Failed to import keymap JSON", "error");
+            }
+        }
+    }
+
+    FileDialog {
+        id: exportKeymapDialog
+        title: "Export Keymap JSON"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["Keymap JSON files (*.json)", "All files (*)"]
+        onAccepted: {
+            if (bridge.exportHotkeys(selectedFile.toString())) {
+                bridge.showToast("Keymap exported successfully", "success");
+            } else {
+                bridge.showToast("Failed to export keymap JSON", "error");
+            }
+        }
+    }
+
     property string editingActionId: ""
     property string editingActionName: ""
     property string editingKeySequence: ""
@@ -303,8 +330,8 @@ Dialog {
         id: rebindHotkeyDialog
         title: "Rebind Shortcut"
         modal: true
-        anchors.centerIn: parent
-        width: 440
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(440, Overlay.overlay ? Overlay.overlay.width - 32 : 440)
         standardButtons: Dialog.Ok | Dialog.Cancel
         background: Rectangle {
             color: Theme.surface
@@ -632,7 +659,7 @@ Dialog {
                                 color: Theme.textPrimary
                             }
                             Text {
-                                text: "Behavior when launching Parakeet."
+                                text: "Behavior when launching PicAudio."
                                 font.pixelSize: Theme.fontSizeSmall - 1
                                 color: Theme.textMuted
                                 wrapMode: Text.WordWrap
@@ -720,7 +747,7 @@ Dialog {
                     // Single-Instance
                     StyledCheckBox {
                         Layout.fillWidth: true
-                        text: "Allow only a single instance of Parakeet (forward tracks to running instance)"
+                        text: "Allow only a single instance of PicAudio (forward tracks to running instance)"
                         checked: bridge.singleInstance
                         onToggled: bridge.setSingleInstance(checked)
                     }
@@ -834,7 +861,7 @@ Dialog {
                         Layout.fillWidth: true
                         opacity: bridge.showNotifications ? 1.0 : 0.4
                         enabled: bridge.showNotifications
-                        text: "Suppress notifications when Parakeet is the focused foreground window"
+                        text: "Suppress notifications when PicAudio is the focused foreground window"
                         checked: bridge.suppressNotificationsWhenFocused
                         onToggled: bridge.setSuppressNotificationsWhenFocused(checked)
                     }
@@ -2480,6 +2507,38 @@ Dialog {
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
 
+                    // Album Grouping & Featuring Artists
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "Group Albums with Guest/Featuring Artists"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+                            Text {
+                                text: "Keep albums with guest or featuring artists unified into a single album card instead of splitting them by artist combinations."
+                                font.pixelSize: Theme.fontSizeSmall - 1
+                                color: Theme.textMuted
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        StyledCheckBox {
+                            text: "Unified"
+                            checked: bridge.groupAlbumsByTitle
+                            onToggled: bridge.setGroupAlbumsByTitle(checked)
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+
                     // Maintenance Operations
                     Text {
                         text: "Library Maintenance & Database Utilities"
@@ -2810,6 +2869,14 @@ Dialog {
                         }
                         Item { Layout.fillWidth: true }
                         StyledButton {
+                            text: "Import Keymap..."
+                            onClicked: importKeymapDialog.open()
+                        }
+                        StyledButton {
+                            text: "Export Keymap..."
+                            onClicked: exportKeymapDialog.open()
+                        }
+                        StyledButton {
                             text: "Restore All Defaults"
                             onClicked: bridge.restoreDefaultHotkeys()
                         }
@@ -3131,7 +3198,7 @@ Dialog {
                     spacing: 16
 
                     Text {
-                        text: "Plugins & Extensions (Parakeet SDK)"
+                        text: "Plugins & Extensions (PicAudio SDK)"
                         font.pixelSize: Theme.fontSizeLarge
                         font.bold: true
                         color: Theme.textPrimary

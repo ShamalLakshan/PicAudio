@@ -1,9 +1,9 @@
 {
-  "$schema": "https://parakeet-audio.org/schemas/theme-v1.json",
+  "$schema": "https://picaudio.org/schemas/theme-v1.json",
   "meta": {
     "id": "nord-audiophile",
     "name": "Nord",
-    "author": "Parakeet Community",
+    "author": "PicAudio Community",
     "version": "1.0.0",
     "apiVersion": "0.1-unstable",
     "description": "Arctic, north-bluish clean palette tailored for night listening"

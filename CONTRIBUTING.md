@@ -1,10 +1,10 @@
-# Contributing to Parakeet
+# Contributing to PicAudio
 
 This guide covers setting up the development environment, building the project from source, running the test suite, and contributing changes.
 
 ## Prerequisites
 
-Building Parakeet requires:
+Building PicAudio requires:
 - C++20 compatible compiler (GCC 11+, Clang 13+)
 - CMake 3.20+
 - Qt 6 (Core, Gui, Qml, Quick, QuickControls2)
@@ -33,8 +33,8 @@ sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtdeclarative-devel taglib-d
 
 Clone the repository:
 ```bash
-git clone https://github.com/ShamalLakshan/Parakeet.git
-cd Parakeet
+git clone https://github.com/ShamalLakshan/PicAudio.git
+cd PicAudio
 ```
 
 Configure and build:
@@ -45,7 +45,7 @@ cmake --build build -j$(nproc)
 
 Run the application:
 ```bash
-./build/app/Parakeet
+./build/app/PicAudio
 ```
 
 ## Running Tests
@@ -57,15 +57,15 @@ Unit tests use GoogleTest and can be run through `ctest` or executed directly:
 ctest --test-dir build --output-on-failure
 
 # Or run test binary directly
-./build/tests/parakeet_tests
+./build/tests/picaudio_tests
 ```
 
 ## Architecture Overview
 
-Parakeet uses a clean architecture structure:
+PicAudio uses a clean architecture structure:
 
 ```
-Parakeet/
+PicAudio/
 ├── core/            # Domain logic, entities, ports, and services (pure C++20, no Qt)
 ├── adapters/        # Concrete implementations:
 │   ├── audio/       # miniaudio playback backend

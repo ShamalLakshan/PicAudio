@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://parakeet-audio.org/schemas/theme-v1.json",
-  "title": "ParakeetTheme",
-  "description": "JSON schema for Parakeet Audiophile Music Player visual themes",
+  "$id": "https://picaudio.org/schemas/theme-v1.json",
+  "title": "PicAudioTheme",
+  "description": "JSON schema for PicAudio Audiophile Music Player visual themes",
   "type": "object",
   "required": [
     "meta",
@@ -35,7 +35,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "Target Parakeet theme API version (e.g. 0.1-unstable, 1.0)"
+          "description": "Target PicAudio theme API version (e.g. 0.1-unstable, 1.0)"
         },
         "description": {
           "type": "string",

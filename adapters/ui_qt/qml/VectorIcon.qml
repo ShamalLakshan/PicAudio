@@ -117,6 +117,15 @@ Canvas {
             ctx.lineTo(w * 0.85, h * 0.65);
             ctx.moveTo(w * 0.85, h * 0.35);
             ctx.lineTo(w * 0.65, h * 0.65);
+        } else if (name === "filter") {
+            ctx.beginPath();
+            ctx.moveTo(w * 0.15, h * 0.22);
+            ctx.lineTo(w * 0.85, h * 0.22);
+            ctx.lineTo(w * 0.58, h * 0.54);
+            ctx.lineTo(w * 0.58, h * 0.82);
+            ctx.lineTo(w * 0.42, h * 0.72);
+            ctx.lineTo(w * 0.42, h * 0.54);
+            ctx.closePath();
             ctx.stroke();
         } else if (name === "search") {
             var cr = w * 0.26;
@@ -148,7 +157,40 @@ Canvas {
             ctx.lineTo(w * 0.8, h * 0.15);
             ctx.lineTo(w * 0.8, h * 0.6);
             ctx.stroke();
-            ctx.fillRect(w * 0.4, h * 0.18, w * 0.4, h * 0.1);
+        } else if (name === "disc") {
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.5, w * 0.42, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.5, w * 0.22, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.5, w * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (name === "lyrics") {
+            ctx.beginPath();
+            ctx.moveTo(w * 0.16, h * 0.24);
+            ctx.lineTo(w * 0.84, h * 0.24);
+            ctx.moveTo(w * 0.16, h * 0.46);
+            ctx.lineTo(w * 0.64, h * 0.46);
+            ctx.moveTo(w * 0.16, h * 0.68);
+            ctx.lineTo(w * 0.84, h * 0.68);
+            ctx.moveTo(w * 0.16, h * 0.86);
+            ctx.lineTo(w * 0.52, h * 0.86);
+            ctx.stroke();
+        } else if (name === "wave") {
+            ctx.beginPath();
+            ctx.moveTo(w * 0.14, h * 0.4);
+            ctx.lineTo(w * 0.14, h * 0.6);
+            ctx.moveTo(w * 0.32, h * 0.22);
+            ctx.lineTo(w * 0.32, h * 0.78);
+            ctx.moveTo(w * 0.50, h * 0.12);
+            ctx.lineTo(w * 0.50, h * 0.88);
+            ctx.moveTo(w * 0.68, h * 0.28);
+            ctx.lineTo(w * 0.68, h * 0.72);
+            ctx.moveTo(w * 0.86, h * 0.42);
+            ctx.lineTo(w * 0.86, h * 0.58);
+            ctx.stroke();
         } else if (name === "grid") {
             var sz = w * 0.32;
             ctx.strokeRect(w * 0.14, h * 0.14, sz, sz);

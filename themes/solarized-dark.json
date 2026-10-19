@@ -1,9 +1,9 @@
 {
-  "$schema": "https://parakeet-audio.org/schemas/theme-v1.json",
+  "$schema": "https://picaudio.org/schemas/theme-v1.json",
   "meta": {
     "id": "solarized-dark",
     "name": "Solarized Dark",
-    "author": "Parakeet Community",
+    "author": "PicAudio Community",
     "version": "1.0.0",
     "apiVersion": "0.1-unstable",
     "description": "Warm low-contrast palette calibrated for eye comfort"

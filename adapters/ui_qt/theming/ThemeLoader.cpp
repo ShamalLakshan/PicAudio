@@ -29,6 +29,9 @@ ThemeLoader::ThemeLoader(QObject *parent)
 }
 
 QString ThemeLoader::getUserThemesDir() const {
+  if (qEnvironmentVariableIsSet("PICAUDIO_DATA_DIR")) {
+    return qEnvironmentVariable("PICAUDIO_DATA_DIR") + "/themes";
+  }
   return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
          "/themes";
 }
@@ -43,8 +46,9 @@ QStringList ThemeLoader::getThemeSearchPaths() const {
   QString appDir = QCoreApplication::applicationDirPath();
   if (!appDir.isEmpty()) {
     paths << appDir + "/themes";
-    paths << appDir + "/../share/parakeet/themes";
-    paths << appDir + "/../../themes"; // dev build location relative to build/app
+    paths << appDir + "/../share/picaudio/themes";
+    paths << appDir +
+                 "/../../themes"; // dev build location relative to build/app
   }
 
   // 3. Current working directory themes (development)
@@ -119,7 +123,7 @@ ThemeTokens ThemeLoader::getDefaultDarkStudioTheme() {
   ThemeTokens t;
   t.id = "dark-studio";
   t.name = "Dark Studio";
-  t.author = "Parakeet";
+  t.author = "PicAudio";
   t.version = "1.0.0";
   t.apiVersion = "0.1-unstable";
   t.description = "Default dark theme";
@@ -159,7 +163,7 @@ ThemeTokens ThemeLoader::getBuiltInNordTheme() {
   ThemeTokens t;
   t.id = "nord-audiophile";
   t.name = "Nord";
-  t.author = "Parakeet Community";
+  t.author = "PicAudio Community";
   t.version = "1.0.0";
   t.apiVersion = "0.1-unstable";
   t.description =
@@ -200,7 +204,7 @@ ThemeTokens ThemeLoader::getBuiltInSolarizedDarkTheme() {
   ThemeTokens t;
   t.id = "solarized-dark";
   t.name = "Solarized Dark";
-  t.author = "Parakeet Community";
+  t.author = "PicAudio Community";
   t.version = "1.0.0";
   t.apiVersion = "0.1-unstable";
   t.description = "Warm low-contrast palette calibrated for eye comfort";
@@ -549,8 +553,7 @@ bool ThemeLoader::deleteTheme(const QString &id) {
   return true;
 }
 
-bool ThemeLoader::exportTheme(const QString &id,
-                              const QString &destFilePath) {
+bool ThemeLoader::exportTheme(const QString &id, const QString &destFilePath) {
   if (!m_themeRegistry.contains(id)) {
     emit themeLoadError("Theme not found for export");
     return false;
@@ -698,27 +701,29 @@ void ThemeLoader::refreshAvailableThemes() {
     }
   }
 
-  // Ensure built-in fallbacks exist in registry even if disk/resource scanning found nothing
+  // Ensure built-in fallbacks exist in registry even if disk/resource scanning
+  // found nothing
   if (!m_themeRegistry.contains("dark-studio")) {
     ThemeTokens ds = getDefaultDarkStudioTheme();
     m_themeRegistry["dark-studio"] = ThemeMetadata{
-        ds.id,         ds.name, ds.author, ds.version, ds.apiVersion,
-        ds.description, true,   false,     "",         ds};
+        ds.id,          ds.name, ds.author, ds.version, ds.apiVersion,
+        ds.description, true,    false,     "",         ds};
   }
   if (!m_themeRegistry.contains("nord-audiophile")) {
     ThemeTokens nord = getBuiltInNordTheme();
     m_themeRegistry["nord-audiophile"] = ThemeMetadata{
-        nord.id,         nord.name, nord.author, nord.version, nord.apiVersion,
-        nord.description, true,     false,       "",          nord};
+        nord.id,          nord.name, nord.author, nord.version, nord.apiVersion,
+        nord.description, true,      false,       "",           nord};
   }
   if (!m_themeRegistry.contains("solarized-dark")) {
     ThemeTokens sol = getBuiltInSolarizedDarkTheme();
     m_themeRegistry["solarized-dark"] = ThemeMetadata{
-        sol.id,         sol.name, sol.author, sol.version, sol.apiVersion,
-        sol.description, true,    false,      "",          sol};
+        sol.id,          sol.name, sol.author, sol.version, sol.apiVersion,
+        sol.description, true,     false,      "",          sol};
   }
 
-  // Sort: dark-studio first, then other built-in themes, then user themes alphabetically
+  // Sort: dark-studio first, then other built-in themes, then user themes
+  // alphabetically
   QList<ThemeMetadata> sortedList = m_themeRegistry.values();
   std::sort(sortedList.begin(), sortedList.end(),
             [](const ThemeMetadata &a, const ThemeMetadata &b) {
@@ -764,7 +769,8 @@ void ThemeLoader::refreshAvailableThemes() {
 
   emit availableThemesChanged();
 
-  // If active theme exists in registry, reload its tokens (handles live editing)
+  // If active theme exists in registry, reload its tokens (handles live
+  // editing)
   if (!m_tokens.id.isEmpty() && m_themeRegistry.contains(m_tokens.id)) {
     m_tokens = m_themeRegistry[m_tokens.id].tokens;
     emit themeChanged();

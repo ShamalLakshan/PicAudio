@@ -2,16 +2,22 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequence>
+#include <QQmlApplicationEngine>
+#include <QRegularExpression>
+#include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QTextStream>
+#include <QTranslator>
 #include <QUrl>
 #include <algorithm>
 #include <chrono>
@@ -45,12 +51,12 @@ QtBridge::QtBridge(core::PlayerService &player, core::LibraryService &library,
   if (m_themeLoader) {
     connect(m_themeLoader, &adapters::ThemeLoader::themeChanged, this,
             [this]() {
-              QSettings s("ParakeetAudio", "Parakeet");
+              QSettings s("PicAudio", "PicAudio");
               s.setValue("appearance/themeId", m_themeLoader->themeId());
             });
     connect(m_themeLoader, &adapters::ThemeLoader::uiScaleChanged, this,
             [this]() {
-              QSettings s("ParakeetAudio", "Parakeet");
+              QSettings s("PicAudio", "PicAudio");
               s.setValue("appearance/uiScale", m_themeLoader->uiScale());
               s.setValue("appearance/densityPreset",
                          m_themeLoader->densityPreset());
@@ -59,18 +65,30 @@ QtBridge::QtBridge(core::PlayerService &player, core::LibraryService &library,
 
   initTableColumns();
   loadColumnSettings();
+  loadViewLayoutSettings();
   loadSettings();
   refreshLibraryStats();
   refreshHistory();
   setupPositionTimer();
+  setupVisualizerTimer();
+
+  connect(m_trackModel, &TrackListModel::sortChanged, this,
+          &QtBridge::saveColumnSettings);
 
   if (m_autoScanOnStartup && !m_monitoredFolders.isEmpty()) {
     rescanAllMonitoredFolders();
   }
 }
 
+QtBridge::~QtBridge() {
+  savePlaybackSession();
+  saveViewLayoutSettings();
+  saveColumnSettings();
+  saveSettings();
+}
+
 void QtBridge::loadSettings() {
-  QSettings s("ParakeetAudio", "Parakeet");
+  QSettings s("PicAudio", "PicAudio");
 
   // Playback & DSP
   m_gaplessPlayback = s.value("playback/gaplessPlayback", true).toBool();
@@ -91,6 +109,8 @@ void QtBridge::loadSettings() {
   m_longSeekStepSec = s.value("playback/longSeekStepSec", 30).toInt();
   m_stopAfterCurrentTrack =
       s.value("playback/stopAfterCurrentTrack", false).toBool();
+  m_showRemainingTime = s.value("playback/showRemainingTime", false).toBool();
+  m_volumeLocked = s.value("playback/volumeLocked", false).toBool();
 
   // Queue & Ergonomics
   m_doubleClickAction =
@@ -122,6 +142,10 @@ void QtBridge::loadSettings() {
           .toString();
   m_artworkPriority =
       s.value("library/artworkPriority", "Embedded Tags First").toString();
+  m_library.getMetadataExtractor().setArtworkPriority(
+      m_artworkPriority != "External Folder Art First");
+  m_groupAlbumsByTitle = s.value("library/groupAlbumsByTitle", true).toBool();
+  m_library.getDatabasePort().setGroupAlbumsByTitle(m_groupAlbumsByTitle);
 
   // General
   m_language = s.value("general/language", "System Default").toString();
@@ -214,7 +238,7 @@ void QtBridge::loadSettings() {
 }
 
 void QtBridge::saveSettings() {
-  QSettings s("ParakeetAudio", "Parakeet");
+  QSettings s("PicAudio", "PicAudio");
 
   // Playback & DSP
   s.setValue("playback/gaplessPlayback", m_gaplessPlayback);
@@ -229,6 +253,8 @@ void QtBridge::saveSettings() {
   s.setValue("playback/shortSeekStepSec", m_shortSeekStepSec);
   s.setValue("playback/longSeekStepSec", m_longSeekStepSec);
   s.setValue("playback/stopAfterCurrentTrack", m_stopAfterCurrentTrack);
+  s.setValue("playback/showRemainingTime", m_showRemainingTime);
+  s.setValue("playback/volumeLocked", m_volumeLocked);
 
   // Queue & Ergonomics
   s.setValue("playback/doubleClickAction", m_doubleClickAction);
@@ -246,6 +272,7 @@ void QtBridge::saveSettings() {
   s.setValue("library/formatFilters", m_formatFilters);
   s.setValue("library/excludeFolders", m_excludeFolders);
   s.setValue("library/artworkPriority", m_artworkPriority);
+  s.setValue("library/groupAlbumsByTitle", m_groupAlbumsByTitle);
 
   // General
   s.setValue("general/language", m_language);
@@ -332,6 +359,7 @@ void QtBridge::setupPositionTimer() {
       }
 
       emit positionChanged();
+      updateActiveLyricIndex();
 
       // Check duration
       uint64_t realDur = m_player.getDurationMs();
@@ -344,13 +372,57 @@ void QtBridge::setupPositionTimer() {
   });
 }
 
+void QtBridge::setupVisualizerTimer() {
+  m_visualizerTimer = new QTimer(this);
+  m_visualizerTimer->setInterval(33); // ~30-60 FPS smooth updates
+  connect(m_visualizerTimer, &QTimer::timeout, this,
+          &QtBridge::updateVisualizerData);
+  m_visualizerTimer->start();
+}
+
+void QtBridge::updateVisualizerData() {
+  auto bands = m_player.getFrequencyBands(36);
+  auto wave = m_player.getWaveformSamples(64);
+  float level = m_player.getAudioLevel();
+
+  bool hasEnergy = (level > 0.001f);
+  if (!hasEnergy && !m_isPlaying && m_visualizerLevel < 0.001f &&
+      m_visualizerBands.isEmpty()) {
+    return;
+  }
+
+  m_visualizerBands.clear();
+  m_visualizerBands.reserve(static_cast<qsizetype>(bands.size()));
+  for (float b : bands) {
+    m_visualizerBands.append(b);
+  }
+
+  m_visualizerWaveform.clear();
+  m_visualizerWaveform.reserve(static_cast<qsizetype>(wave.size()));
+  for (float w : wave) {
+    m_visualizerWaveform.append(w);
+  }
+
+  m_visualizerLevel = level;
+  emit visualizerDataChanged();
+}
+
 QString QtBridge::formatTime(qint64 ms) {
+  if (ms < 0)
+    return "00:00";
   qint64 totalSec = ms / 1000;
-  qint64 min = totalSec / 60;
+  qint64 hrs = totalSec / 3600;
+  qint64 min = (totalSec % 3600) / 60;
   qint64 sec = totalSec % 60;
-  char buf[16];
-  std::snprintf(buf, sizeof(buf), "%02lld:%02lld", static_cast<long long>(min),
-                static_cast<long long>(sec));
+  char buf[32];
+  if (hrs > 0) {
+    std::snprintf(buf, sizeof(buf), "%lld:%02lld:%02lld",
+                  static_cast<long long>(hrs), static_cast<long long>(min),
+                  static_cast<long long>(sec));
+  } else {
+    std::snprintf(buf, sizeof(buf), "%02lld:%02lld",
+                  static_cast<long long>(min), static_cast<long long>(sec));
+  }
   return QString::fromUtf8(buf);
 }
 
@@ -367,6 +439,9 @@ QString QtBridge::formatBytes(uint64_t bytes) {
 
 QString QtBridge::currentArtUrl() const {
   if (m_currentArtHash.isEmpty()) {
+    if (!m_currentFilePath.isEmpty()) {
+      return "image://albumart/" + m_currentFilePath;
+    }
     return "image://albumart/default";
   }
   return "image://albumart/" + m_currentArtHash;
@@ -402,13 +477,20 @@ QStringList QtBridge::availablePlaylists() const {
     return QStringList();
   }
   QStringList filters;
-  filters << "*.m3u8" << "*.m3u";
+  filters << "*.m3u8" << "*.m3u" << "*.smart.json";
   QStringList files = dir.entryList(filters, QDir::Files, QDir::Name);
   QStringList playlistNames;
   for (const auto &f : files) {
-    QFileInfo fi(f);
-    playlistNames.append(fi.completeBaseName());
+    if (f.endsWith(".smart.json")) {
+      QString base = f;
+      base.chop(11);
+      playlistNames.append(base);
+    } else {
+      QFileInfo fi(f);
+      playlistNames.append(fi.completeBaseName());
+    }
   }
+  playlistNames.removeDuplicates();
   return playlistNames;
 }
 
@@ -674,7 +756,8 @@ void QtBridge::playSelectionNow(const QStringList &selectedIds) {
   std::vector<core::Track> newQueue;
   newQueue.reserve(selectedTracks.size() + remainingTracks.size());
   newQueue.insert(newQueue.end(), selectedTracks.begin(), selectedTracks.end());
-  newQueue.insert(newQueue.end(), remainingTracks.begin(), remainingTracks.end());
+  newQueue.insert(newQueue.end(), remainingTracks.begin(),
+                  remainingTracks.end());
 
   if (!newQueue.empty()) {
     m_player.playQueue(newQueue, 0);
@@ -783,6 +866,107 @@ void QtBridge::queueAlbumLast(const QString &albumTitle,
   }
 }
 
+bool QtBridge::addAlbumToPlaylist(const QString &albumTitle,
+                                  const QString &albumArtist,
+                                  const QString &playlistName) {
+  auto tracks = m_library.getTracksForAlbum(albumTitle.toStdString(),
+                                            albumArtist.toStdString());
+  if (tracks.empty()) {
+    return false;
+  }
+  QVariantList list;
+  for (const auto &t : tracks) {
+    QVariantMap map;
+    map["id"] = QString::fromStdString(t.id);
+    map["title"] = QString::fromStdString(t.title);
+    map["artist"] = QString::fromStdString(t.artist);
+    map["filePath"] = QString::fromStdString(t.filePath);
+    map["durationMs"] = static_cast<qint64>(t.durationMs);
+    list.append(map);
+  }
+  return addTracksToPlaylist(playlistName, list);
+}
+
+void QtBridge::showAlbumInFileManager(const QString &albumTitle,
+                                      const QString &albumArtist) {
+  auto tracks = m_library.getTracksForAlbum(albumTitle.toStdString(),
+                                            albumArtist.toStdString());
+  if (!tracks.empty()) {
+    showInFileManager(QString::fromStdString(tracks[0].filePath));
+  }
+}
+
+QVariantList QtBridge::getAlbumTracks(const QString &albumTitle,
+                                      const QString &albumArtist) const {
+  auto tracks = m_library.getTracksForAlbum(albumTitle.toStdString(),
+                                            albumArtist.toStdString());
+  QVariantList list;
+  for (const auto &t : tracks) {
+    QVariantMap map;
+    map["id"] = QString::fromStdString(t.id);
+    map["title"] = QString::fromStdString(t.title);
+    map["artist"] = QString::fromStdString(t.artist);
+    map["album"] = QString::fromStdString(t.album);
+    map["genre"] = QString::fromStdString(t.genre);
+    map["year"] = t.year;
+    map["trackNumber"] = t.trackNumber;
+    map["filePath"] = QString::fromStdString(t.filePath);
+    map["durationMs"] = static_cast<qint64>(t.durationMs);
+    map["durationFormatted"] = formatTime(t.durationMs);
+    map["codec"] = QString::fromStdString(t.codec);
+    map["sampleRate"] = t.sampleRate;
+    map["bitDepth"] = t.bitDepth;
+    map["bitrate"] = t.bitrate;
+    list.append(map);
+  }
+  return list;
+}
+
+void QtBridge::searchAlbumArtworkOnline(const QString &albumTitle,
+                                        const QString &albumArtist) {
+  QString query = albumTitle + " " + albumArtist + " album cover art";
+  QUrl url("https://musicbrainz.org/search?type=release&query=" +
+           QUrl::toPercentEncoding(query));
+  QDesktopServices::openUrl(url);
+}
+
+bool QtBridge::exportAlbumArtwork(const QString &albumTitle,
+                                  const QString &albumArtist,
+                                  const QString &targetFilePath) {
+  auto tracks = m_library.getTracksForAlbum(albumTitle.toStdString(),
+                                            albumArtist.toStdString());
+  if (tracks.empty()) {
+    tracks = m_library.getTracksForAlbum(albumTitle.toStdString(), "");
+    if (tracks.empty()) {
+      return false;
+    }
+  }
+  QString clean = targetFilePath;
+  if (clean.startsWith("file://")) {
+    clean = QUrl(clean).toLocalFile();
+  }
+  auto art =
+      m_library.getMetadataExtractor().extractArtwork(tracks[0].filePath);
+  if (art && !art->data.empty()) {
+    QFile file(clean);
+    if (file.open(QIODevice::WriteOnly)) {
+      file.write(reinterpret_cast<const char *>(art->data.data()),
+                 art->data.size());
+      file.close();
+      return true;
+    }
+  }
+  QString appDataDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  QString cachedCover = appDataDir + "/covers/" +
+                        QString::fromStdString(tracks[0].artHash) + ".jpg";
+  if (QFile::exists(cachedCover)) {
+    QFile::remove(clean);
+    return QFile::copy(cachedCover, clean);
+  }
+  return false;
+}
+
 void QtBridge::removeFromQueue(int index) {
   if (index >= 0) {
     m_player.removeFromQueue(static_cast<size_t>(index));
@@ -806,6 +990,31 @@ void QtBridge::clearQueue() {
 void QtBridge::shuffleRemainingQueue() {
   m_player.shuffleRemaining();
   syncQueueModel();
+}
+
+bool QtBridge::saveQueueAsPlaylist(const QString &playlistName) {
+  QString cleanName = playlistName.trimmed();
+  if (cleanName.isEmpty()) {
+    return false;
+  }
+  auto queueTracks = m_player.getQueueService().exportQueueAsPlaylist();
+  if (queueTracks.empty()) {
+    queueTracks = m_queueTrackModel->tracks();
+  }
+  if (queueTracks.empty()) {
+    return false;
+  }
+  QVariantList list;
+  for (const auto &t : queueTracks) {
+    QVariantMap map;
+    map["id"] = QString::fromStdString(t.id);
+    map["title"] = QString::fromStdString(t.title);
+    map["artist"] = QString::fromStdString(t.artist);
+    map["filePath"] = QString::fromStdString(t.filePath);
+    map["durationMs"] = static_cast<qint64>(t.durationMs);
+    list.append(map);
+  }
+  return addTracksToPlaylist(cleanName, list);
 }
 
 void QtBridge::playTrackAtIndex(int index) {
@@ -892,6 +1101,7 @@ void QtBridge::updatePlaybackState(const core::Track &track) {
   m_positionMs = 0;
   m_positionStr = "00:00";
   m_durationStr = QString::fromStdString(track.durationFormatted());
+  loadLyricsForTrack(m_currentFilePath);
 
   m_positionTimer->start();
   emit playbackChanged();
@@ -916,9 +1126,11 @@ void QtBridge::stop() {
   m_isPlaying = false;
   m_positionMs = 0;
   m_positionStr = "00:00";
+  m_activeLyricIndex = -1;
   m_positionTimer->stop();
   emit playbackChanged();
   emit positionChanged();
+  emit activeLyricIndexChanged();
 }
 
 void QtBridge::nextTrack() {
@@ -954,6 +1166,7 @@ void QtBridge::seek(qint64 posMs) {
   m_positionStr = formatTime(m_positionMs);
   m_player.seek(static_cast<uint64_t>(m_positionMs));
   emit positionChanged();
+  updateActiveLyricIndex();
 }
 
 void QtBridge::setVolume(float volume) {
@@ -1253,6 +1466,39 @@ void QtBridge::openPlaylist(const QString &playlistName) {
   QString dirPath =
       QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
       "/playlists";
+
+  QString smartPath = dirPath + "/" + cleanName + ".smart.json";
+  if (QFile::exists(smartPath)) {
+    QFile file(smartPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+      file.close();
+      auto allTracks = m_library.getTracks();
+      std::vector<core::Track> matched;
+      if (doc.isObject()) {
+        QString rules = doc.object()["rules"].toString().trimmed();
+        if (!rules.isEmpty()) {
+          for (const auto &t : allTracks) {
+            if (QString::fromStdString(t.genre).contains(rules,
+                                                         Qt::CaseInsensitive) ||
+                QString::fromStdString(t.artist).contains(
+                    rules, Qt::CaseInsensitive) ||
+                QString::fromStdString(t.album).contains(rules,
+                                                         Qt::CaseInsensitive)) {
+              matched.push_back(t);
+            }
+          }
+        } else {
+          matched = allTracks;
+        }
+      } else {
+        matched = allTracks;
+      }
+      m_trackModel->setTracks(matched);
+      return;
+    }
+  }
+
   QString filePath = dirPath + "/" + cleanName + ".m3u8";
   QFile file(filePath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -1286,6 +1532,164 @@ void QtBridge::openPlaylist(const QString &playlistName) {
   file.close();
 
   m_trackModel->setTracks(playlistTracks);
+}
+
+void QtBridge::playPlaylist(const QString &playlistName) {
+  openPlaylist(playlistName);
+  const auto &tracks = m_trackModel->tracks();
+  if (!tracks.empty()) {
+    m_player.playQueue(tracks, 0);
+    updatePlaybackState(tracks[0]);
+    syncQueueModel();
+  }
+}
+
+void QtBridge::playPlaylistNext(const QString &playlistName) {
+  openPlaylist(playlistName);
+  const auto &tracks = m_trackModel->tracks();
+  if (!tracks.empty()) {
+    m_player.playNext(tracks);
+    syncQueueModel();
+  }
+}
+
+void QtBridge::queuePlaylistLast(const QString &playlistName) {
+  openPlaylist(playlistName);
+  const auto &tracks = m_trackModel->tracks();
+  if (!tracks.empty()) {
+    m_player.queueLast(tracks);
+    syncQueueModel();
+  }
+}
+
+bool QtBridge::renamePlaylist(const QString &oldName, const QString &newName) {
+  QString cleanOld = oldName.trimmed();
+  QString cleanNew = newName.trimmed();
+  if (cleanOld.isEmpty() || cleanNew.isEmpty() || cleanOld == cleanNew)
+    return false;
+  QString dirPath =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+      "/playlists";
+  bool ok = false;
+  QString oldM3u = dirPath + "/" + cleanOld + ".m3u8";
+  QString newM3u = dirPath + "/" + cleanNew + ".m3u8";
+  if (QFile::exists(oldM3u)) {
+    QFile::remove(newM3u);
+    ok = QFile::rename(oldM3u, newM3u);
+  }
+  QString oldSmart = dirPath + "/" + cleanOld + ".smart.json";
+  QString newSmart = dirPath + "/" + cleanNew + ".smart.json";
+  if (QFile::exists(oldSmart)) {
+    QFile::remove(newSmart);
+    ok = QFile::rename(oldSmart, newSmart) || ok;
+  }
+  if (ok) {
+    emit playlistsChanged();
+  }
+  return ok;
+}
+
+bool QtBridge::duplicatePlaylist(const QString &playlistName) {
+  QString cleanName = playlistName.trimmed();
+  if (cleanName.isEmpty())
+    return false;
+  QString dirPath =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+      "/playlists";
+  QString m3uPath = dirPath + "/" + cleanName + ".m3u8";
+  QString smartPath = dirPath + "/" + cleanName + ".smart.json";
+  QString newBase = cleanName + " (Copy)";
+  int counter = 2;
+  while (QFile::exists(dirPath + "/" + newBase + ".m3u8") ||
+         QFile::exists(dirPath + "/" + newBase + ".smart.json")) {
+    newBase = QString("%1 (Copy %2)").arg(cleanName).arg(counter++);
+  }
+  bool copied = false;
+  if (QFile::exists(m3uPath)) {
+    copied = QFile::copy(m3uPath, dirPath + "/" + newBase + ".m3u8");
+  }
+  if (QFile::exists(smartPath)) {
+    copied = QFile::copy(smartPath, dirPath + "/" + newBase + ".smart.json") ||
+             copied;
+  }
+  if (copied) {
+    emit playlistsChanged();
+  }
+  return copied;
+}
+
+bool QtBridge::exportPlaylistFile(const QString &playlistName,
+                                  const QString &targetFilePath) {
+  QString cleanName = playlistName.trimmed();
+  if (cleanName.isEmpty())
+    return false;
+  QString dirPath =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+      "/playlists";
+  QString src = dirPath + "/" + cleanName + ".m3u8";
+  if (!QFile::exists(src)) {
+    src = dirPath + "/" + cleanName + ".smart.json";
+  }
+  if (!QFile::exists(src))
+    return false;
+  QString target = targetFilePath;
+  if (target.startsWith("file://")) {
+    target = QUrl(target).toLocalFile();
+  }
+  QFile::remove(target);
+  return QFile::copy(src, target);
+}
+
+bool QtBridge::deletePlaylist(const QString &playlistName) {
+  QString cleanName = playlistName.trimmed();
+  if (cleanName.isEmpty())
+    return false;
+  QString dirPath =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+      "/playlists";
+  QString m3uPath = dirPath + "/" + cleanName + ".m3u8";
+  QString smartPath = dirPath + "/" + cleanName + ".smart.json";
+  bool removed = false;
+  if (QFile::exists(m3uPath)) {
+    removed = QFile::remove(m3uPath);
+  }
+  if (QFile::exists(smartPath)) {
+    removed = QFile::remove(smartPath) || removed;
+  }
+  if (removed) {
+    emit playlistsChanged();
+  }
+  return removed;
+}
+
+bool QtBridge::isSmartPlaylist(const QString &playlistName) const {
+  QString dirPath =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+      "/playlists";
+  return QFile::exists(dirPath + "/" + playlistName.trimmed() + ".smart.json");
+}
+
+QString QtBridge::getSmartPlaylistRules(const QString &playlistName) const {
+  QString dirPath =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+      "/playlists";
+  QFile file(dirPath + "/" + playlistName.trimmed() + ".smart.json");
+  if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if (doc.isObject()) {
+      return doc.object()["rules"].toString();
+    }
+  }
+  return "";
+}
+
+bool QtBridge::updateSmartPlaylistRules(const QString &playlistName,
+                                        const QString &rulesJson) {
+  QString cleanName = playlistName.trimmed();
+  if (cleanName.isEmpty())
+    return false;
+  return createSmartPlaylist(cleanName, rulesJson);
 }
 
 int QtBridge::deduplicateTracks() {
@@ -1340,12 +1744,12 @@ QString QtBridge::getLogFilePath() const {
   QString logDir =
       QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
   QDir().mkpath(logDir);
-  QString logPath = logDir + "/parakeet.log";
+  QString logPath = logDir + "/picaudio.log";
   if (!QFile::exists(logPath)) {
     QFile f(logPath);
     if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
       QTextStream out(&f);
-      out << "[Parakeet Session Log]\n";
+      out << "[PicAudio Session Log]\n";
       out << "Version: 0.1.0\n";
       out << "Backend: " << m_audioBackend << "\n";
       f.close();
@@ -1412,6 +1816,24 @@ void QtBridge::copyToClipboard(const QString &text) {
   }
 }
 
+QString QtBridge::formatDuration(qint64 ms) const { return formatTime(ms); }
+
+void QtBridge::setShowRemainingTime(bool enable) {
+  if (m_showRemainingTime != enable) {
+    m_showRemainingTime = enable;
+    saveSettings();
+    emit showRemainingTimeChanged();
+  }
+}
+
+void QtBridge::setVolumeLocked(bool locked) {
+  if (m_volumeLocked != locked) {
+    m_volumeLocked = locked;
+    saveSettings();
+    emit volumeLockedChanged();
+  }
+}
+
 void QtBridge::openAudioFile(const QString &filePath) {
   QString cleanPath = filePath;
   QUrl url = QUrl::fromUserInput(filePath);
@@ -1475,6 +1897,184 @@ void QtBridge::openFolder(const QString &folderPath, bool enqueue) {
       m_player.playQueue(folderTracks, 0);
       updatePlaybackState(folderTracks[0]);
       syncQueueModel();
+    }
+  }
+}
+
+QStringList QtBridge::extractAudioFilesFromUrls(const QList<QUrl> &urls) {
+  QStringList audioFiles;
+  static const QStringList extensions = {
+      QStringLiteral(".flac"), QStringLiteral(".wav"), QStringLiteral(".aiff"),
+      QStringLiteral(".aif"),  QStringLiteral(".mp3"), QStringLiteral(".m4a"),
+      QStringLiteral(".alac"), QStringLiteral(".mp4"), QStringLiteral(".m4b"),
+      QStringLiteral(".aac"),  QStringLiteral(".ogg"), QStringLiteral(".oga"),
+      QStringLiteral(".opus"), QStringLiteral(".spx"), QStringLiteral(".dsf"),
+      QStringLiteral(".dff"),  QStringLiteral(".ape"), QStringLiteral(".wv"),
+      QStringLiteral(".wma"),  QStringLiteral(".cue"), QStringLiteral(".m3u"),
+      QStringLiteral(".m3u8"), QStringLiteral(".pls")};
+
+  for (const QUrl &url : urls) {
+    QString path = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    if (path.startsWith(QStringLiteral("file://"))) {
+      path = path.mid(7);
+    }
+    QFileInfo fi(path);
+    if (!fi.exists()) {
+      continue;
+    }
+
+    if (fi.isDir()) {
+      QDirIterator it(path, QDir::Files | QDir::NoSymLinks,
+                      QDirIterator::Subdirectories);
+      while (it.hasNext()) {
+        it.next();
+        QString ext = QStringLiteral(".") + it.fileInfo().suffix().toLower();
+        if (extensions.contains(ext)) {
+          audioFiles.append(it.filePath());
+        }
+      }
+    } else if (fi.isFile()) {
+      QString ext = QStringLiteral(".") + fi.suffix().toLower();
+      if (extensions.contains(ext)) {
+        audioFiles.append(fi.absoluteFilePath());
+      }
+    }
+  }
+  return audioFiles;
+}
+
+void QtBridge::handleDropOnTracks(const QList<QUrl> &urls,
+                                  bool playImmediately) {
+  QStringList files = extractAudioFilesFromUrls(urls);
+  if (files.isEmpty()) {
+    return;
+  }
+
+  std::vector<core::Track> tracks;
+  tracks.reserve(files.size());
+
+  for (const QString &file : files) {
+    if (file.endsWith(QStringLiteral(".cue"), Qt::CaseInsensitive)) {
+      openCueSheet(file);
+      continue;
+    }
+    auto trackOpt =
+        m_library.getMetadataExtractor().extract(file.toStdString());
+    if (trackOpt) {
+      m_library.getDatabasePort().saveTrack(*trackOpt);
+      tracks.push_back(*trackOpt);
+    }
+  }
+
+  if (tracks.empty()) {
+    return;
+  }
+
+  m_trackModel->loadAllTracks();
+  m_albumModel->reload();
+  refreshLibraryStats();
+
+  if (playImmediately) {
+    m_player.playQueue(tracks, 0);
+    updatePlaybackState(tracks[0]);
+  } else {
+    m_player.queueLast(tracks);
+  }
+  syncQueueModel();
+}
+
+void QtBridge::handleDropOnQueue(const QList<QUrl> &urls) {
+  QStringList files = extractAudioFilesFromUrls(urls);
+  if (files.isEmpty()) {
+    return;
+  }
+
+  std::vector<core::Track> tracks;
+  tracks.reserve(files.size());
+
+  for (const QString &file : files) {
+    auto trackOpt =
+        m_library.getMetadataExtractor().extract(file.toStdString());
+    if (trackOpt) {
+      m_library.getDatabasePort().saveTrack(*trackOpt);
+      tracks.push_back(*trackOpt);
+    }
+  }
+
+  if (!tracks.empty()) {
+    m_player.queueLast(tracks);
+    syncQueueModel();
+  }
+}
+
+void QtBridge::handleDropOnPlaylist(const QList<QUrl> &urls,
+                                    const QString &targetPlaylist) {
+  QStringList files = extractAudioFilesFromUrls(urls);
+  if (files.isEmpty()) {
+    return;
+  }
+
+  QString plName = targetPlaylist.trimmed();
+  if (plName.isEmpty()) {
+    if (!urls.isEmpty()) {
+      QString firstPath = urls.first().isLocalFile()
+                              ? urls.first().toLocalFile()
+                              : urls.first().toString();
+      if (firstPath.startsWith(QStringLiteral("file://"))) {
+        firstPath = firstPath.mid(7);
+      }
+      QFileInfo fi(firstPath);
+      if (fi.isDir()) {
+        plName = fi.fileName();
+      } else {
+        plName = fi.dir().dirName();
+      }
+    }
+    if (plName.isEmpty()) {
+      plName = QStringLiteral("Dropped Tracks");
+    }
+    createPlaylist(plName);
+  }
+
+  QVariantList trackVariants;
+  for (const QString &file : files) {
+    auto trackOpt =
+        m_library.getMetadataExtractor().extract(file.toStdString());
+    if (trackOpt) {
+      m_library.getDatabasePort().saveTrack(*trackOpt);
+      QVariantMap map;
+      map.insert(QStringLiteral("filePath"),
+                 QString::fromStdString(trackOpt->filePath));
+      map.insert(QStringLiteral("title"),
+                 QString::fromStdString(trackOpt->title));
+      map.insert(QStringLiteral("artist"),
+                 QString::fromStdString(trackOpt->artist));
+      map.insert(QStringLiteral("durationMs"),
+                 static_cast<qint64>(trackOpt->durationMs));
+      trackVariants.append(map);
+    }
+  }
+
+  if (!trackVariants.isEmpty()) {
+    addTracksToPlaylist(plName, trackVariants);
+    if (m_activePlaylistName == plName) {
+      openPlaylist(plName);
+    }
+  }
+}
+
+void QtBridge::handleDropOnExplorer(const QList<QUrl> &urls) {
+  for (const QUrl &url : urls) {
+    QString path = url.isLocalFile() ? url.toLocalFile() : url.toString();
+    if (path.startsWith(QStringLiteral("file://"))) {
+      path = path.mid(7);
+    }
+    QFileInfo fi(path);
+    if (fi.isDir()) {
+      addMonitoredFolder(path);
+      scanDirectory(path);
+    } else if (fi.isFile()) {
+      openAudioFile(path);
     }
   }
 }
@@ -1858,7 +2458,7 @@ bool QtBridge::deleteFilesFromDisk(const QStringList &trackIds) {
 }
 
 void QtBridge::setTracksRating(const QStringList &trackIds, int rating) {
-  QSettings s("Parakeet", "ParakeetPlayer");
+  QSettings s("PicAudio", "PicAudioPlayer");
   s.beginGroup("ratings");
   for (const auto &id : trackIds) {
     if (rating <= 0) {
@@ -1872,12 +2472,12 @@ void QtBridge::setTracksRating(const QStringList &trackIds, int rating) {
 }
 
 int QtBridge::getTrackRating(const QString &trackId) const {
-  QSettings s("Parakeet", "ParakeetPlayer");
+  QSettings s("PicAudio", "PicAudioPlayer");
   return s.value("ratings/" + trackId, 0).toInt();
 }
 
 void QtBridge::toggleTracksFavorite(const QStringList &trackIds) {
-  QSettings s("Parakeet", "ParakeetPlayer");
+  QSettings s("PicAudio", "PicAudioPlayer");
   s.beginGroup("favorites");
   for (const auto &id : trackIds) {
     bool fav = s.value(id, false).toBool();
@@ -1888,7 +2488,7 @@ void QtBridge::toggleTracksFavorite(const QStringList &trackIds) {
 }
 
 bool QtBridge::isTrackFavorite(const QString &trackId) const {
-  QSettings s("Parakeet", "ParakeetPlayer");
+  QSettings s("PicAudio", "PicAudioPlayer");
   return s.value("favorites/" + trackId, false).toBool();
 }
 
@@ -1912,6 +2512,33 @@ void QtBridge::removeMonitoredFolder(int index) {
     m_monitoredFolders.removeAt(index);
     saveSettings();
   }
+}
+
+void QtBridge::removeMonitoredFolderPath(const QString &folderPath) {
+  QString local = folderPath;
+  QUrl u = QUrl::fromUserInput(folderPath);
+  if (u.isLocalFile())
+    local = u.toLocalFile();
+  else if (local.startsWith("file://"))
+    local = local.mid(7);
+
+  for (int i = 0; i < m_monitoredFolders.size(); ++i) {
+    if (m_monitoredFolders[i] == local || m_monitoredFolders[i] == folderPath) {
+      removeMonitoredFolder(i);
+      return;
+    }
+  }
+}
+
+void QtBridge::rescanMonitoredFolder(const QString &folderPath) {
+  QString local = folderPath;
+  QUrl u = QUrl::fromUserInput(folderPath);
+  if (u.isLocalFile())
+    local = u.toLocalFile();
+  else if (local.startsWith("file://"))
+    local = local.mid(7);
+
+  scanDirectory(local.isEmpty() ? folderPath : local);
 }
 
 void QtBridge::rescanAllMonitoredFolders() {
@@ -2130,7 +2757,20 @@ void QtBridge::setExcludeFolders(const QString &patterns) {
 void QtBridge::setArtworkPriority(const QString &priority) {
   if (m_artworkPriority != priority) {
     m_artworkPriority = priority;
+    m_library.getMetadataExtractor().setArtworkPriority(
+        m_artworkPriority != "External Folder Art First");
     saveSettings();
+  }
+}
+
+void QtBridge::setGroupAlbumsByTitle(bool enabled) {
+  if (m_groupAlbumsByTitle != enabled) {
+    m_groupAlbumsByTitle = enabled;
+    m_library.getDatabasePort().setGroupAlbumsByTitle(enabled);
+    saveSettings();
+    emit librarySettingsChanged();
+    emit libraryStatsChanged();
+    m_albumModel->reload();
   }
 }
 
@@ -2143,7 +2783,7 @@ void QtBridge::optimizeDatabase() {
 void QtBridge::exportDatabaseBackup(const QString &targetFilePath) {
   QString src =
       QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
-      "/parakeet_library.db";
+      "/picaudio_library.db";
   QString dest = targetFilePath;
   QUrl u = QUrl::fromUserInput(targetFilePath);
   if (u.isLocalFile())
@@ -2157,6 +2797,54 @@ void QtBridge::setLanguage(const QString &lang) {
   if (m_language != lang) {
     m_language = lang;
     saveSettings();
+    applyLanguage(m_language);
+    emit settingsChanged();
+  }
+}
+
+QStringList QtBridge::availableLanguages() const {
+  return {QStringLiteral("System Default"), QStringLiteral("English"),
+          QStringLiteral("Deutsch"),        QStringLiteral("Español"),
+          QStringLiteral("Français"),       QStringLiteral("日本語")};
+}
+
+void QtBridge::setQmlEngine(QQmlApplicationEngine *engine) {
+  m_qmlEngine = engine;
+  if (m_language != QStringLiteral("System Default")) {
+    applyLanguage(m_language);
+  }
+}
+
+void QtBridge::applyLanguage(const QString &lang) {
+  if (!m_qmlEngine) {
+    return;
+  }
+  if (!m_translator) {
+    m_translator = new QTranslator(this);
+    QCoreApplication::installTranslator(m_translator);
+  }
+
+  QString langCode;
+  if (lang == QStringLiteral("English")) {
+    langCode = QStringLiteral("en");
+  } else if (lang == QStringLiteral("Deutsch")) {
+    langCode = QStringLiteral("de");
+  } else if (lang == QStringLiteral("Español")) {
+    langCode = QStringLiteral("es");
+  } else if (lang == QStringLiteral("Français")) {
+    langCode = QStringLiteral("fr");
+  } else if (lang == QStringLiteral("日本語")) {
+    langCode = QStringLiteral("ja");
+  } else {
+    langCode = QLocale::system().name().left(2);
+  }
+
+  if (m_translator->load(QStringLiteral(":/i18n/picaudio_") + langCode)) {
+    m_qmlEngine->retranslate();
+  } else if (langCode != QStringLiteral("en")) {
+    if (m_translator->load(QStringLiteral(":/i18n/picaudio_en"))) {
+      m_qmlEngine->retranslate();
+    }
   }
 }
 
@@ -2526,6 +3214,79 @@ QString QtBridge::checkHotkeyConflict(const QString &actionId,
   return "";
 }
 
+QString QtBridge::getHotkeySequence(const QString &actionId) const {
+  for (const auto &entry : m_hotkeys) {
+    if (entry.id == actionId) {
+      return entry.currentSequence;
+    }
+  }
+  return QString();
+}
+
+bool QtBridge::exportHotkeys(const QString &filePath) const {
+  QString localPath = filePath;
+  if (localPath.startsWith(QStringLiteral("file://"))) {
+    localPath = QUrl(filePath).toLocalFile();
+  }
+  QJsonObject rootObj;
+  rootObj[QStringLiteral("version")] = 1;
+  rootObj[QStringLiteral("application")] = QStringLiteral("PicAudio");
+  QJsonObject keymapObj;
+  for (const auto &entry : m_hotkeys) {
+    keymapObj[entry.id] = entry.currentSequence;
+  }
+  rootObj[QStringLiteral("keymaps")] = keymapObj;
+
+  QJsonDocument doc(rootObj);
+  QFile file(localPath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    return false;
+  }
+  file.write(doc.toJson(QJsonDocument::Indented));
+  file.close();
+  return true;
+}
+
+bool QtBridge::importHotkeys(const QString &filePath) {
+  QString localPath = filePath;
+  if (localPath.startsWith(QStringLiteral("file://"))) {
+    localPath = QUrl(filePath).toLocalFile();
+  }
+  QFile file(localPath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+  QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+  file.close();
+  if (!doc.isObject()) {
+    return false;
+  }
+  QJsonObject rootObj = doc.object();
+  QJsonObject keymapObj = rootObj[QStringLiteral("keymaps")].toObject();
+  if (keymapObj.isEmpty()) {
+    return false;
+  }
+  bool changed = false;
+  for (auto &entry : m_hotkeys) {
+    if (keymapObj.contains(entry.id)) {
+      QString newSeq = keymapObj.value(entry.id).toString();
+      if (entry.currentSequence != newSeq) {
+        entry.currentSequence = newSeq;
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    saveSettings();
+    emit hotkeysChanged();
+  }
+  return true;
+}
+
+void QtBridge::showToast(const QString &message, const QString &type) {
+  emit toastRequested(message, type);
+}
+
 void QtBridge::setLastfmEnabled(bool enable) {
   if (m_lastfmEnabled != enable) {
     m_lastfmEnabled = enable;
@@ -2640,7 +3401,7 @@ void QtBridge::exportDiagnosticsReport(const QString &targetFilePath) {
   QFile file(dest);
   if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
     QTextStream out(&file);
-    out << "Parakeet Audio Player - Diagnostics Report\n";
+    out << "PicAudio Player - Diagnostics Report\n";
     out << "==========================================\n\n";
     out << "OS: " << QSysInfo::prettyProductName() << " ("
         << QSysInfo::currentCpuArchitecture() << ")\n";
@@ -2711,7 +3472,7 @@ QString QtBridge::checkDatabaseIntegrity() {
 }
 
 void QtBridge::resetAllSettingsToDefaults() {
-  QSettings s("ParakeetAudio", "Parakeet");
+  QSettings s("PicAudio", "PicAudio");
   s.clear();
 
   // Playback & DSP defaults
@@ -2743,6 +3504,8 @@ void QtBridge::resetAllSettingsToDefaults() {
   m_excludeFolders =
       ".*, node_modules, temp, @eaDir, System Volume Information";
   m_artworkPriority = "Embedded Tags First";
+  m_groupAlbumsByTitle = true;
+  m_library.getDatabasePort().setGroupAlbumsByTitle(true);
 
   // General defaults
   m_language = "System Default";
@@ -2832,8 +3595,7 @@ void QtBridge::initTableColumns() {
       {"dateAdded", "Date Added", "DATE ADDED", false, 90, 90, false},
       {"filePath", "File Path", "FILE PATH", false, 180, 180, false},
       {"fileSize", "File Size", "SIZE", false, 64, 64, false},
-      {"duration", "Duration", "TIME", true, 50, 50, true}
-  };
+      {"duration", "Duration", "TIME", true, 50, 50, true}};
 }
 
 QVariantMap QtBridge::tableColumns() const {
@@ -2934,7 +3696,8 @@ void QtBridge::autoSizeColumn(const QString &colKey) {
       }
       if (colKey == "title")
         optimalWidth = std::clamp(static_cast<int>(maxLen * 7 + 24), 120, 360);
-      else if (colKey == "artist" || colKey == "album" || colKey == "albumArtist")
+      else if (colKey == "artist" || colKey == "album" ||
+               colKey == "albumArtist")
         optimalWidth = std::clamp(static_cast<int>(maxLen * 7 + 24), 80, 260);
       else if (colKey == "genre")
         optimalWidth = std::clamp(static_cast<int>(maxLen * 7 + 20), 70, 160);
@@ -2972,7 +3735,8 @@ void QtBridge::autoSizeAllColumns() {
     }
     if (col.key == "title")
       optimalWidth = std::clamp(static_cast<int>(maxLen * 7 + 24), 120, 360);
-    else if (col.key == "artist" || col.key == "album" || col.key == "albumArtist")
+    else if (col.key == "artist" || col.key == "album" ||
+             col.key == "albumArtist")
       optimalWidth = std::clamp(static_cast<int>(maxLen * 7 + 24), 80, 260);
     else if (col.key == "genre")
       optimalWidth = std::clamp(static_cast<int>(maxLen * 7 + 20), 70, 160);
@@ -2986,17 +3750,89 @@ void QtBridge::autoSizeAllColumns() {
 }
 
 void QtBridge::resetTableColumns() {
-  for (auto &col : m_columns) {
-    col.visible = col.defaultVisible;
-    col.width = col.defaultWidth;
+  initTableColumns();
+  if (m_trackModel) {
+    m_trackModel->clearSort();
   }
   saveColumnSettings();
   emit tableColumnsChanged();
 }
 
+void QtBridge::moveColumn(int fromIndex, int toIndex) {
+  if (fromIndex >= 0 && fromIndex < static_cast<int>(m_columns.size()) &&
+      toIndex >= 0 && toIndex < static_cast<int>(m_columns.size()) &&
+      fromIndex != toIndex) {
+    auto col = m_columns[static_cast<size_t>(fromIndex)];
+    m_columns.erase(m_columns.begin() + fromIndex);
+    m_columns.insert(m_columns.begin() + toIndex, col);
+    saveColumnSettings();
+    emit tableColumnsChanged();
+  }
+}
+
+void QtBridge::setColumnOrder(const QStringList &orderKeys) {
+  if (orderKeys.isEmpty())
+    return;
+  std::vector<ColumnMeta> reordered;
+  reordered.reserve(m_columns.size());
+  for (const auto &key : orderKeys) {
+    for (const auto &col : m_columns) {
+      if (col.key == key) {
+        reordered.push_back(col);
+        break;
+      }
+    }
+  }
+  for (const auto &col : m_columns) {
+    bool found = false;
+    for (const auto &r : reordered) {
+      if (r.key == col.key) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      reordered.push_back(col);
+    }
+  }
+  m_columns = std::move(reordered);
+  saveColumnSettings();
+  emit tableColumnsChanged();
+}
+
+QStringList QtBridge::tableColumnOrder() const { return tableColumnKeys(); }
+
 void QtBridge::loadColumnSettings() {
-  QSettings s("ParakeetAudio", "Parakeet");
+  QSettings s("PicAudio", "PicAudio");
   s.beginGroup("table_columns");
+
+  QStringList savedOrder = s.value("order").toStringList();
+  if (!savedOrder.isEmpty()) {
+    std::vector<ColumnMeta> reordered;
+    reordered.reserve(m_columns.size());
+    for (const auto &k : savedOrder) {
+      for (const auto &col : m_columns) {
+        if (col.key == k) {
+          reordered.push_back(col);
+          break;
+        }
+      }
+    }
+    for (const auto &col : m_columns) {
+      bool found = false;
+      for (const auto &r : reordered) {
+        if (r.key == col.key) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        reordered.push_back(col);
+      }
+    }
+    m_columns = std::move(reordered);
+  }
+
   for (auto &col : m_columns) {
     if (s.contains(col.key + "/visible")) {
       col.visible = s.value(col.key + "/visible").toBool();
@@ -3005,15 +3841,609 @@ void QtBridge::loadColumnSettings() {
       col.width = s.value(col.key + "/width").toInt();
     }
   }
+
+  QString sortCol = s.value("sort/column", "").toString();
+  bool sortAsc = s.value("sort/ascending", true).toBool();
+  if (!sortCol.isEmpty() && m_trackModel) {
+    m_trackModel->sortBy(sortCol, sortAsc);
+  }
+
   s.endGroup();
 }
 
 void QtBridge::saveColumnSettings() {
-  QSettings s("ParakeetAudio", "Parakeet");
+  QSettings s("PicAudio", "PicAudio");
   s.beginGroup("table_columns");
+  s.setValue("order", tableColumnOrder());
   for (const auto &col : m_columns) {
     s.setValue(col.key + "/visible", col.visible);
     s.setValue(col.key + "/width", col.width);
   }
+  if (m_trackModel) {
+    s.setValue("sort/column", m_trackModel->sortColumn());
+    s.setValue("sort/ascending", m_trackModel->sortAscending());
+  }
   s.endGroup();
+  s.sync();
+}
+
+void QtBridge::saveWindowGeometry(int x, int y, int width, int height,
+                                  bool isMaximized) {
+  QSettings s("PicAudio", "PicAudio");
+  s.beginGroup("window_geometry");
+  s.setValue("x", x);
+  s.setValue("y", y);
+  s.setValue("width", width);
+  s.setValue("height", height);
+  s.setValue("maximized", isMaximized);
+  s.endGroup();
+  s.sync();
+}
+
+QVariantMap QtBridge::loadWindowGeometry(int defaultWidth, int defaultHeight) {
+  QSettings s("PicAudio", "PicAudio");
+  s.beginGroup("window_geometry");
+  bool hasSaved = s.contains("width") && s.contains("height");
+  int x = s.value("x", 0).toInt();
+  int y = s.value("y", 0).toInt();
+  int w = s.value("width", defaultWidth).toInt();
+  int h = s.value("height", defaultHeight).toInt();
+  bool isMaximized = s.value("maximized", false).toBool();
+  s.endGroup();
+
+  if (w < 400)
+    w = defaultWidth;
+  if (h < 300)
+    h = defaultHeight;
+
+  QRect savedRect(x, y, w, h);
+  const auto screens = QGuiApplication::screens();
+  bool intersectsActiveScreen = screens.isEmpty();
+  for (const auto *screen : screens) {
+    if (!screen)
+      continue;
+    QRect avail = screen->availableGeometry();
+    QRect inter = avail.intersected(savedRect);
+    if (inter.width() >= 100 && inter.height() >= 100) {
+      intersectsActiveScreen = true;
+      break;
+    }
+  }
+
+  if (!hasSaved || !intersectsActiveScreen) {
+    QScreen *primary = QGuiApplication::primaryScreen();
+    QRect avail =
+        primary ? primary->availableGeometry() : QRect(0, 0, 1920, 1080);
+    w = std::min(w, avail.width());
+    h = std::min(h, avail.height());
+    x = avail.x() + (avail.width() - w) / 2;
+    y = avail.y() + (avail.height() - h) / 2;
+  }
+
+  QVariantMap res;
+  res["x"] = x;
+  res["y"] = y;
+  res["width"] = w;
+  res["height"] = h;
+  res["maximized"] = isMaximized;
+  res["valid"] = hasSaved;
+  return res;
+}
+
+void QtBridge::setLeftPanelWidth(int width) {
+  int clamped = std::clamp(width, 140, 450);
+  if (m_leftPanelWidth != clamped) {
+    m_leftPanelWidth = clamped;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setShowLeftPanel(bool show) {
+  if (m_showLeftPanel != show) {
+    m_showLeftPanel = show;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setRightPanelWidth(int width) {
+  int clamped = std::clamp(width, 180, 500);
+  if (m_rightPanelWidth != clamped) {
+    m_rightPanelWidth = clamped;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setShowRightPanel(bool show) {
+  if (m_showRightPanel != show) {
+    m_showRightPanel = show;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setColumnBrowserHeight(int height) {
+  int clamped = std::clamp(height, 70, 350);
+  if (m_columnBrowserHeight != clamped) {
+    m_columnBrowserHeight = clamped;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setShowColumnBrowser(bool show) {
+  if (m_showColumnBrowser != show) {
+    m_showColumnBrowser = show;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setActiveWorkspaceViewMode(int mode) {
+  if (m_activeWorkspaceViewMode != mode) {
+    m_activeWorkspaceViewMode = mode;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setActiveNavSection(int nav) {
+  if (m_activeNavSection != nav) {
+    m_activeNavSection = nav;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::setActivePlaylistName(const QString &name) {
+  if (m_activePlaylistName != name) {
+    m_activePlaylistName = name;
+    saveViewLayoutSettings();
+    emit viewLayoutChanged();
+  }
+}
+
+void QtBridge::loadViewLayoutSettings() {
+  QSettings s("PicAudio", "PicAudio");
+  s.beginGroup("view_layout");
+  m_leftPanelWidth = s.value("leftPanelWidth", 210).toInt();
+  m_showLeftPanel = s.value("showLeftPanel", true).toBool();
+  m_rightPanelWidth = s.value("rightPanelWidth", 270).toInt();
+  m_showRightPanel = s.value("showRightPanel", true).toBool();
+  m_columnBrowserHeight = s.value("columnBrowserHeight", 121).toInt();
+  m_showColumnBrowser = s.value("showColumnBrowser", false).toBool();
+  m_activeWorkspaceViewMode = s.value("activeWorkspaceViewMode", 1).toInt();
+  m_activeNavSection = s.value("activeNavSection", 0).toInt();
+  m_activePlaylistName = s.value("activePlaylistName", "").toString();
+  s.endGroup();
+}
+
+void QtBridge::saveViewLayoutSettings() {
+  QSettings s("PicAudio", "PicAudio");
+  s.beginGroup("view_layout");
+  s.setValue("leftPanelWidth", m_leftPanelWidth);
+  s.setValue("showLeftPanel", m_showLeftPanel);
+  s.setValue("rightPanelWidth", m_rightPanelWidth);
+  s.setValue("showRightPanel", m_showRightPanel);
+  s.setValue("columnBrowserHeight", m_columnBrowserHeight);
+  s.setValue("showColumnBrowser", m_showColumnBrowser);
+  s.setValue("activeWorkspaceViewMode", m_activeWorkspaceViewMode);
+  s.setValue("activeNavSection", m_activeNavSection);
+  s.setValue("activePlaylistName", m_activePlaylistName);
+  s.endGroup();
+  s.sync();
+}
+
+void QtBridge::savePlaybackSession() {
+  QSettings s("PicAudio", "PicAudio");
+  s.beginGroup("session");
+
+  auto currentTrackOpt = m_player.getCurrentTrack();
+  if (currentTrackOpt.has_value()) {
+    s.setValue("has_session", true);
+    s.setValue("track_id", QString::fromStdString(currentTrackOpt->id));
+    s.setValue("track_path", QString::fromStdString(currentTrackOpt->filePath));
+    s.setValue("track_title", QString::fromStdString(currentTrackOpt->title));
+    s.setValue("track_artist", QString::fromStdString(currentTrackOpt->artist));
+    s.setValue("track_album", QString::fromStdString(currentTrackOpt->album));
+    s.setValue("position_ms", static_cast<qint64>(m_player.getPositionMs()));
+  } else {
+    s.setValue("has_session", false);
+  }
+
+  float volToSave =
+      m_isMuted ? (m_prevVolume > 0.0f ? m_prevVolume : 0.8f) : m_volume;
+  s.setValue("volume", volToSave);
+  s.setValue("muted", m_isMuted);
+  s.setValue("shuffle_mode", static_cast<int>(m_player.getShuffleMode()));
+  s.setValue("repeat_mode", static_cast<int>(m_player.getRepeatMode()));
+
+  // Up Next Queue serialization
+  const auto &upNext = m_player.getQueueService().getUpNext();
+  QJsonArray upNextArr;
+  for (const auto &t : upNext) {
+    QJsonObject obj;
+    obj["id"] = QString::fromStdString(t.id);
+    obj["filePath"] = QString::fromStdString(t.filePath);
+    obj["title"] = QString::fromStdString(t.title);
+    obj["artist"] = QString::fromStdString(t.artist);
+    obj["album"] = QString::fromStdString(t.album);
+    obj["durationMs"] = static_cast<qint64>(t.durationMs);
+    upNextArr.append(obj);
+  }
+  s.setValue("up_next", QString::fromUtf8(QJsonDocument(upNextArr).toJson(
+                            QJsonDocument::Compact)));
+
+  // Main Stream serialization
+  const auto &mainStream = m_player.getQueueService().getMainStream();
+  QJsonArray mainStreamArr;
+  for (const auto &t : mainStream) {
+    QJsonObject obj;
+    obj["id"] = QString::fromStdString(t.id);
+    obj["filePath"] = QString::fromStdString(t.filePath);
+    obj["title"] = QString::fromStdString(t.title);
+    obj["artist"] = QString::fromStdString(t.artist);
+    obj["album"] = QString::fromStdString(t.album);
+    obj["durationMs"] = static_cast<qint64>(t.durationMs);
+    mainStreamArr.append(obj);
+  }
+  s.setValue("main_stream",
+             QString::fromUtf8(
+                 QJsonDocument(mainStreamArr).toJson(QJsonDocument::Compact)));
+  s.setValue("main_stream_index",
+             static_cast<int>(m_player.getQueueService().getMainStreamIndex()));
+
+  // History stack serialization
+  const auto &history = m_player.getQueueService().getHistory();
+  QJsonArray historyArr;
+  for (const auto &t : history) {
+    QJsonObject obj;
+    obj["id"] = QString::fromStdString(t.id);
+    obj["filePath"] = QString::fromStdString(t.filePath);
+    obj["title"] = QString::fromStdString(t.title);
+    obj["artist"] = QString::fromStdString(t.artist);
+    obj["album"] = QString::fromStdString(t.album);
+    obj["durationMs"] = static_cast<qint64>(t.durationMs);
+    historyArr.append(obj);
+  }
+  s.setValue("history",
+             QString::fromUtf8(
+                 QJsonDocument(historyArr).toJson(QJsonDocument::Compact)));
+
+  s.endGroup();
+  s.sync();
+}
+
+void QtBridge::restorePlaybackSession() {
+  if (m_startupAction == "Open Empty") {
+    return;
+  }
+
+  QSettings s("PicAudio", "PicAudio");
+  s.beginGroup("session");
+
+  if (!s.value("has_session", false).toBool()) {
+    s.endGroup();
+    return;
+  }
+
+  float vol = s.value("volume", 0.8f).toFloat();
+  bool muted = s.value("muted", false).toBool();
+  int sMode = s.value("shuffle_mode", 0).toInt();
+  int rMode = s.value("repeat_mode", 0).toInt();
+
+  if (muted) {
+    m_prevVolume = vol;
+    setVolume(0.0f);
+    m_isMuted = true;
+  } else {
+    setVolume(vol);
+    m_isMuted = false;
+  }
+  setShuffleMode(sMode);
+  setRepeatMode(rMode);
+
+  QString trackId = s.value("track_id").toString();
+  QString trackPath = s.value("track_path").toString();
+  qint64 posMs = s.value("position_ms", 0).toLongLong();
+
+  std::optional<core::Track> currentTrack;
+  if (!trackId.isEmpty()) {
+    currentTrack = m_library.getTrackById(trackId.toStdString());
+  }
+  if (!currentTrack.has_value() && !trackPath.isEmpty()) {
+    currentTrack =
+        m_library.getDatabasePort().getTrackByPath(trackPath.toStdString());
+  }
+  if (!currentTrack.has_value() && !trackPath.isEmpty()) {
+    core::Track t;
+    t.id = trackId.toStdString();
+    t.filePath = trackPath.toStdString();
+    t.title = s.value("track_title").toString().toStdString();
+    t.artist = s.value("track_artist").toString().toStdString();
+    t.album = s.value("track_album").toString().toStdString();
+    currentTrack = t;
+  }
+
+  // Parse up_next
+  std::vector<core::Track> upNext;
+  QString upNextJson = s.value("up_next").toString();
+  if (!upNextJson.isEmpty()) {
+    auto doc = QJsonDocument::fromJson(upNextJson.toUtf8());
+    for (const auto &val : doc.array()) {
+      auto obj = val.toObject();
+      std::string id = obj["id"].toString().toStdString();
+      auto opt = m_library.getTrackById(id);
+      if (opt.has_value()) {
+        upNext.push_back(*opt);
+      } else {
+        core::Track t;
+        t.id = id;
+        t.filePath = obj["filePath"].toString().toStdString();
+        t.title = obj["title"].toString().toStdString();
+        t.artist = obj["artist"].toString().toStdString();
+        t.album = obj["album"].toString().toStdString();
+        t.durationMs = static_cast<uint64_t>(obj["durationMs"].toInteger());
+        upNext.push_back(t);
+      }
+    }
+  }
+
+  // Parse main_stream
+  std::vector<core::Track> mainStream;
+  QString mainStreamJson = s.value("main_stream").toString();
+  if (!mainStreamJson.isEmpty()) {
+    auto doc = QJsonDocument::fromJson(mainStreamJson.toUtf8());
+    for (const auto &val : doc.array()) {
+      auto obj = val.toObject();
+      std::string id = obj["id"].toString().toStdString();
+      auto opt = m_library.getTrackById(id);
+      if (opt.has_value()) {
+        mainStream.push_back(*opt);
+      } else {
+        core::Track t;
+        t.id = id;
+        t.filePath = obj["filePath"].toString().toStdString();
+        t.title = obj["title"].toString().toStdString();
+        t.artist = obj["artist"].toString().toStdString();
+        t.album = obj["album"].toString().toStdString();
+        t.durationMs = static_cast<uint64_t>(obj["durationMs"].toInteger());
+        mainStream.push_back(t);
+      }
+    }
+  }
+  size_t mainStreamIndex =
+      static_cast<size_t>(s.value("main_stream_index", 0).toInt());
+
+  // Parse history
+  std::vector<core::Track> history;
+  QString historyJson = s.value("history").toString();
+  if (!historyJson.isEmpty()) {
+    auto doc = QJsonDocument::fromJson(historyJson.toUtf8());
+    for (const auto &val : doc.array()) {
+      auto obj = val.toObject();
+      std::string id = obj["id"].toString().toStdString();
+      auto opt = m_library.getTrackById(id);
+      if (opt.has_value()) {
+        history.push_back(*opt);
+      } else {
+        core::Track t;
+        t.id = id;
+        t.filePath = obj["filePath"].toString().toStdString();
+        t.title = obj["title"].toString().toStdString();
+        t.artist = obj["artist"].toString().toStdString();
+        t.album = obj["album"].toString().toStdString();
+        t.durationMs = static_cast<uint64_t>(obj["durationMs"].toInteger());
+        history.push_back(t);
+      }
+    }
+  }
+
+  s.endGroup();
+
+  bool autoResume = (m_startupAction == "Play Immediately");
+  m_player.restoreSession(currentTrack, static_cast<uint64_t>(posMs), upNext,
+                          mainStream, mainStreamIndex, history, autoResume);
+
+  if (currentTrack.has_value()) {
+    updatePlaybackState(*currentTrack);
+    m_positionMs = posMs;
+    m_positionStr = formatTime(m_positionMs);
+    emit positionChanged();
+  }
+  syncQueueModel();
+  emit queueChanged();
+}
+
+void QtBridge::loadLyricsForTrack(const QString &filePath) {
+  if (filePath.isEmpty()) {
+    m_hasLyrics = false;
+    m_isLyricsSynchronized = false;
+    m_currentLyrics = "";
+    m_lyricsList.clear();
+    m_currentLyricsLines.clear();
+    m_activeLyricIndex = -1;
+    emit lyricsChanged();
+    emit activeLyricIndexChanged();
+    return;
+  }
+
+  QFileInfo fileInfo(filePath);
+  QString basePath = fileInfo.path() + "/" + fileInfo.completeBaseName();
+
+  // Try sidecar .lrc or .txt first
+  QString lrcPath = basePath + ".lrc";
+  if (QFile::exists(lrcPath)) {
+    QFile file(lrcPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      QString content = QString::fromUtf8(file.readAll());
+      parseLrcContent(content);
+      return;
+    }
+  }
+
+  QString txtPath = basePath + ".txt";
+  if (QFile::exists(txtPath)) {
+    QFile file(txtPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      QString content = QString::fromUtf8(file.readAll());
+      parseLrcContent(content);
+      return;
+    }
+  }
+
+  // Try embedded metadata tags
+  std::string embeddedLyrics =
+      m_library.getMetadataExtractor().extractLyrics(filePath.toStdString());
+  if (!embeddedLyrics.empty()) {
+    parseLrcContent(QString::fromUtf8(embeddedLyrics.c_str()));
+    return;
+  }
+
+  // No lyrics found
+  m_hasLyrics = false;
+  m_isLyricsSynchronized = false;
+  m_currentLyrics = "";
+  m_lyricsList.clear();
+  m_currentLyricsLines.clear();
+  m_activeLyricIndex = -1;
+  emit lyricsChanged();
+  emit activeLyricIndexChanged();
+}
+
+void QtBridge::parseLrcContent(const QString &content) {
+  m_lyricsList.clear();
+  m_currentLyricsLines.clear();
+  m_currentLyrics = content;
+
+  if (content.trimmed().isEmpty()) {
+    m_hasLyrics = false;
+    m_isLyricsSynchronized = false;
+    m_activeLyricIndex = -1;
+    emit lyricsChanged();
+    emit activeLyricIndexChanged();
+    return;
+  }
+
+  static const QRegularExpression timeRegex(
+      R"(\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\])");
+
+  QStringList rawLines = content.split('\n');
+  bool hasAnyTimestamp = false;
+
+  for (const QString &rawLine : rawLines) {
+    QString trimmed = rawLine.trimmed();
+    if (trimmed.isEmpty())
+      continue;
+
+    // Skip LRC metadata tags like [ar:Artist], [ti:Title], [al:Album]
+    if (trimmed.startsWith("[ar:") || trimmed.startsWith("[ti:") ||
+        trimmed.startsWith("[al:") || trimmed.startsWith("[by:") ||
+        trimmed.startsWith("[length:") || trimmed.startsWith("[re:") ||
+        trimmed.startsWith("[ve:") || trimmed.startsWith("[offset:")) {
+      continue;
+    }
+
+    auto matchIterator = timeRegex.globalMatch(trimmed);
+    if (matchIterator.hasNext()) {
+      hasAnyTimestamp = true;
+      int lastTimestampEnd = 0;
+      QList<qint64> timestamps;
+      while (matchIterator.hasNext()) {
+        auto match = matchIterator.next();
+        qint64 min = match.captured(1).toLongLong();
+        qint64 sec = match.captured(2).toLongLong();
+        qint64 ms = 0;
+        if (!match.captured(3).isEmpty()) {
+          QString msStr = match.captured(3);
+          if (msStr.length() == 1) {
+            ms = msStr.toLongLong() * 100;
+          } else if (msStr.length() == 2) {
+            ms = msStr.toLongLong() * 10;
+          } else {
+            ms = msStr.toLongLong();
+          }
+        }
+        timestamps.append((min * 60 + sec) * 1000 + ms);
+        lastTimestampEnd = match.capturedEnd();
+      }
+      QString text = trimmed.mid(lastTimestampEnd).trimmed();
+      for (qint64 t : timestamps) {
+        LyricLine line;
+        line.timeMs = t;
+        line.timeStr = formatTime(t);
+        line.text = text;
+        m_lyricsList.append(line);
+      }
+    } else {
+      LyricLine line;
+      line.timeMs = -1;
+      line.timeStr = "";
+      line.text = trimmed;
+      m_lyricsList.append(line);
+    }
+  }
+
+  if (hasAnyTimestamp) {
+    std::sort(m_lyricsList.begin(), m_lyricsList.end(),
+              [](const LyricLine &a, const LyricLine &b) {
+                return a.timeMs < b.timeMs;
+              });
+    m_isLyricsSynchronized = true;
+  } else {
+    m_isLyricsSynchronized = false;
+  }
+
+  m_hasLyrics = !m_lyricsList.isEmpty();
+
+  for (const auto &line : m_lyricsList) {
+    QVariantMap map;
+    map["timeMs"] = line.timeMs;
+    map["timeStr"] = line.timeStr;
+    map["text"] = line.text;
+    m_currentLyricsLines.append(map);
+  }
+
+  updateActiveLyricIndex();
+  emit lyricsChanged();
+}
+
+void QtBridge::updateActiveLyricIndex() {
+  if (!m_isLyricsSynchronized || m_lyricsList.isEmpty()) {
+    if (m_activeLyricIndex != -1) {
+      m_activeLyricIndex = -1;
+      emit activeLyricIndexChanged();
+    }
+    return;
+  }
+
+  int newIndex = -1;
+  for (int i = 0; i < m_lyricsList.size(); ++i) {
+    if (m_lyricsList[i].timeMs <= m_positionMs) {
+      newIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  if (newIndex != m_activeLyricIndex) {
+    m_activeLyricIndex = newIndex;
+    emit activeLyricIndexChanged();
+  }
+}
+
+void QtBridge::seekToLyric(int lineIndex) {
+  if (lineIndex >= 0 && lineIndex < m_lyricsList.size()) {
+    if (m_lyricsList[lineIndex].timeMs >= 0) {
+      seek(m_lyricsList[lineIndex].timeMs);
+    }
+  }
+}
+
+void QtBridge::reloadLyrics() {
+  if (!m_currentFilePath.isEmpty()) {
+    loadLyricsForTrack(m_currentFilePath);
+  }
 }

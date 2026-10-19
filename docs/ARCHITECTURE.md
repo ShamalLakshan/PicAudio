@@ -1,8 +1,8 @@
-# Parakeet — Hexagonal Architecture & Technical Design Specification
+# PicAudio — Hexagonal Architecture & Technical Design Specification
 
 ## 1. Architectural Philosophy: Ports & Adapters (Hexagonal)
 
-Parakeet is designed around **Alistair Cockburn's Hexagonal Architecture** (Ports & Adapters).
+PicAudio is designed around **Alistair Cockburn's Hexagonal Architecture** (Ports & Adapters).
 The goal is complete domain independence:
 - The **Core Domain** (`core/`) has **zero knowledge** of Qt, SQLite, TagLib, ALSA, WASAPI, CoreAudio, or any platform SDK.
 - The Core Domain defines **Pure Port Interfaces** (`core/include/core/ports/`).
@@ -11,7 +11,7 @@ The goal is complete domain independence:
 
 ```
        +--------------------------------------------------------------+
-       |                       Parakeet App                           |
+       |                       PicAudio App                           |
        |                        (app/main.cpp)                        |
        +--------------------------------------------------------------+
                 |                                            |
@@ -52,7 +52,7 @@ The goal is complete domain independence:
 ## 2. Directory Boundaries & Code Organization
 
 ```
-Parakeet/
+PicAudio/
 ├── core/                                # Pure domain — C++20 standard library only
 │   ├── include/core/
 │   │   ├── entities/                    # Value objects & domain models (Track, Album, etc.)
@@ -75,7 +75,7 @@ Parakeet/
 │           ├── dialogs/                 # PreferencesDialog, TagEditorDialog
 │           └── views/                   # TrackTable, AlbumGrid, QueueView
 ├── sdk/                                 # Public plugin API (stable C ABI)
-│   └── include/parakeet/plugin/
+│   └── include/picaudio/plugin/
 ├── plugins/                             # First-party dogfooding plugins
 ├── app/                                 # Composition root (main entry point)
 ├── tests/                               # Unit & integration tests against mock ports
@@ -133,6 +133,6 @@ Parakeet/
 ## 5. Theming System Architecture
 
 - Themes are specified using **Design Tokens** structured according to `docs/theme-schema.json`.
-- `ThemeLoader` loads themes from user disk (`~/.local/share/ParakeetAudio/Parakeet/themes/`) or embedded defaults.
+- `ThemeLoader` loads themes from user disk (`~/.local/share/PicAudio/themes/` or `~/.local/share/PicAudio/PicAudio/themes/`) or embedded defaults.
 - Fallback strategy: In case of missing fields, malformed JSON, or non-existent files, `ThemeLoader` **guarantees non-crashing fallback** to the built-in dark studio theme.
 - **Hot-Reloading**: Powered by `QFileSystemWatcher`. Modifying the active JSON on disk triggers an instantaneous reload and notification across QML properties without restarting the player.

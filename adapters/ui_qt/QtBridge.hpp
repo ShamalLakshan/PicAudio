@@ -77,6 +77,28 @@ class QtBridge : public QObject {
   Q_PROPERTY(QString durationStr READ durationStr NOTIFY playbackChanged)
   Q_PROPERTY(float volume READ volume WRITE setVolume NOTIFY volumeChanged)
   Q_PROPERTY(bool isMuted READ isMuted NOTIFY volumeChanged)
+  Q_PROPERTY(bool volumeLocked READ volumeLocked WRITE setVolumeLocked NOTIFY
+                 volumeLockedChanged)
+  Q_PROPERTY(bool showRemainingTime READ showRemainingTime WRITE
+                 setShowRemainingTime NOTIFY showRemainingTimeChanged)
+
+  // Lyrics State
+  Q_PROPERTY(QString currentLyrics READ currentLyrics NOTIFY lyricsChanged)
+  Q_PROPERTY(bool hasLyrics READ hasLyrics NOTIFY lyricsChanged)
+  Q_PROPERTY(
+      bool isLyricsSynchronized READ isLyricsSynchronized NOTIFY lyricsChanged)
+  Q_PROPERTY(QVariantList currentLyricsLines READ currentLyricsLines NOTIFY
+                 lyricsChanged)
+  Q_PROPERTY(
+      int activeLyricIndex READ activeLyricIndex NOTIFY activeLyricIndexChanged)
+
+  // Real-Time Audio Visualizer Data (Issue #66)
+  Q_PROPERTY(QVariantList visualizerBands READ visualizerBands NOTIFY
+                 visualizerDataChanged)
+  Q_PROPERTY(QVariantList visualizerWaveform READ visualizerWaveform NOTIFY
+                 visualizerDataChanged)
+  Q_PROPERTY(
+      float visualizerLevel READ visualizerLevel NOTIFY visualizerDataChanged)
 
   // Queue & Playback Modes
   Q_PROPERTY(int repeatMode READ repeatMode WRITE setRepeatMode NOTIFY
@@ -92,7 +114,30 @@ class QtBridge : public QObject {
                  playlistsChanged)
   Q_PROPERTY(
       QVariantMap tableColumns READ tableColumns NOTIFY tableColumnsChanged)
-  Q_PROPERTY(QStringList tableColumnKeys READ tableColumnKeys CONSTANT)
+  Q_PROPERTY(QStringList tableColumnKeys READ tableColumnKeys NOTIFY
+                 tableColumnsChanged)
+  Q_PROPERTY(QStringList tableColumnOrder READ tableColumnOrder WRITE
+                 setColumnOrder NOTIFY tableColumnsChanged)
+
+  // View Layout & Panel Persistence (Issue #14)
+  Q_PROPERTY(int leftPanelWidth READ leftPanelWidth WRITE setLeftPanelWidth
+                 NOTIFY viewLayoutChanged)
+  Q_PROPERTY(bool showLeftPanel READ showLeftPanel WRITE setShowLeftPanel NOTIFY
+                 viewLayoutChanged)
+  Q_PROPERTY(int rightPanelWidth READ rightPanelWidth WRITE setRightPanelWidth
+                 NOTIFY viewLayoutChanged)
+  Q_PROPERTY(bool showRightPanel READ showRightPanel WRITE setShowRightPanel
+                 NOTIFY viewLayoutChanged)
+  Q_PROPERTY(int columnBrowserHeight READ columnBrowserHeight WRITE
+                 setColumnBrowserHeight NOTIFY viewLayoutChanged)
+  Q_PROPERTY(bool showColumnBrowser READ showColumnBrowser WRITE
+                 setShowColumnBrowser NOTIFY viewLayoutChanged)
+  Q_PROPERTY(int activeWorkspaceViewMode READ activeWorkspaceViewMode WRITE
+                 setActiveWorkspaceViewMode NOTIFY viewLayoutChanged)
+  Q_PROPERTY(int activeNavSection READ activeNavSection WRITE
+                 setActiveNavSection NOTIFY viewLayoutChanged)
+  Q_PROPERTY(QString activePlaylistName READ activePlaylistName WRITE
+                 setActivePlaylistName NOTIFY viewLayoutChanged)
 
   // Library Statistics
   Q_PROPERTY(int totalAlbums READ totalAlbums NOTIFY libraryStatsChanged)
@@ -188,6 +233,8 @@ class QtBridge : public QObject {
                  NOTIFY librarySettingsChanged)
   Q_PROPERTY(QString artworkPriority READ artworkPriority WRITE
                  setArtworkPriority NOTIFY librarySettingsChanged)
+  Q_PROPERTY(bool groupAlbumsByTitle READ groupAlbumsByTitle WRITE
+                 setGroupAlbumsByTitle NOTIFY librarySettingsChanged)
 
   // Settings (General)
   Q_PROPERTY(
@@ -289,7 +336,7 @@ public:
   explicit QtBridge(core::PlayerService &player, core::LibraryService &library,
                     adapters::ThemeLoader *themeLoader = nullptr,
                     QObject *parent = nullptr);
-  ~QtBridge() override = default;
+  ~QtBridge() override;
 
   [[nodiscard]] AlbumListModel *albumModel() const { return m_albumModel; }
   [[nodiscard]] TrackListModel *trackModel() const { return m_trackModel; }
@@ -336,6 +383,27 @@ public:
   [[nodiscard]] QString durationStr() const { return m_durationStr; }
   [[nodiscard]] float volume() const { return m_volume; }
   [[nodiscard]] bool isMuted() const { return m_isMuted; }
+  [[nodiscard]] bool volumeLocked() const { return m_volumeLocked; }
+  [[nodiscard]] bool showRemainingTime() const { return m_showRemainingTime; }
+  [[nodiscard]] Q_INVOKABLE QString formatDuration(qint64 ms) const;
+
+  [[nodiscard]] QString currentLyrics() const { return m_currentLyrics; }
+  [[nodiscard]] bool hasLyrics() const { return m_hasLyrics; }
+  [[nodiscard]] bool isLyricsSynchronized() const {
+    return m_isLyricsSynchronized;
+  }
+  [[nodiscard]] QVariantList currentLyricsLines() const {
+    return m_currentLyricsLines;
+  }
+  [[nodiscard]] int activeLyricIndex() const { return m_activeLyricIndex; }
+
+  [[nodiscard]] QVariantList visualizerBands() const {
+    return m_visualizerBands;
+  }
+  [[nodiscard]] QVariantList visualizerWaveform() const {
+    return m_visualizerWaveform;
+  }
+  [[nodiscard]] float visualizerLevel() const { return m_visualizerLevel; }
 
   [[nodiscard]] int repeatMode() const;
   [[nodiscard]] int shuffleMode() const;
@@ -423,6 +491,7 @@ public:
   [[nodiscard]] QStringList formatFilters() const { return m_formatFilters; }
   [[nodiscard]] QString excludeFolders() const { return m_excludeFolders; }
   [[nodiscard]] QString artworkPriority() const { return m_artworkPriority; }
+  [[nodiscard]] bool groupAlbumsByTitle() const { return m_groupAlbumsByTitle; }
 
   // General Settings Getters
   [[nodiscard]] QString language() const { return m_language; }
@@ -542,10 +611,64 @@ public:
                                  const QString &albumArtist);
   Q_INVOKABLE void queueAlbumLast(const QString &albumTitle,
                                   const QString &albumArtist);
+  /**
+   * @brief Adds all tracks belonging to an album into a target playlist.
+   * @param albumTitle Title of the album.
+   * @param albumArtist Primary artist of the album.
+   * @param playlistName Name of the destination playlist.
+   * @return True if tracks were appended successfully.
+   */
+  Q_INVOKABLE bool addAlbumToPlaylist(const QString &albumTitle,
+                                      const QString &albumArtist,
+                                      const QString &playlistName);
+
+  /**
+   * @brief Opens the filesystem directory containing the album tracks.
+   * @param albumTitle Title of the album.
+   * @param albumArtist Primary artist of the album.
+   */
+  Q_INVOKABLE void showAlbumInFileManager(const QString &albumTitle,
+                                          const QString &albumArtist);
+
+  /**
+   * @brief Retrieves all track entities for an album formatted for QML.
+   * @param albumTitle Title of the album.
+   * @param albumArtist Primary artist of the album.
+   * @return List of track metadata maps.
+   */
+  [[nodiscard]] Q_INVOKABLE QVariantList
+  getAlbumTracks(const QString &albumTitle, const QString &albumArtist) const;
+
+  /**
+   * @brief Initiates online artwork search for the specified album.
+   * @param albumTitle Title of the album.
+   * @param albumArtist Primary artist of the album.
+   */
+  Q_INVOKABLE void searchAlbumArtworkOnline(const QString &albumTitle,
+                                            const QString &albumArtist);
+
+  /**
+   * @brief Exports the cover artwork of an album to a target file path.
+   * @param albumTitle Title of the album.
+   * @param albumArtist Primary artist of the album.
+   * @param targetFilePath Destination image path on disk.
+   * @return True if artwork was successfully extracted and written.
+   */
+  Q_INVOKABLE bool exportAlbumArtwork(const QString &albumTitle,
+                                      const QString &albumArtist,
+                                      const QString &targetFilePath);
+
   Q_INVOKABLE void removeFromQueue(int index);
   Q_INVOKABLE void moveQueueItem(int fromIndex, int toIndex);
   Q_INVOKABLE void clearQueue();
   Q_INVOKABLE void shuffleRemainingQueue();
+
+  /**
+   * @brief Exports the current playback queue into a new static playlist.
+   * @param playlistName Name of the new playlist to create.
+   * @return True if saved successfully.
+   */
+  Q_INVOKABLE bool saveQueueAsPlaylist(const QString &playlistName);
 
   // Mode toggles
   Q_INVOKABLE void setRepeatMode(int mode);
@@ -567,6 +690,8 @@ public:
   // Utilities
   Q_INVOKABLE void showInFileManager(const QString &filePath);
   Q_INVOKABLE void copyToClipboard(const QString &text);
+  Q_INVOKABLE void seekToLyric(int lineIndex);
+  Q_INVOKABLE void reloadLyrics();
 
   // Desktop Menu & File Operations
   Q_INVOKABLE void openAudioFile(const QString &filePath);
@@ -576,6 +701,17 @@ public:
                                      const QString &streamName = QString());
   Q_INVOKABLE bool exportActiveView(const QString &filePath,
                                     const QString &format = QString());
+
+  // Drag and Drop Operations
+  Q_INVOKABLE void handleDropOnTracks(const QList<QUrl> &urls,
+                                      bool playImmediately = true);
+  Q_INVOKABLE void handleDropOnQueue(const QList<QUrl> &urls);
+  Q_INVOKABLE void
+  handleDropOnPlaylist(const QList<QUrl> &urls,
+                       const QString &targetPlaylist = QString());
+  Q_INVOKABLE void handleDropOnExplorer(const QList<QUrl> &urls);
+  [[nodiscard]] static QStringList
+  extractAudioFilesFromUrls(const QList<QUrl> &urls);
 
   // Edit & Undo Operations
   Q_INVOKABLE void undo();
@@ -636,15 +772,19 @@ public:
   // Library & Folders Settings
   Q_INVOKABLE void addMonitoredFolder(const QString &folderPath);
   Q_INVOKABLE void removeMonitoredFolder(int index);
+  Q_INVOKABLE void removeMonitoredFolderPath(const QString &folderPath);
+  Q_INVOKABLE void rescanMonitoredFolder(const QString &folderPath);
   Q_INVOKABLE void rescanAllMonitoredFolders();
   Q_INVOKABLE void incrementalQuickScan();
   Q_INVOKABLE void setFilesystemWatcher(bool enable);
   Q_INVOKABLE void setAutoScanOnStartup(bool enable);
   Q_INVOKABLE void setFormatFilters(const QStringList &formats);
   Q_INVOKABLE void setFormatFilterEnabled(const QString &format, bool enabled);
-  Q_INVOKABLE bool isFormatFilterEnabled(const QString &format) const;
+  [[nodiscard]] Q_INVOKABLE bool
+  isFormatFilterEnabled(const QString &format) const;
   Q_INVOKABLE void setExcludeFolders(const QString &patterns);
   Q_INVOKABLE void setArtworkPriority(const QString &priority);
+  Q_INVOKABLE void setGroupAlbumsByTitle(bool enabled);
   Q_INVOKABLE void exportDatabaseBackup(const QString &targetFilePath);
   Q_INVOKABLE void optimizeDatabase();
   Q_INVOKABLE bool createPlaylist(const QString &name);
@@ -656,6 +796,21 @@ public:
   Q_INVOKABLE bool removeTracksFromPlaylist(const QString &playlistName,
                                             const QVariantList &tracks);
   Q_INVOKABLE void openPlaylist(const QString &playlistName);
+  Q_INVOKABLE void playPlaylist(const QString &playlistName);
+  Q_INVOKABLE void playPlaylistNext(const QString &playlistName);
+  Q_INVOKABLE void queuePlaylistLast(const QString &playlistName);
+  Q_INVOKABLE bool renamePlaylist(const QString &oldName,
+                                  const QString &newName);
+  Q_INVOKABLE bool duplicatePlaylist(const QString &playlistName);
+  Q_INVOKABLE bool exportPlaylistFile(const QString &playlistName,
+                                      const QString &targetFilePath);
+  Q_INVOKABLE bool deletePlaylist(const QString &playlistName);
+  [[nodiscard]] Q_INVOKABLE bool
+  isSmartPlaylist(const QString &playlistName) const;
+  [[nodiscard]] Q_INVOKABLE QString
+  getSmartPlaylistRules(const QString &playlistName) const;
+  Q_INVOKABLE bool updateSmartPlaylistRules(const QString &playlistName,
+                                            const QString &rulesJson);
   Q_INVOKABLE int deduplicateTracks();
   Q_INVOKABLE bool clearCoverArtCache() {
     clearArtCache();
@@ -675,6 +830,44 @@ public:
   Q_INVOKABLE void autoSizeColumn(const QString &colKey);
   Q_INVOKABLE void autoSizeAllColumns();
   Q_INVOKABLE void resetTableColumns();
+  Q_INVOKABLE void moveColumn(int fromIndex, int toIndex);
+  Q_INVOKABLE void setColumnOrder(const QStringList &orderKeys);
+  [[nodiscard]] Q_INVOKABLE QStringList tableColumnOrder() const;
+
+  // Window Geometry & Layout (Issue #14)
+  Q_INVOKABLE void saveWindowGeometry(int x, int y, int width, int height,
+                                      bool isMaximized);
+  [[nodiscard]] Q_INVOKABLE QVariantMap
+  loadWindowGeometry(int defaultWidth = 1400, int defaultHeight = 840);
+
+  [[nodiscard]] int leftPanelWidth() const { return m_leftPanelWidth; }
+  Q_INVOKABLE void setLeftPanelWidth(int width);
+  [[nodiscard]] bool showLeftPanel() const { return m_showLeftPanel; }
+  Q_INVOKABLE void setShowLeftPanel(bool show);
+  [[nodiscard]] int rightPanelWidth() const { return m_rightPanelWidth; }
+  Q_INVOKABLE void setRightPanelWidth(int width);
+  [[nodiscard]] bool showRightPanel() const { return m_showRightPanel; }
+  Q_INVOKABLE void setShowRightPanel(bool show);
+  [[nodiscard]] int columnBrowserHeight() const {
+    return m_columnBrowserHeight;
+  }
+  Q_INVOKABLE void setColumnBrowserHeight(int height);
+  [[nodiscard]] bool showColumnBrowser() const { return m_showColumnBrowser; }
+  Q_INVOKABLE void setShowColumnBrowser(bool show);
+  [[nodiscard]] int activeWorkspaceViewMode() const {
+    return m_activeWorkspaceViewMode;
+  }
+  Q_INVOKABLE void setActiveWorkspaceViewMode(int mode);
+  [[nodiscard]] int activeNavSection() const { return m_activeNavSection; }
+  Q_INVOKABLE void setActiveNavSection(int nav);
+  [[nodiscard]] QString activePlaylistName() const {
+    return m_activePlaylistName;
+  }
+  Q_INVOKABLE void setActivePlaylistName(const QString &name);
+
+  // Playback Session Restore (Issue #15)
+  Q_INVOKABLE void savePlaybackSession();
+  Q_INVOKABLE void restorePlaybackSession();
 
   // General Settings
   Q_INVOKABLE void setLanguage(const QString &lang);
@@ -734,6 +927,40 @@ public:
    */
   [[nodiscard]] Q_INVOKABLE QString checkHotkeyConflict(
       const QString &actionId, const QString &keySequence) const;
+
+  /**
+   * @brief Retrieves active key sequence bound to an action ID.
+   * @param actionId Action identifier.
+   * @return Key sequence string, or empty string.
+   */
+  [[nodiscard]] Q_INVOKABLE QString
+  getHotkeySequence(const QString &actionId) const;
+
+  /**
+   * @brief Exports current hotkey configuration to a JSON keymap file.
+   * @param filePath Target JSON file path.
+   * @return True if exported successfully.
+   */
+  [[nodiscard]] Q_INVOKABLE bool exportHotkeys(const QString &filePath) const;
+
+  /**
+   * @brief Imports hotkey configuration from a JSON keymap file.
+   * @param filePath Source JSON file path.
+   * @return True if imported successfully.
+   */
+  Q_INVOKABLE bool importHotkeys(const QString &filePath);
+
+  /**
+   * @brief Dispatches an in-app non-blocking toast notification banner.
+   * @param message Banner text to display.
+   * @param type Notification variant ("info", "success", "warning", "error").
+   */
+  Q_INVOKABLE void showToast(const QString &message,
+                             const QString &type = QStringLiteral("info"));
+
+  // Internationalization & Locale
+  [[nodiscard]] Q_INVOKABLE QStringList availableLanguages() const;
+  void setQmlEngine(class QQmlApplicationEngine *engine);
 
   // Metadata & Scrobbling Settings
   /**
@@ -839,6 +1066,9 @@ public:
    */
   Q_INVOKABLE void resetAllSettingsToDefaults();
 
+  Q_INVOKABLE void setShowRemainingTime(bool enable);
+  Q_INVOKABLE void setVolumeLocked(bool locked);
+
   // Maintenance Utilities
   Q_INVOKABLE void clearArtCache();
   Q_INVOKABLE void checkForUpdates();
@@ -871,10 +1101,28 @@ signals:
   void playlistsChanged();
   void ratingsChanged();
   void tableColumnsChanged();
+  void viewLayoutChanged();
+  void volumeLockedChanged();
+  void showRemainingTimeChanged();
+  void lyricsChanged();
+  void activeLyricIndexChanged();
+  void visualizerDataChanged();
+  void toastRequested(const QString &message, const QString &type);
 
 private:
+  struct LyricLine {
+    qint64 timeMs{-1};
+    QString timeStr;
+    QString text;
+  };
+
   void setupPositionTimer();
+  void setupVisualizerTimer();
+  void updateVisualizerData();
   void updatePlaybackState(const core::Track &track);
+  void loadLyricsForTrack(const QString &filePath);
+  void parseLrcContent(const QString &content);
+  void updateActiveLyricIndex();
   void refreshLibraryStats();
   void syncQueueModel();
   void initDefaultHotkeys();
@@ -925,6 +1173,16 @@ private:
   float m_volume{0.8f};
   float m_prevVolume{0.8f};
   bool m_isMuted{false};
+  bool m_volumeLocked{false};
+  bool m_showRemainingTime{false};
+
+  // Lyrics state
+  QString m_currentLyrics{""};
+  bool m_hasLyrics{false};
+  bool m_isLyricsSynchronized{false};
+  QVector<LyricLine> m_lyricsList;
+  QVariantList m_currentLyricsLines;
+  int m_activeLyricIndex{-1};
 
   // Scanning state
   std::atomic<bool> m_isScanning{false};
@@ -980,6 +1238,7 @@ private:
   QString m_excludeFolders{
       ".*, node_modules, temp, @eaDir, System Volume Information"};
   QString m_artworkPriority{"Embedded Tags First"};
+  bool m_groupAlbumsByTitle{true};
 
   // General Settings
   QString m_language{"System Default"};
@@ -1032,6 +1291,20 @@ private:
   // Diagnostics Settings
   QString m_loggingVerbosity{"Info"};
 
+  // View Layout state (Issue #14)
+  int m_leftPanelWidth{210};
+  bool m_showLeftPanel{true};
+  int m_rightPanelWidth{270};
+  bool m_showRightPanel{true};
+  int m_columnBrowserHeight{121};
+  bool m_showColumnBrowser{false};
+  int m_activeWorkspaceViewMode{1};
+  int m_activeNavSection{0};
+  QString m_activePlaylistName{""};
+
+  void loadViewLayoutSettings();
+  void saveViewLayoutSettings();
+
   struct ColumnMeta {
     QString key;
     QString title;
@@ -1050,4 +1323,12 @@ private:
 
   QMediaDevices *m_mediaDevices{nullptr};
   QTimer *m_positionTimer{nullptr};
+  QTimer *m_visualizerTimer{nullptr};
+  QVariantList m_visualizerBands;
+  QVariantList m_visualizerWaveform;
+  float m_visualizerLevel{0.0f};
+
+  class QQmlApplicationEngine *m_qmlEngine{nullptr};
+  class QTranslator *m_translator{nullptr};
+  void applyLanguage(const QString &lang);
 };

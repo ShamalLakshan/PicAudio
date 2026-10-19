@@ -200,6 +200,25 @@ void QueueService::shuffleRemaining() {
   }
 }
 
+void QueueService::restoreState(const std::optional<Track> &currentTrack,
+                                const std::vector<Track> &upNext,
+                                const std::vector<Track> &mainStream,
+                                size_t mainStreamIndex,
+                                const std::vector<Track> &history) {
+  m_currentTrack = currentTrack;
+  m_upNext = upNext;
+  m_mainStream = mainStream;
+  m_originalMainStream = mainStream;
+  m_mainStreamIndex =
+      (!m_mainStream.empty() && mainStreamIndex < m_mainStream.size())
+          ? mainStreamIndex
+          : 0;
+  m_history = history;
+  while (m_history.size() > m_historyLimit) {
+    m_history.erase(m_history.begin());
+  }
+}
+
 void QueueService::setRepeatMode(RepeatMode mode) { m_repeatMode = mode; }
 
 void QueueService::cycleRepeatMode() {

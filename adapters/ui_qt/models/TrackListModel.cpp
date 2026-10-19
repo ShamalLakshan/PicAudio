@@ -121,7 +121,10 @@ QVariant TrackListModel::data(const QModelIndex &index, int role) const {
   case AlbumRole:
     return QString::fromStdString(track.album);
   case AlbumArtistRole:
-    return QString::fromStdString(track.albumArtist);
+    if (!track.albumArtist.empty() && track.albumArtist != "Unknown Artist") {
+      return QString::fromStdString(track.albumArtist);
+    }
+    return QString::fromStdString(track.artist);
   case GenreRole:
     return QString::fromStdString(track.genre);
   case YearRole:
@@ -183,11 +186,11 @@ QVariant TrackListModel::data(const QModelIndex &index, int role) const {
     return QString("");
   }
   case PlayCountRole: {
-    QSettings s("Parakeet", "ParakeetPlayer");
+    QSettings s("PicAudio", "PicAudioPlayer");
     return s.value("playcounts/" + QString::fromStdString(track.id), 0).toInt();
   }
   case RatingRole: {
-    QSettings s("Parakeet", "ParakeetPlayer");
+    QSettings s("PicAudio", "PicAudioPlayer");
     return s.value("ratings/" + QString::fromStdString(track.id), 0).toInt();
   }
   default:
@@ -206,7 +209,10 @@ QVariantMap TrackListModel::getTrackAt(int index) const {
   map["title"] = QString::fromStdString(t.title);
   map["artist"] = QString::fromStdString(t.artist);
   map["album"] = QString::fromStdString(t.album);
-  map["albumArtist"] = QString::fromStdString(t.albumArtist);
+  map["albumArtist"] = QString::fromStdString(
+      (!t.albumArtist.empty() && t.albumArtist != "Unknown Artist")
+          ? t.albumArtist
+          : t.artist);
   map["year"] = t.year;
   map["genre"] = QString::fromStdString(t.genre);
   map["trackNumber"] = t.trackNumber;
@@ -233,7 +239,8 @@ QVariantMap TrackListModel::getTrackAt(int index) const {
       map["fileSizeFormatted"] = QString("%1 KB").arg(bytes / 1024);
     } else {
       double mb = static_cast<double>(bytes) / (1024.0 * 1024.0);
-      map["fileSizeFormatted"] = QString("%1 MB").arg(QString::number(mb, 'f', 1));
+      map["fileSizeFormatted"] =
+          QString("%1 MB").arg(QString::number(mb, 'f', 1));
     }
   } else {
     map["fileSizeFormatted"] = QString("");
@@ -254,11 +261,10 @@ QVariantMap TrackListModel::getTrackAt(int index) const {
     map["dateAddedFormatted"] = QString("");
   }
 
-  QSettings s("Parakeet", "ParakeetPlayer");
+  QSettings s("PicAudio", "PicAudioPlayer");
   map["playCount"] =
       s.value("playcounts/" + QString::fromStdString(t.id), 0).toInt();
-  map["rating"] =
-      s.value("ratings/" + QString::fromStdString(t.id), 0).toInt();
+  map["rating"] = s.value("ratings/" + QString::fromStdString(t.id), 0).toInt();
 
   return map;
 }
@@ -462,7 +468,8 @@ void TrackListModel::applySort() {
   if (m_sortColumn.isEmpty() || m_filteredTracks.empty())
     return;
 
-  auto compareTracks = [this](const core::Track &a, const core::Track &b) -> bool {
+  auto compareTracks = [this](const core::Track &a,
+                              const core::Track &b) -> bool {
     int cmp = 0;
     if (m_sortColumn == "trackNumber") {
       if (a.trackNumber != b.trackNumber)
@@ -517,13 +524,13 @@ void TrackListModel::applySort() {
       if (a.dateAdded != b.dateAdded)
         cmp = a.dateAdded < b.dateAdded ? -1 : 1;
     } else if (m_sortColumn == "rating") {
-      QSettings s("Parakeet", "ParakeetPlayer");
+      QSettings s("PicAudio", "PicAudioPlayer");
       int ra = s.value("ratings/" + QString::fromStdString(a.id), 0).toInt();
       int rb = s.value("ratings/" + QString::fromStdString(b.id), 0).toInt();
       if (ra != rb)
         cmp = ra < rb ? -1 : 1;
     } else if (m_sortColumn == "playCount") {
-      QSettings s("Parakeet", "ParakeetPlayer");
+      QSettings s("PicAudio", "PicAudioPlayer");
       int pa = s.value("playcounts/" + QString::fromStdString(a.id), 0).toInt();
       int pb = s.value("playcounts/" + QString::fromStdString(b.id), 0).toInt();
       if (pa != pb)
@@ -550,4 +557,3 @@ void TrackListModel::applySort() {
 
   std::sort(m_filteredTracks.begin(), m_filteredTracks.end(), compareTracks);
 }
-

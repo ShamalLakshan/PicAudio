@@ -1,6 +1,6 @@
-# Parakeet Theming Guide & Design Token Specification
+# PicAudio Theming Guide & Design Token Specification
 
-Parakeet features a powerful, reactive, JSON-driven design token theming engine.
+PicAudio features a powerful, reactive, JSON-driven design token theming engine.
 Themes customize every visual aspect of the studio interface—from panel backgrounds and accent colors to typography scales, border radii, and padding.
 
 Themes can be hot-reloaded at runtime: modifying a theme's JSON file immediately updates the live UI without requiring an application restart.
@@ -16,11 +16,11 @@ Themes are discovered automatically on application launch and dynamically monito
   - `nord-audiophile` (Arctic Nord Theme)
   - `solarized-dark` (Warm Low-Contrast Theme)
 - **User Installed Themes**:
-  - Linux: `~/.local/share/ParakeetAudio/Parakeet/themes/*.json`
-  - Windows: `%APPDATA%/ParakeetAudio/Parakeet/themes/*.json`
-  - macOS: `~/Library/Application Support/ParakeetAudio/Parakeet/themes/*.json`
+  - Linux: `~/.local/share/PicAudio/themes/*.json` (or `~/.local/share/PicAudio/PicAudio/themes/*.json`)
+  - Windows: `%APPDATA%/PicAudio/PicAudio/themes/*.json`
+  - macOS: `~/Library/Application Support/PicAudio/PicAudio/themes/*.json`
 
-You can open this folder directly inside Parakeet from **Preferences > Themes & Appearance > Open Themes Folder**.
+You can open this folder directly inside PicAudio from **Preferences > Themes & Appearance > Open Themes Folder**.
 
 ---
 
@@ -31,7 +31,7 @@ You can open this folder directly inside Parakeet from **Preferences > Themes & 
   "meta": {
     "id": "nord-audiophile",
     "name": "Nord Audiophile",
-    "author": "Parakeet Community",
+    "author": "PicAudio Community",
     "version": "1.0.0",
     "apiVersion": "0.1-unstable",
     "description": "An arctic, north-bluish clean palette tailored for nighttime listening"
@@ -80,7 +80,7 @@ You can open this folder directly inside Parakeet from **Preferences > Themes & 
 - `name`: User-facing title rendered in theme selector cards.
 - `author`: Name or GitHub username of author.
 - `version`: SemVer string (e.g. `1.0.0`).
-- `apiVersion`: Version of Parakeet theming engine (currently `0.1-unstable`).
+- `apiVersion`: Version of PicAudio theming engine (currently `0.1-unstable`).
 - `description`: Short summary describing the visual aesthetic.
 
 ### `colors`
@@ -119,7 +119,7 @@ You can open this folder directly inside Parakeet from **Preferences > Themes & 
 
 ## 4. Troubleshooting: Why Didn't Your Theme Load?
 
-If a third-party theme fails to load, Parakeet **never crashes**. Instead, it logs an informative diagnostic warning and falls back safely to the built-in default **Dark Studio** theme.
+If a third-party theme fails to load, PicAudio **never crashes**. Instead, it logs an informative diagnostic warning and falls back safely to the built-in default **Dark Studio** theme.
 
 Common failure causes:
 1. **Malformed JSON Syntax**:

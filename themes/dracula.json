@@ -1,9 +1,9 @@
 {
-  "$schema": "https://parakeet-audio.org/schemas/theme-v1.json",
+  "$schema": "https://picaudio.org/schemas/theme-v1.json",
   "meta": {
     "id": "dracula",
     "name": "Dracula",
-    "author": "Parakeet Community",
+    "author": "PicAudio Community",
     "version": "1.0.0",
     "apiVersion": "0.1-unstable",
     "description": "High-contrast dark theme featuring vibrant purple and cyan accents"

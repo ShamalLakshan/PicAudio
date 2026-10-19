@@ -1,7 +1,9 @@
 # Build and Output Directories
 build/
+build-*/
 bin/
 lib/
+dist/
 docs/
 out/
 CMakeFiles/
@@ -48,4 +50,5 @@ Thumbs.db
 GEMINI.md
 CLAUDE.md
 AGENTS.md
+AGENT.md
 

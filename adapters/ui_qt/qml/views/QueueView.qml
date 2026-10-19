@@ -7,6 +7,53 @@ import "../components"
 Item {
     id: root
 
+    DropArea {
+        id: queueDropArea
+        anchors.fill: parent
+        onEntered: (drag) => {
+            if (drag.hasUrls) {
+                drag.acceptProposedAction();
+            }
+        }
+        onDropped: (drop) => {
+            if (drop.hasUrls) {
+                bridge.handleDropOnQueue(drop.urls);
+                drop.acceptProposedAction();
+            }
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+        border.color: Theme.accent
+        border.width: 2
+        radius: Theme.cornerRadiusMedium
+        visible: queueDropArea.containsDrag
+        z: 999
+        clip: true
+
+        RowLayout {
+            anchors.centerIn: parent
+            spacing: Theme.spacingMedium
+
+            VectorIcon {
+                name: "playlist"
+                width: 24
+                height: 24
+                color: Theme.accent
+            }
+
+            Text {
+                text: "Drop tracks or folders to enqueue"
+                color: Theme.accent
+                font.pixelSize: Theme.fontSizeMedium
+                font.family: Theme.fontFamily
+                font.bold: true
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -223,6 +270,7 @@ Item {
                         RowLayout {
                             spacing: 1
                             visible: qRowMouse.containsMouse
+                            z: 2
 
                             Rectangle {
                                 width: 16
@@ -275,10 +323,137 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onDoubleClicked: bridge.playQueueTrack(index)
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: (mouse) => {
+                            queueListView.currentIndex = index;
+                            if (mouse.button === Qt.RightButton) {
+                                queueContextMenu.targetQueueIndex = index;
+                                queueContextMenu.popup();
+                            }
+                        }
+                        onDoubleClicked: (mouse) => {
+                            if (mouse.button === Qt.LeftButton) {
+                                bridge.playQueueTrack(index);
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+
+    // Keyboard Shortcuts for Queue Navigation and Management (Issue #12)
+    Shortcut {
+        sequence: "Alt+Up"
+        enabled: root.visible && queueListView.currentIndex > 0
+        onActivated: {
+            var idx = queueListView.currentIndex;
+            bridge.moveQueueItem(idx, idx - 1);
+            queueListView.currentIndex = idx - 1;
+        }
+    }
+
+    Shortcut {
+        sequence: "Alt+Down"
+        enabled: root.visible && queueListView.currentIndex >= 0 && queueListView.currentIndex < bridge.queueRemainingCount - 1
+        onActivated: {
+            var idx = queueListView.currentIndex;
+            bridge.moveQueueItem(idx, idx + 1);
+            queueListView.currentIndex = idx + 1;
+        }
+    }
+
+    Shortcut {
+        sequence: "Delete"
+        enabled: root.visible && queueListView.currentIndex >= 0
+        onActivated: {
+            var idx = queueListView.currentIndex;
+            bridge.removeFromQueue(idx);
+            if (queueListView.currentIndex >= bridge.queueRemainingCount) {
+                queueListView.currentIndex = bridge.queueRemainingCount - 1;
+            }
+        }
+    }
+
+    // Queue Context Menu (Issue #12)
+    ContextMenu {
+        id: queueContextMenu
+        menuType: "queue"
+        onSaveQueueAsPlaylistRequested: saveQueueDialog.open()
+    }
+
+    // Dialog for Saving Current Queue as a Static Playlist
+    Dialog {
+        id: saveQueueDialog
+        modal: true
+        focus: true
+        anchors.centerIn: Overlay.overlay
+        width: 380
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: Theme.surface
+            border.color: Theme.panelBorder
+            border.width: 1
+            radius: Theme.cornerRadiusMedium
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+            anchors.fill: parent
+            anchors.margins: 16
+
+            Text {
+                text: "Save Queue as Playlist"
+                font.pixelSize: Theme.fontSizeLarge
+                font.bold: true
+                color: Theme.textPrimary
+            }
+
+            Text {
+                text: "Create a new static playlist containing all remaining tracks in the queue."
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.textMuted
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            TextField {
+                id: queuePlaylistNameInput
+                Layout.fillWidth: true
+                placeholderText: "Enter playlist name"
+                color: Theme.textPrimary
+                background: Rectangle {
+                    color: Theme.surfaceElevated
+                    border.color: queuePlaylistNameInput.activeFocus ? Theme.accent : Theme.panelBorder
+                    radius: Theme.cornerRadiusSmall
+                }
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: 8
+
+                Button {
+                    text: "Cancel"
+                    onClicked: saveQueueDialog.close()
+                }
+
+                Button {
+                    text: "Save Playlist"
+                    enabled: queuePlaylistNameInput.text.trim().length > 0
+                    onClicked: {
+                        bridge.saveQueueAsPlaylist(queuePlaylistNameInput.text.trim());
+                        saveQueueDialog.close();
+                    }
+                }
+            }
+        }
+
+        onAboutToShow: {
+            queuePlaylistNameInput.text = "";
+            queuePlaylistNameInput.forceActiveFocus();
         }
     }
 }

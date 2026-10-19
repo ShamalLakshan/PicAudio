@@ -1,8 +1,51 @@
 #include "SqliteDatabaseAdapter.hpp"
+#include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 
 namespace adapters {
+
+namespace {
+
+std::string extractBaseArtist(const std::string &artist) {
+  if (artist.empty()) {
+    return "";
+  }
+  std::string lower = artist;
+  std::transform(
+      lower.begin(), lower.end(), lower.begin(),
+      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+  const std::vector<std::string> delimiters = {
+      " feat. ",  " ft. ",    " featuring ", " feat ", " ft ",
+      " (feat. ", " [feat. ", " (ft. ",      " [ft. ", " with ",
+      " vs. ",    " vs ",     " & ",         " / ",    " and "};
+
+  size_t earliestPos = std::string::npos;
+  for (const auto &delim : delimiters) {
+    size_t pos = lower.find(delim);
+    if (pos != std::string::npos && pos < earliestPos) {
+      earliestPos = pos;
+    }
+  }
+
+  if (earliestPos != std::string::npos && earliestPos > 0) {
+    std::string base = artist.substr(0, earliestPos);
+    while (!base.empty() &&
+           std::isspace(static_cast<unsigned char>(base.back()))) {
+      base.pop_back();
+    }
+    if (!base.empty()) {
+      return base;
+    }
+  }
+
+  return artist;
+}
+
+} // namespace
 
 SqliteDatabaseAdapter::SqliteDatabaseAdapter() = default;
 
@@ -290,28 +333,60 @@ SqliteDatabaseAdapter::getTracksByAlbum(const std::string &albumTitle,
     return list;
 
   std::string sql;
-  if (!albumArtist.empty()) {
-    sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
+  bool bindArtist = false;
+
+  if (m_groupAlbumsByTitle) {
+    if (albumTitle.empty() || albumTitle == "Unknown Album") {
+      sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
+            "year, track_number, disc_number, duration_ms, sample_rate, "
+            "bit_depth, channels, bitrate, codec, art_hash, file_size, "
+            "date_added FROM tracks WHERE (album = '' OR album = 'Unknown "
+            "Album') "
+            "AND artist = ? ORDER BY disc_number ASC, track_number ASC, title "
+            "ASC;";
+      bindArtist = true;
+    } else {
+      sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
+            "year, track_number, disc_number, duration_ms, sample_rate, "
+            "bit_depth, channels, bitrate, codec, art_hash, file_size, "
+            "date_added FROM tracks WHERE album = ? ORDER BY disc_number ASC, "
+            "track_number ASC, title ASC;";
+    }
+  } else {
+    if (!albumArtist.empty() && albumArtist != "Unknown Artist" &&
+        albumArtist != "Various Artists") {
+      sql =
+          "SELECT id, file_path, title, artist, album, album_artist, genre, "
           "year, track_number, disc_number, duration_ms, sample_rate, "
           "bit_depth, channels, bitrate, codec, art_hash, file_size, "
           "date_added FROM tracks WHERE album = ? AND (album_artist = ? OR "
           "artist = ?) ORDER BY disc_number ASC, track_number ASC, title ASC;";
-  } else {
-    sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
-          "year, track_number, disc_number, duration_ms, sample_rate, "
-          "bit_depth, channels, bitrate, codec, art_hash, file_size, "
-          "date_added FROM tracks WHERE album = ? ORDER BY disc_number ASC, "
-          "track_number ASC, title ASC;";
+      bindArtist = true;
+    } else {
+      sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
+            "year, track_number, disc_number, duration_ms, sample_rate, "
+            "bit_depth, channels, bitrate, codec, art_hash, file_size, "
+            "date_added FROM tracks WHERE album = ? ORDER BY disc_number ASC, "
+            "track_number ASC, title ASC;";
+    }
   }
 
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
     return list;
 
-  sqlite3_bind_text(stmt, 1, albumTitle.c_str(), -1, SQLITE_TRANSIENT);
-  if (!albumArtist.empty()) {
-    sqlite3_bind_text(stmt, 2, albumArtist.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, albumArtist.c_str(), -1, SQLITE_TRANSIENT);
+  if (m_groupAlbumsByTitle) {
+    if (bindArtist) {
+      sqlite3_bind_text(stmt, 1, albumArtist.c_str(), -1, SQLITE_TRANSIENT);
+    } else {
+      sqlite3_bind_text(stmt, 1, albumTitle.c_str(), -1, SQLITE_TRANSIENT);
+    }
+  } else {
+    sqlite3_bind_text(stmt, 1, albumTitle.c_str(), -1, SQLITE_TRANSIENT);
+    if (bindArtist) {
+      sqlite3_bind_text(stmt, 2, albumArtist.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 3, albumArtist.c_str(), -1, SQLITE_TRANSIENT);
+    }
   }
 
   while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -344,11 +419,14 @@ std::vector<core::Album> SqliteDatabaseAdapter::getAllAlbums() {
   if (!m_db)
     return albums;
 
-  // Group tracks by album name and artist to synthesize album cards
-  const char *sql = R"(
+  const char *sql = nullptr;
+  if (m_groupAlbumsByTitle) {
+    sql = R"(
         SELECT 
             album,
-            COALESCE(NULLIF(album_artist, ''), artist) AS effective_artist,
+            MAX(NULLIF(NULLIF(album_artist, ''), 'Unknown Artist')) AS explicit_album_artist,
+            COUNT(DISTINCT artist) AS distinct_artist_count,
+            MAX(artist) AS sample_artist,
             MAX(year) AS release_year,
             MAX(genre) AS main_genre,
             COUNT(*) AS track_count,
@@ -358,9 +436,35 @@ std::vector<core::Album> SqliteDatabaseAdapter::getAllAlbums() {
             MAX(bit_depth) AS max_bd,
             MAX(codec) AS main_codec
         FROM tracks
-        GROUP BY album, effective_artist
+        GROUP BY album, (CASE WHEN album = '' OR album = 'Unknown Album' THEN artist ELSE '' END)
         ORDER BY album ASC;
     )";
+  } else {
+    sql = R"(
+        SELECT 
+            album,
+            CASE 
+                WHEN NULLIF(NULLIF(album_artist, ''), 'Unknown Artist') IS NOT NULL 
+                    THEN album_artist
+                WHEN COUNT(DISTINCT artist) > 1 
+                    THEN 'Various Artists'
+                ELSE MAX(artist)
+            END AS effective_artist,
+            1 AS distinct_artist_count,
+            MAX(artist) AS sample_artist,
+            MAX(year) AS release_year,
+            MAX(genre) AS main_genre,
+            COUNT(*) AS track_count,
+            SUM(duration_ms) AS total_duration,
+            MAX(art_hash) AS cover_art,
+            MAX(sample_rate) AS max_sr,
+            MAX(bit_depth) AS max_bd,
+            MAX(codec) AS main_codec
+        FROM tracks
+        GROUP BY album, COALESCE(NULLIF(NULLIF(album_artist, ''), 'Unknown Artist'), artist)
+        ORDER BY album ASC;
+    )";
+  }
 
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
@@ -372,27 +476,94 @@ std::vector<core::Album> SqliteDatabaseAdapter::getAllAlbums() {
         sqlite3_column_text(stmt, 0)
             ? sqlite3_column_text(stmt, 0)
             : reinterpret_cast<const unsigned char *>(""));
-    a.artist = reinterpret_cast<const char *>(
-        sqlite3_column_text(stmt, 1)
-            ? sqlite3_column_text(stmt, 1)
-            : reinterpret_cast<const unsigned char *>(""));
+
+    std::string effectiveArtist;
+    if (!m_groupAlbumsByTitle) {
+      effectiveArtist = reinterpret_cast<const char *>(
+          sqlite3_column_text(stmt, 1)
+              ? sqlite3_column_text(stmt, 1)
+              : reinterpret_cast<const unsigned char *>(""));
+    } else {
+      const char *expAlbumArtist =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+      int distinctArtistCount = sqlite3_column_int(stmt, 2);
+      const char *sampleArtist = reinterpret_cast<const char *>(
+          sqlite3_column_text(stmt, 3)
+              ? sqlite3_column_text(stmt, 3)
+              : reinterpret_cast<const unsigned char *>(""));
+
+      if (expAlbumArtist && expAlbumArtist[0] != '\0') {
+        effectiveArtist = expAlbumArtist;
+      } else if (distinctArtistCount <= 1) {
+        effectiveArtist = sampleArtist ? sampleArtist : "";
+      } else {
+        const char *artSql = "SELECT artist, COUNT(*) FROM tracks WHERE album "
+                             "= ? GROUP BY artist ORDER BY COUNT(*) DESC;";
+        sqlite3_stmt *artStmt = nullptr;
+        std::unordered_map<std::string, int> baseArtistCounts;
+        std::string topExactArtist;
+        int topExactCount = 0;
+        int totalAlbumTracks = 0;
+
+        if (sqlite3_prepare_v2(m_db, artSql, -1, &artStmt, nullptr) ==
+            SQLITE_OK) {
+          sqlite3_bind_text(artStmt, 1, a.title.c_str(), -1, SQLITE_TRANSIENT);
+          while (sqlite3_step(artStmt) == SQLITE_ROW) {
+            const char *aText =
+                reinterpret_cast<const char *>(sqlite3_column_text(artStmt, 0));
+            int count = sqlite3_column_int(artStmt, 1);
+            totalAlbumTracks += count;
+            if (aText) {
+              std::string exactArtist(aText);
+              if (topExactArtist.empty()) {
+                topExactArtist = exactArtist;
+                topExactCount = count;
+              }
+              std::string base = extractBaseArtist(exactArtist);
+              baseArtistCounts[base] += count;
+            }
+          }
+          sqlite3_finalize(artStmt);
+        }
+
+        std::string bestBaseArtist;
+        int bestBaseCount = 0;
+        for (const auto &[base, cnt] : baseArtistCounts) {
+          if (cnt > bestBaseCount) {
+            bestBaseCount = cnt;
+            bestBaseArtist = base;
+          }
+        }
+
+        if (!bestBaseArtist.empty() && (bestBaseCount * 2 >= totalAlbumTracks ||
+                                        baseArtistCounts.size() == 1)) {
+          effectiveArtist = bestBaseArtist;
+        } else if (topExactCount * 2 > totalAlbumTracks) {
+          effectiveArtist = topExactArtist;
+        } else {
+          effectiveArtist = "Various Artists";
+        }
+      }
+    }
+
+    a.artist = effectiveArtist;
     a.id = "alb_" + a.title + "_" + a.artist;
-    a.year = static_cast<uint32_t>(sqlite3_column_int(stmt, 2));
+    a.year = static_cast<uint32_t>(sqlite3_column_int(stmt, 4));
     a.genre = reinterpret_cast<const char *>(
-        sqlite3_column_text(stmt, 3)
-            ? sqlite3_column_text(stmt, 3)
+        sqlite3_column_text(stmt, 5)
+            ? sqlite3_column_text(stmt, 5)
             : reinterpret_cast<const unsigned char *>(""));
-    a.trackCount = static_cast<uint32_t>(sqlite3_column_int(stmt, 4));
-    a.totalDurationMs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 5));
+    a.trackCount = static_cast<uint32_t>(sqlite3_column_int(stmt, 6));
+    a.totalDurationMs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 7));
     a.artHash = reinterpret_cast<const char *>(
-        sqlite3_column_text(stmt, 6)
-            ? sqlite3_column_text(stmt, 6)
+        sqlite3_column_text(stmt, 8)
+            ? sqlite3_column_text(stmt, 8)
             : reinterpret_cast<const unsigned char *>(""));
-    a.maxSampleRate = static_cast<uint32_t>(sqlite3_column_int(stmt, 7));
-    a.maxBitDepth = static_cast<uint8_t>(sqlite3_column_int(stmt, 8));
+    a.maxSampleRate = static_cast<uint32_t>(sqlite3_column_int(stmt, 9));
+    a.maxBitDepth = static_cast<uint8_t>(sqlite3_column_int(stmt, 10));
     a.primaryCodec = reinterpret_cast<const char *>(
-        sqlite3_column_text(stmt, 9)
-            ? sqlite3_column_text(stmt, 9)
+        sqlite3_column_text(stmt, 11)
+            ? sqlite3_column_text(stmt, 11)
             : reinterpret_cast<const unsigned char *>("FLAC"));
 
     if (a.maxSampleRate >= 88200 || a.maxBitDepth >= 24) {
@@ -418,6 +589,10 @@ SqliteDatabaseAdapter::getAlbumById(const std::string &id) {
   auto all = getAllAlbums();
   for (const auto &a : all) {
     if (a.id == id)
+      return a;
+  }
+  for (const auto &a : all) {
+    if (id.rfind("alb_" + a.title + "_", 0) == 0 || id == ("alb_" + a.title))
       return a;
   }
   return std::nullopt;
@@ -471,10 +646,21 @@ size_t SqliteDatabaseAdapter::getAlbumCount() {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (!m_db)
     return 0;
-  const char *sql = "SELECT COUNT(DISTINCT album || '::' || "
-                    "COALESCE(NULLIF(album_artist, ''), artist)) FROM tracks;";
+
+  std::string sql;
+  if (m_groupAlbumsByTitle) {
+    sql = "SELECT COUNT(DISTINCT CASE "
+          "WHEN album = '' OR album = 'Unknown Album' THEN (album || '::' || "
+          "artist) "
+          "ELSE album END) FROM tracks;";
+  } else {
+    sql = "SELECT COUNT(DISTINCT album || '::' || "
+          "COALESCE(NULLIF(NULLIF(album_artist, ''), 'Unknown "
+          "Artist'), artist)) FROM tracks;";
+  }
+
   sqlite3_stmt *stmt = nullptr;
-  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
     return 0;
   size_t count = 0;
   if (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -482,6 +668,15 @@ size_t SqliteDatabaseAdapter::getAlbumCount() {
   }
   sqlite3_finalize(stmt);
   return count;
+}
+
+void SqliteDatabaseAdapter::setGroupAlbumsByTitle(bool enabled) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_groupAlbumsByTitle = enabled;
+}
+
+bool SqliteDatabaseAdapter::groupAlbumsByTitle() const {
+  return m_groupAlbumsByTitle;
 }
 
 } // namespace adapters

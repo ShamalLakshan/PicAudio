@@ -1,0 +1,65 @@
+Windows Registry Editor Version 5.00
+
+; PicAudio Windows File Associations & Context Menu Verbs
+; ProgID Definition
+[HKEY_CURRENT_USER\Software\Classes\PicAudio.AudioFile]
+@="Audio Track"
+"FriendlyTypeName"="PicAudio Audio Track"
+
+[HKEY_CURRENT_USER\Software\Classes\PicAudio.AudioFile\DefaultIcon]
+@="\"%LOCALAPPDATA%\\PicAudio\\PicAudio.exe\",0"
+
+[HKEY_CURRENT_USER\Software\Classes\PicAudio.AudioFile\shell\open]
+@="&Play with PicAudio"
+
+[HKEY_CURRENT_USER\Software\Classes\PicAudio.AudioFile\shell\open\command]
+@="\"%LOCALAPPDATA%\\PicAudio\\PicAudio.exe\" \"%1\""
+
+[HKEY_CURRENT_USER\Software\Classes\PicAudio.AudioFile\shell\enqueue]
+@="&Enqueue in PicAudio"
+
+[HKEY_CURRENT_USER\Software\Classes\PicAudio.AudioFile\shell\enqueue\command]
+@="\"%LOCALAPPDATA%\\PicAudio\\PicAudio.exe\" --enqueue \"%1\""
+
+; Audio Extension Associations
+[HKEY_CURRENT_USER\Software\Classes\.flac\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.wav\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.mp3\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.m4a\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.aac\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.ogg\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.opus\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.aiff\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.ape\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.wv\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.wma\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.cue\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.m3u\OpenWithProgids]
+"PicAudio.AudioFile"=hex:
+
+[HKEY_CURRENT_USER\Software\Classes\.m3u8\OpenWithProgids]
+"PicAudio.AudioFile"=hex:

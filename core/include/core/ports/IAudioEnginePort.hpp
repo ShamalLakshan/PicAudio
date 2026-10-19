@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace core {
 
@@ -53,6 +55,29 @@ public:
    * @return Current speed multiplier.
    */
   virtual float getPlaybackRate() const { return 1.0f; }
+
+  /**
+   * @brief Gets frequency spectrum bands normalized to [0.0f, 1.0f].
+   * @param bandCount Number of frequency bands requested.
+   */
+  virtual std::vector<float> getFrequencyBands(size_t bandCount = 36) const {
+    (void)bandCount;
+    return {};
+  }
+
+  /**
+   * @brief Gets waveform sample points normalized to [-1.0f, 1.0f].
+   * @param sampleCount Number of waveform sample points requested.
+   */
+  virtual std::vector<float> getWaveformSamples(size_t sampleCount = 64) const {
+    (void)sampleCount;
+    return {};
+  }
+
+  /**
+   * @brief Gets current RMS audio level / amplitude in [0.0f, 1.0f].
+   */
+  virtual float getAudioLevel() const { return 0.0f; }
 };
 
 } // namespace core

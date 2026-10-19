@@ -15,6 +15,14 @@ Menu {
     property string currentPlaylistName: ""
     property string targetColumnKey: ""
     property string targetColumnTitle: ""
+    property string targetAlbumTitle: ""
+    property string targetAlbumArtist: ""
+    property string targetFolderPath: ""
+    property string targetPlaylistName: ""
+    property bool targetPlaylistIsSmart: false
+    property int targetQueueIndex: -1
+    property bool stayOnTop: false
+    property real currentOpacity: 1.0
 
     readonly property int selectedCount: targetTracks && targetTracks.length > 0 ? targetTracks.length : (targetTrack ? 1 : 0)
     readonly property bool isMultiSelect: selectedCount > 1
@@ -49,6 +57,20 @@ Menu {
     signal playlistTracksChanged()
     signal openAudioFilesRequested()
     signal openAudioFolderRequested()
+    signal renamePlaylistRequested(string playlistName)
+    signal duplicatePlaylistRequested(string playlistName)
+    signal exportPlaylistRequested(string playlistName)
+    signal editSmartPlaylistRequested(string playlistName)
+    signal deletePlaylistRequested(string playlistName)
+    signal saveQueueAsPlaylistRequested()
+    signal showAudioDiagnosticsRequested()
+    signal showAudioSettingsRequested()
+    signal exportArtworkRequested(string album, string artist)
+    signal toggleMiniPlayerRequested()
+    signal setOpacityRequested(real opacity)
+    signal closeMiniPlayerRequested()
+    signal toggleWindowRequested()
+    signal showPreferencesRequested()
 
     background: Rectangle {
         implicitWidth: 230
@@ -661,5 +683,506 @@ Menu {
         text: "Clear Library Database"
         visible: root.menuType === "explorer"
         onTriggered: bridge.clearLibrary()
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "explorer"
+    }
+
+    ContextMenuItem {
+        text: (bridge.groupAlbumsByTitle ? "Disable" : "Enable") + " Guest Artist Album Grouping"
+        visible: root.menuType === "explorer"
+        onTriggered: bridge.setGroupAlbumsByTitle(!bridge.groupAlbumsByTitle)
+    }
+
+    // --- Album Cards Context Menu (Issue #12) ---
+
+    ContextMenuItem {
+        text: "Play Album"
+        visible: root.menuType === "album"
+        onTriggered: bridge.playAlbumNow(root.targetAlbumTitle, root.targetAlbumArtist)
+    }
+
+    ContextMenuItem {
+        text: "Play Album Next"
+        visible: root.menuType === "album"
+        onTriggered: bridge.playAlbumNext(root.targetAlbumTitle, root.targetAlbumArtist)
+    }
+
+    ContextMenuItem {
+        text: "Queue Album Last"
+        visible: root.menuType === "album"
+        onTriggered: bridge.queueAlbumLast(root.targetAlbumTitle, root.targetAlbumArtist)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "album"
+    }
+
+    ContextSubMenu {
+        id: addAlbumToPlaylistSubMenu
+        title: "Add Album to Playlist"
+        visible: root.menuType === "album"
+
+        ContextMenuItem {
+            text: "New Playlist..."
+            onTriggered: {
+                root.newPlaylistRequested();
+            }
+        }
+
+        ContextMenuSeparator {
+            visible: bridge.availablePlaylists.length > 0
+        }
+
+        Instantiator {
+            model: bridge.availablePlaylists
+            onObjectAdded: (index, object) => addAlbumToPlaylistSubMenu.insertItem(index + 2, object)
+            onObjectRemoved: (index, object) => addAlbumToPlaylistSubMenu.removeItem(object)
+            delegate: ContextMenuItem {
+                text: modelData
+                onTriggered: {
+                    bridge.addAlbumToPlaylist(root.targetAlbumTitle, root.targetAlbumArtist, modelData);
+                }
+            }
+        }
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "album"
+    }
+
+    ContextMenuItem {
+        text: "Show Album in File Manager"
+        visible: root.menuType === "album"
+        onTriggered: bridge.showAlbumInFileManager(root.targetAlbumTitle, root.targetAlbumArtist)
+    }
+
+    ContextMenuItem {
+        text: "Edit Album Tags..."
+        visible: root.menuType === "album"
+        onTriggered: {
+            var trks = bridge.getAlbumTracks(root.targetAlbumTitle, root.targetAlbumArtist);
+            root.editTagsRequested(trks);
+        }
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "album"
+    }
+
+    ContextMenuItem {
+        text: "Search & Fetch Album Artwork Online..."
+        visible: root.menuType === "album"
+        onTriggered: bridge.searchAlbumArtworkOnline(root.targetAlbumTitle, root.targetAlbumArtist)
+    }
+
+    ContextMenuItem {
+        text: "Extract / Save Embedded Artwork to Disk..."
+        visible: root.menuType === "album"
+        onTriggered: root.exportArtworkRequested(root.targetAlbumTitle, root.targetAlbumArtist)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "album"
+    }
+
+    ContextMenuItem {
+        text: bridge.groupAlbumsByTitle ? "Split Albums by Artist Combinations" : "Group Albums with Guest/Featuring Artists"
+        visible: root.menuType === "album"
+        onTriggered: bridge.setGroupAlbumsByTitle(!bridge.groupAlbumsByTitle)
+    }
+
+    // --- Left Library Explorer: Monitored Folders (Issue #12) ---
+
+    ContextMenuItem {
+        text: "Rescan Folder Now"
+        visible: root.menuType === "folder"
+        onTriggered: bridge.rescanMonitoredFolder(root.targetFolderPath)
+    }
+
+    ContextMenuItem {
+        text: "Open Folder in File Manager"
+        visible: root.menuType === "folder"
+        onTriggered: bridge.showInFileManager(root.targetFolderPath)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "folder"
+    }
+
+    ContextMenuItem {
+        text: "Remove Monitored Folder"
+        visible: root.menuType === "folder"
+        onTriggered: bridge.removeMonitoredFolderPath(root.targetFolderPath)
+    }
+
+    // --- Left Library Explorer: Playlists (Issue #12) ---
+
+    ContextMenuItem {
+        text: "Play"
+        visible: root.menuType === "playlist"
+        onTriggered: bridge.playPlaylist(root.targetPlaylistName)
+    }
+
+    ContextMenuItem {
+        text: "Play Next"
+        visible: root.menuType === "playlist"
+        onTriggered: bridge.playPlaylistNext(root.targetPlaylistName)
+    }
+
+    ContextMenuItem {
+        text: "Enqueue"
+        visible: root.menuType === "playlist"
+        onTriggered: bridge.queuePlaylistLast(root.targetPlaylistName)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "playlist"
+    }
+
+    ContextMenuItem {
+        text: "Edit Rules..."
+        visible: root.menuType === "playlist" && root.targetPlaylistIsSmart
+        onTriggered: root.editSmartPlaylistRequested(root.targetPlaylistName)
+    }
+
+    ContextMenuItem {
+        text: "Rename (F2)"
+        visible: root.menuType === "playlist" && !root.targetPlaylistIsSmart
+        onTriggered: root.renamePlaylistRequested(root.targetPlaylistName)
+    }
+
+    ContextMenuItem {
+        text: "Duplicate"
+        visible: root.menuType === "playlist"
+        onTriggered: bridge.duplicatePlaylist(root.targetPlaylistName)
+    }
+
+    ContextMenuItem {
+        text: root.targetPlaylistIsSmart ? "Export Playlist..." : "Export (M3U/M3U8)..."
+        visible: root.menuType === "playlist"
+        onTriggered: root.exportPlaylistRequested(root.targetPlaylistName)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "playlist"
+    }
+
+    ContextMenuItem {
+        text: "Delete"
+        visible: root.menuType === "playlist"
+        onTriggered: root.deletePlaylistRequested(root.targetPlaylistName)
+    }
+
+    // --- Play Queue Panel Context Menu (Issue #12) ---
+
+    ContextMenuItem {
+        text: "Play Selected Item"
+        visible: root.menuType === "queue" && root.targetQueueIndex >= 0
+        onTriggered: bridge.playQueueTrack(root.targetQueueIndex)
+    }
+
+    ContextMenuItem {
+        text: "Move Up (Alt+Up)"
+        visible: root.menuType === "queue" && root.targetQueueIndex > 0
+        onTriggered: bridge.moveQueueItem(root.targetQueueIndex, root.targetQueueIndex - 1)
+    }
+
+    ContextMenuItem {
+        text: "Move Down (Alt+Down)"
+        visible: root.menuType === "queue" && root.targetQueueIndex >= 0 && root.targetQueueIndex < bridge.queueRemainingCount - 1
+        onTriggered: bridge.moveQueueItem(root.targetQueueIndex, root.targetQueueIndex + 1)
+    }
+
+    ContextMenuItem {
+        text: "Remove from Queue (Delete)"
+        visible: root.menuType === "queue" && root.targetQueueIndex >= 0
+        onTriggered: bridge.removeFromQueue(root.targetQueueIndex)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "queue"
+    }
+
+    ContextMenuItem {
+        text: "Clear Upcoming Queue"
+        visible: root.menuType === "queue"
+        onTriggered: bridge.clearQueue()
+    }
+
+    ContextMenuItem {
+        text: "Shuffle Remaining Items"
+        visible: root.menuType === "queue"
+        onTriggered: bridge.shuffleRemainingQueue()
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "queue"
+    }
+
+    ContextMenuItem {
+        text: "Save Queue as Static Playlist..."
+        visible: root.menuType === "queue"
+        onTriggered: root.saveQueueAsPlaylistRequested()
+    }
+
+    // --- Bottom Transport Deck: Seek Bar (Issue #13) ---
+
+    ContextMenuItem {
+        text: "Jump to 10%"
+        visible: root.menuType === "seekbar"
+        onTriggered: bridge.seek(bridge.durationMs * 0.10)
+    }
+
+    ContextMenuItem {
+        text: "Jump to 25%"
+        visible: root.menuType === "seekbar"
+        onTriggered: bridge.seek(bridge.durationMs * 0.25)
+    }
+
+    ContextMenuItem {
+        text: "Jump to 50%"
+        visible: root.menuType === "seekbar"
+        onTriggered: bridge.seek(bridge.durationMs * 0.50)
+    }
+
+    ContextMenuItem {
+        text: "Jump to 75%"
+        visible: root.menuType === "seekbar"
+        onTriggered: bridge.seek(bridge.durationMs * 0.75)
+    }
+
+    ContextMenuItem {
+        text: "Jump to 90%"
+        visible: root.menuType === "seekbar"
+        onTriggered: bridge.seek(bridge.durationMs * 0.90)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "seekbar"
+    }
+
+    ContextMenuItem {
+        text: "Copy Current Timestamp"
+        visible: root.menuType === "seekbar"
+        onTriggered: bridge.copyToClipboard(bridge.positionStr + " / " + bridge.durationStr)
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "seekbar"
+    }
+
+    ContextMenuItem {
+        text: "Toggle Elapsed / Remaining Time"
+        visible: root.menuType === "seekbar"
+        checkable: true
+        checked: bridge.showRemainingTime
+        onTriggered: bridge.showRemainingTime = !bridge.showRemainingTime
+    }
+
+    // --- Bottom Transport Deck: Volume Slider (Issue #13) ---
+
+    ContextMenuItem {
+        text: bridge.isMuted ? "Unmute" : "Mute"
+        visible: root.menuType === "volume"
+        checkable: true
+        checked: bridge.isMuted
+        onTriggered: bridge.toggleMute()
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "volume"
+    }
+
+    ContextSubMenu {
+        title: "Preset Volume"
+        visible: root.menuType === "volume"
+
+        ContextMenuItem {
+            text: "25%"
+            onTriggered: bridge.setVolume(0.25)
+        }
+        ContextMenuItem {
+            text: "50%"
+            onTriggered: bridge.setVolume(0.50)
+        }
+        ContextMenuItem {
+            text: "75%"
+            onTriggered: bridge.setVolume(0.75)
+        }
+        ContextMenuItem {
+            text: "100%"
+            onTriggered: bridge.setVolume(1.00)
+        }
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "volume"
+    }
+
+    ContextMenuItem {
+        text: "Lock Volume Slider"
+        visible: root.menuType === "volume"
+        checkable: true
+        checked: bridge.volumeLocked
+        onTriggered: bridge.volumeLocked = !bridge.volumeLocked
+    }
+
+    // --- Bottom Transport Deck: Codec Badge (Issue #13) ---
+
+    ContextMenuItem {
+        text: "Audio Diagnostics... (Ctrl+J)"
+        visible: root.menuType === "codec"
+        onTriggered: root.showAudioDiagnosticsRequested()
+    }
+
+    ContextMenuItem {
+        text: "Audio Output & Hardware Pipeline Settings..."
+        visible: root.menuType === "codec"
+        onTriggered: root.showAudioSettingsRequested()
+    }
+
+    // --- Mini-Player Context Menu (Issue #13) ---
+
+    ContextMenuItem {
+        text: "Stay on Top (Pin Window)"
+        visible: root.menuType === "miniplayer"
+        checkable: true
+        checked: root.stayOnTop
+        onTriggered: root.stayOnTop = !root.stayOnTop
+    }
+
+    ContextMenuItem {
+        text: "Switch to Full Player Mode (Ctrl+Shift+M / F10)"
+        visible: root.menuType === "miniplayer"
+        onTriggered: root.toggleMiniPlayerRequested()
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "miniplayer"
+    }
+
+    ContextSubMenu {
+        title: "Window Opacity"
+        visible: root.menuType === "miniplayer"
+
+        ContextMenuItem {
+            text: "100%"
+            checkable: true
+            checked: Math.abs(root.currentOpacity - 1.0) < 0.05
+            onTriggered: root.setOpacityRequested(1.0)
+        }
+        ContextMenuItem {
+            text: "90%"
+            checkable: true
+            checked: Math.abs(root.currentOpacity - 0.9) < 0.05
+            onTriggered: root.setOpacityRequested(0.9)
+        }
+        ContextMenuItem {
+            text: "75%"
+            checkable: true
+            checked: Math.abs(root.currentOpacity - 0.75) < 0.05
+            onTriggered: root.setOpacityRequested(0.75)
+        }
+        ContextMenuItem {
+            text: "50%"
+            checkable: true
+            checked: Math.abs(root.currentOpacity - 0.5) < 0.05
+            onTriggered: root.setOpacityRequested(0.5)
+        }
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "miniplayer"
+    }
+
+    ContextMenuItem {
+        text: "Close Mini-Player"
+        visible: root.menuType === "miniplayer"
+        onTriggered: root.closeMiniPlayerRequested()
+    }
+
+    // --- System Tray Icon Context Menu (Issue #13) ---
+
+    ContextMenuItem {
+        text: bridge.isPlaying ? ("Now Playing: " + bridge.currentTrackTitle + " - " + bridge.currentArtist) : "PicAudio (Stopped)"
+        visible: root.menuType === "tray"
+        enabled: false
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "tray"
+    }
+
+    ContextMenuItem {
+        text: bridge.isPlaying ? "Pause" : "Play"
+        visible: root.menuType === "tray"
+        onTriggered: bridge.togglePlayPause()
+    }
+
+    ContextMenuItem {
+        text: "Stop"
+        visible: root.menuType === "tray"
+        onTriggered: bridge.stop()
+    }
+
+    ContextMenuItem {
+        text: "Next Track"
+        visible: root.menuType === "tray"
+        onTriggered: bridge.nextTrack()
+    }
+
+    ContextMenuItem {
+        text: "Previous Track"
+        visible: root.menuType === "tray"
+        onTriggered: bridge.previousTrack()
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "tray"
+    }
+
+    ContextMenuItem {
+        text: bridge.isMuted ? "Unmute" : "Mute"
+        visible: root.menuType === "tray"
+        onTriggered: bridge.toggleMute()
+    }
+
+    ContextSubMenu {
+        title: "Volume"
+        visible: root.menuType === "tray"
+
+        ContextMenuItem { text: "0% (Mute)"; onTriggered: bridge.setVolume(0.0) }
+        ContextMenuItem { text: "25%"; onTriggered: bridge.setVolume(0.25) }
+        ContextMenuItem { text: "50%"; onTriggered: bridge.setVolume(0.50) }
+        ContextMenuItem { text: "75%"; onTriggered: bridge.setVolume(0.75) }
+        ContextMenuItem { text: "100%"; onTriggered: bridge.setVolume(1.00) }
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "tray"
+    }
+
+    ContextMenuItem {
+        text: "Show / Hide PicAudio Window"
+        visible: root.menuType === "tray"
+        onTriggered: root.toggleWindowRequested()
+    }
+
+    ContextMenuItem {
+        text: "Preferences..."
+        visible: root.menuType === "tray"
+        onTriggered: root.showPreferencesRequested()
+    }
+
+    ContextMenuSeparator {
+        visible: root.menuType === "tray"
+    }
+
+    ContextMenuItem {
+        text: "Quit PicAudio"
+        visible: root.menuType === "tray"
+        onTriggered: Qt.quit()
     }
 }

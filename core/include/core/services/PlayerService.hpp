@@ -33,6 +33,22 @@ public:
   /** @brief Loads tracks into queue and starts playback at the given index. */
   void playQueue(const std::vector<Track> &tracks, size_t startIndex = 0);
 
+  /**
+   * @brief Restores a saved playback session state.
+   * @param currentTrack Active track to restore.
+   * @param positionMs Playback position in milliseconds.
+   * @param upNext Up next queue tracks.
+   * @param mainStream Main stream tracks.
+   * @param mainStreamIndex Index in main stream.
+   * @param history Previous tracks history stack.
+   * @param autoResume True to start playing immediately; false to load paused.
+   */
+  void restoreSession(const std::optional<Track> &currentTrack,
+                      uint64_t positionMs, const std::vector<Track> &upNext,
+                      const std::vector<Track> &mainStream,
+                      size_t mainStreamIndex, const std::vector<Track> &history,
+                      bool autoResume = false);
+
   void pause();
   void resume();
   void togglePlayPause();
@@ -97,6 +113,29 @@ public:
   [[nodiscard]] QueueService &getQueueService() { return m_queueService; }
   [[nodiscard]] const QueueService &getQueueService() const {
     return m_queueService;
+  }
+
+  [[nodiscard]] std::vector<float>
+  getFrequencyBands(size_t bandCount = 36) const {
+    if (m_audioEngine) {
+      return m_audioEngine->getFrequencyBands(bandCount);
+    }
+    return {};
+  }
+
+  [[nodiscard]] std::vector<float>
+  getWaveformSamples(size_t sampleCount = 64) const {
+    if (m_audioEngine) {
+      return m_audioEngine->getWaveformSamples(sampleCount);
+    }
+    return {};
+  }
+
+  [[nodiscard]] float getAudioLevel() const {
+    if (m_audioEngine) {
+      return m_audioEngine->getAudioLevel();
+    }
+    return 0.0f;
   }
 
   void onTrackChanged(std::function<void(const Track &)> callback) {

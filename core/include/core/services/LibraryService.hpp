@@ -61,6 +61,8 @@ public:
                                        const std::string &albumArtist);
   std::optional<Track> getTrackById(const std::string &id);
   std::optional<Album> getAlbumById(const std::string &id);
+  void setGroupAlbumsByTitle(bool enabled);
+  bool groupAlbumsByTitle() const;
 
   IMusicDatabasePort &getDatabasePort() { return m_dbPort; }
   IMetadataExtractor &getMetadataExtractor() { return m_metadataExtractor; }

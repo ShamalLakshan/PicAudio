@@ -139,6 +139,14 @@ std::optional<Album> LibraryService::getAlbumById(const std::string &id) {
   return m_dbPort.getAlbumById(id);
 }
 
+void LibraryService::setGroupAlbumsByTitle(bool enabled) {
+  m_dbPort.setGroupAlbumsByTitle(enabled);
+}
+
+bool LibraryService::groupAlbumsByTitle() const {
+  return m_dbPort.groupAlbumsByTitle();
+}
+
 void LibraryService::seedSampleAudiophileLibrary() {
   // Deprecated: No-op. Real music scanning is used.
 }
