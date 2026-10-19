@@ -10,12 +10,14 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequence>
+#include <QQmlApplicationEngine>
 #include <QRegularExpression>
 #include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QTextStream>
+#include <QTranslator>
 #include <QUrl>
 #include <algorithm>
 #include <chrono>
@@ -2795,6 +2797,54 @@ void QtBridge::setLanguage(const QString &lang) {
   if (m_language != lang) {
     m_language = lang;
     saveSettings();
+    applyLanguage(m_language);
+    emit settingsChanged();
+  }
+}
+
+QStringList QtBridge::availableLanguages() const {
+  return {QStringLiteral("System Default"), QStringLiteral("English"),
+          QStringLiteral("Deutsch"),        QStringLiteral("Español"),
+          QStringLiteral("Français"),       QStringLiteral("日本語")};
+}
+
+void QtBridge::setQmlEngine(QQmlApplicationEngine *engine) {
+  m_qmlEngine = engine;
+  if (m_language != QStringLiteral("System Default")) {
+    applyLanguage(m_language);
+  }
+}
+
+void QtBridge::applyLanguage(const QString &lang) {
+  if (!m_qmlEngine) {
+    return;
+  }
+  if (!m_translator) {
+    m_translator = new QTranslator(this);
+    QCoreApplication::installTranslator(m_translator);
+  }
+
+  QString langCode;
+  if (lang == QStringLiteral("English")) {
+    langCode = QStringLiteral("en");
+  } else if (lang == QStringLiteral("Deutsch")) {
+    langCode = QStringLiteral("de");
+  } else if (lang == QStringLiteral("Español")) {
+    langCode = QStringLiteral("es");
+  } else if (lang == QStringLiteral("Français")) {
+    langCode = QStringLiteral("fr");
+  } else if (lang == QStringLiteral("日本語")) {
+    langCode = QStringLiteral("ja");
+  } else {
+    langCode = QLocale::system().name().left(2);
+  }
+
+  if (m_translator->load(QStringLiteral(":/i18n/picaudio_") + langCode)) {
+    m_qmlEngine->retranslate();
+  } else if (langCode != QStringLiteral("en")) {
+    if (m_translator->load(QStringLiteral(":/i18n/picaudio_en"))) {
+      m_qmlEngine->retranslate();
+    }
   }
 }
 
@@ -3162,6 +3212,79 @@ QString QtBridge::checkHotkeyConflict(const QString &actionId,
     }
   }
   return "";
+}
+
+QString QtBridge::getHotkeySequence(const QString &actionId) const {
+  for (const auto &entry : m_hotkeys) {
+    if (entry.id == actionId) {
+      return entry.currentSequence;
+    }
+  }
+  return QString();
+}
+
+bool QtBridge::exportHotkeys(const QString &filePath) const {
+  QString localPath = filePath;
+  if (localPath.startsWith(QStringLiteral("file://"))) {
+    localPath = QUrl(filePath).toLocalFile();
+  }
+  QJsonObject rootObj;
+  rootObj[QStringLiteral("version")] = 1;
+  rootObj[QStringLiteral("application")] = QStringLiteral("PicAudio");
+  QJsonObject keymapObj;
+  for (const auto &entry : m_hotkeys) {
+    keymapObj[entry.id] = entry.currentSequence;
+  }
+  rootObj[QStringLiteral("keymaps")] = keymapObj;
+
+  QJsonDocument doc(rootObj);
+  QFile file(localPath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    return false;
+  }
+  file.write(doc.toJson(QJsonDocument::Indented));
+  file.close();
+  return true;
+}
+
+bool QtBridge::importHotkeys(const QString &filePath) {
+  QString localPath = filePath;
+  if (localPath.startsWith(QStringLiteral("file://"))) {
+    localPath = QUrl(filePath).toLocalFile();
+  }
+  QFile file(localPath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+  QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+  file.close();
+  if (!doc.isObject()) {
+    return false;
+  }
+  QJsonObject rootObj = doc.object();
+  QJsonObject keymapObj = rootObj[QStringLiteral("keymaps")].toObject();
+  if (keymapObj.isEmpty()) {
+    return false;
+  }
+  bool changed = false;
+  for (auto &entry : m_hotkeys) {
+    if (keymapObj.contains(entry.id)) {
+      QString newSeq = keymapObj.value(entry.id).toString();
+      if (entry.currentSequence != newSeq) {
+        entry.currentSequence = newSeq;
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    saveSettings();
+    emit hotkeysChanged();
+  }
+  return true;
+}
+
+void QtBridge::showToast(const QString &message, const QString &type) {
+  emit toastRequested(message, type);
 }
 
 void QtBridge::setLastfmEnabled(bool enable) {

@@ -293,6 +293,33 @@ Dialog {
         }
     }
 
+    FileDialog {
+        id: importKeymapDialog
+        title: "Import Keymap JSON"
+        nameFilters: ["Keymap JSON files (*.json)", "All files (*)"]
+        onAccepted: {
+            if (bridge.importHotkeys(selectedFile.toString())) {
+                bridge.showToast("Keymap imported successfully", "success");
+            } else {
+                bridge.showToast("Failed to import keymap JSON", "error");
+            }
+        }
+    }
+
+    FileDialog {
+        id: exportKeymapDialog
+        title: "Export Keymap JSON"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["Keymap JSON files (*.json)", "All files (*)"]
+        onAccepted: {
+            if (bridge.exportHotkeys(selectedFile.toString())) {
+                bridge.showToast("Keymap exported successfully", "success");
+            } else {
+                bridge.showToast("Failed to export keymap JSON", "error");
+            }
+        }
+    }
+
     property string editingActionId: ""
     property string editingActionName: ""
     property string editingKeySequence: ""
@@ -2841,6 +2868,14 @@ Dialog {
                             color: Theme.textPrimary
                         }
                         Item { Layout.fillWidth: true }
+                        StyledButton {
+                            text: "Import Keymap..."
+                            onClicked: importKeymapDialog.open()
+                        }
+                        StyledButton {
+                            text: "Export Keymap..."
+                            onClicked: exportKeymapDialog.open()
+                        }
                         StyledButton {
                             text: "Restore All Defaults"
                             onClicked: bridge.restoreDefaultHotkeys()

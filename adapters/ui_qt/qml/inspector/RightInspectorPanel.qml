@@ -80,21 +80,23 @@ Rectangle {
 
         // Track properties tab
         ScrollView {
+            id: inspectorScrollView
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.currentTab === 0
+            clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
             ColumnLayout {
-                width: 270
+                width: inspectorScrollView.availableWidth
                 spacing: 10
 
                 // Album art
                 Item { height: 4; width: 1 }
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: 236
-                    Layout.preferredHeight: 236
+                    Layout.preferredWidth: Math.min(280, Math.max(120, inspectorScrollView.availableWidth - 32))
+                    Layout.preferredHeight: Layout.preferredWidth
                     color: Theme.background
                     border.color: Theme.panelBorder
                     border.width: 1

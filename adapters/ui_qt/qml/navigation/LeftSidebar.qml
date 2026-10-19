@@ -67,12 +67,14 @@ Rectangle {
 
         // Navigation Tree Scroll
         ScrollView {
+            id: sidebarScrollView
             Layout.fillWidth: true
             Layout.fillHeight: true
+            clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
             ColumnLayout {
-                width: 210
+                width: sidebarScrollView.availableWidth
                 spacing: 1
 
                 // Section: LIBRARY

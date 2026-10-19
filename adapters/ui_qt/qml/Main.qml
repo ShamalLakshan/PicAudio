@@ -316,6 +316,11 @@ ApplicationWindow {
 
     DeleteConfirmDialog {
         id: deleteConfirmDialog
+        onPlaylistDeleted: (plName) => {
+            if (activePlaylistName === plName) {
+                activePlaylistName = "";
+            }
+        }
     }
 
     ContextMenu {
@@ -424,10 +429,7 @@ ApplicationWindow {
             newPlaylistDialog.openSmartEdit(plName, bridge.getSmartPlaylistRules(plName));
         }
         onDeletePlaylistRequested: (plName) => {
-            bridge.deletePlaylist(plName);
-            if (activePlaylistName === plName) {
-                activePlaylistName = "";
-            }
+            deleteConfirmDialog.confirmDeletePlaylist(plName);
         }
     }
 
@@ -1187,5 +1189,10 @@ ApplicationWindow {
         visible: showEqualizer && !isMiniPlayer
         z: 100
         onClosed: showEqualizer = false
+    }
+
+    // In-app non-blocking Toast Banner
+    ToastBanner {
+        id: toastBanner
     }
 }

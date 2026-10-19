@@ -53,12 +53,15 @@ Rectangle {
                     delegate: Rectangle {
                         width: parent.width
                         height: 20
+                        clip: true
                         color: (root.selectedGenreFilter === modelData || (modelData.indexOf("All") === 0 && root.selectedGenreFilter === "All")) ? Theme.selection : (gMouse.containsMouse ? Theme.surfaceElevated : "transparent")
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left: parent.left
+                            anchors.right: parent.right
                             anchors.leftMargin: 8
+                            anchors.rightMargin: 8
                             text: modelData
                             font.pixelSize: 10
                             color: (root.selectedGenreFilter === modelData || (modelData.indexOf("All") === 0 && root.selectedGenreFilter === "All")) ? Theme.accent : Theme.textSecondary
@@ -113,12 +116,15 @@ Rectangle {
                     delegate: Rectangle {
                         width: parent.width
                         height: 20
+                        clip: true
                         color: (root.selectedArtistFilter === modelData || (modelData.indexOf("All") === 0 && root.selectedArtistFilter === "All")) ? Theme.selection : (aMouse.containsMouse ? Theme.surfaceElevated : "transparent")
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left: parent.left
+                            anchors.right: parent.right
                             anchors.leftMargin: 8
+                            anchors.rightMargin: 8
                             text: modelData
                             font.pixelSize: 10
                             color: (root.selectedArtistFilter === modelData || (modelData.indexOf("All") === 0 && root.selectedArtistFilter === "All")) ? Theme.accent : Theme.textSecondary

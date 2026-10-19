@@ -928,6 +928,40 @@ public:
   [[nodiscard]] Q_INVOKABLE QString checkHotkeyConflict(
       const QString &actionId, const QString &keySequence) const;
 
+  /**
+   * @brief Retrieves active key sequence bound to an action ID.
+   * @param actionId Action identifier.
+   * @return Key sequence string, or empty string.
+   */
+  [[nodiscard]] Q_INVOKABLE QString
+  getHotkeySequence(const QString &actionId) const;
+
+  /**
+   * @brief Exports current hotkey configuration to a JSON keymap file.
+   * @param filePath Target JSON file path.
+   * @return True if exported successfully.
+   */
+  [[nodiscard]] Q_INVOKABLE bool exportHotkeys(const QString &filePath) const;
+
+  /**
+   * @brief Imports hotkey configuration from a JSON keymap file.
+   * @param filePath Source JSON file path.
+   * @return True if imported successfully.
+   */
+  Q_INVOKABLE bool importHotkeys(const QString &filePath);
+
+  /**
+   * @brief Dispatches an in-app non-blocking toast notification banner.
+   * @param message Banner text to display.
+   * @param type Notification variant ("info", "success", "warning", "error").
+   */
+  Q_INVOKABLE void showToast(const QString &message,
+                             const QString &type = QStringLiteral("info"));
+
+  // Internationalization & Locale
+  [[nodiscard]] Q_INVOKABLE QStringList availableLanguages() const;
+  void setQmlEngine(class QQmlApplicationEngine *engine);
+
   // Metadata & Scrobbling Settings
   /**
    * @brief Sets whether Last.fm scrobbling integration is enabled.
@@ -1073,6 +1107,7 @@ signals:
   void lyricsChanged();
   void activeLyricIndexChanged();
   void visualizerDataChanged();
+  void toastRequested(const QString &message, const QString &type);
 
 private:
   struct LyricLine {
@@ -1292,4 +1327,8 @@ private:
   QVariantList m_visualizerBands;
   QVariantList m_visualizerWaveform;
   float m_visualizerLevel{0.0f};
+
+  class QQmlApplicationEngine *m_qmlEngine{nullptr};
+  class QTranslator *m_translator{nullptr};
+  void applyLanguage(const QString &lang);
 };

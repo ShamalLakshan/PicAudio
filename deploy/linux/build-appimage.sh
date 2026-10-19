@@ -17,6 +17,31 @@ echo "Repository Root: ${REPO_ROOT}"
 echo "Build Directory: ${BUILD_DIR}"
 echo "Output Directory: ${OUTPUT_DIR}"
 
+# Detect clean build request or stale CMake cache paths
+CLEAN_BUILD=false
+for arg in "$@"; do
+    case "$arg" in
+        --clean|-c)
+            CLEAN_BUILD=true
+            ;;
+    esac
+done
+
+if [ -f "${BUILD_DIR}/CMakeCache.txt" ]; then
+    CACHED_SOURCE="$(grep -E '^CMAKE_HOME_DIRECTORY:INTERNAL=' "${BUILD_DIR}/CMakeCache.txt" 2>/dev/null | cut -d= -f2 || true)"
+    CACHED_BINARY="$(grep -E '^CMAKE_CACHEFILE_DIR:INTERNAL=' "${BUILD_DIR}/CMakeCache.txt" 2>/dev/null | cut -d= -f2 || true)"
+    if { [ -n "${CACHED_SOURCE}" ] && [ "${CACHED_SOURCE}" != "${REPO_ROOT}" ]; } || \
+       { [ -n "${CACHED_BINARY}" ] && [ "${CACHED_BINARY}" != "${BUILD_DIR}" ]; }; then
+        echo "--> Stale CMakeCache detected (path mismatch: source='${CACHED_SOURCE}', binary='${CACHED_BINARY}')."
+        CLEAN_BUILD=true
+    fi
+fi
+
+if [ "${CLEAN_BUILD}" = true ]; then
+    echo "--> Cleaning stale build artifacts..."
+    find "${BUILD_DIR}" -mindepth 1 -maxdepth 1 ! -name tools -exec rm -rf {} +
+fi
+
 mkdir -p "${BUILD_DIR}"
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${TOOLS_DIR}"

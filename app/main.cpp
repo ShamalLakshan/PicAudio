@@ -118,6 +118,7 @@ int main(int argc, char *argv[]) {
   engine.rootContext()->setContextProperty("Theme", themeLoader.get());
   engine.rootContext()->setContextProperty("bridge", &bridge);
   engine.rootContext()->setContextProperty("desktopIntegration", &desktop);
+  bridge.setQmlEngine(&engine);
 
   // Connect QML quit signal to application quit
   QObject::connect(&engine, &QQmlApplicationEngine::quit, &app,

@@ -43,6 +43,14 @@ Rectangle {
                     height: 36
                     radius: 18
                     color: playPauseMouse.containsMouse ? Theme.accentHover : Theme.accent
+                    border.color: playPauseBtn.activeFocus ? Theme.textPrimary : "transparent"
+                    border.width: playPauseBtn.activeFocus ? 2 : 0
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: bridge.isPlaying ? "Pause playback" : "Start playback"
+
+                    Keys.onSpacePressed: bridge.togglePlayPause()
+                    Keys.onReturnPressed: bridge.togglePlayPause()
 
                     VectorIcon {
                         anchors.centerIn: parent
@@ -58,8 +66,14 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: bridge.togglePlayPause()
+                        onClicked: {
+                            playPauseBtn.forceActiveFocus();
+                            bridge.togglePlayPause();
+                        }
                     }
+
+                    ToolTip.visible: playPauseMouse.containsMouse || playPauseBtn.activeFocus
+                    ToolTip.text: (bridge.isPlaying ? "Pause" : "Play") + " (" + bridge.getHotkeySequence("play_pause") + ")"
                 }
 
                 // Left buttons: Shuffle, Stop, Previous (Adjacent to Play)
@@ -71,12 +85,19 @@ Rectangle {
 
                     // Shuffle Button (Cycle: Off -> Tracks -> Albums)
                     Rectangle {
+                        id: shuffleBtn
                         width: 24
                         height: 24
                         radius: 2
                         color: bridge.shuffleMode !== 0 ? Theme.selection : (shufMouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                        border.color: bridge.shuffleMode !== 0 ? Theme.accent : "transparent"
-                        border.width: 1
+                        border.color: shuffleBtn.activeFocus ? Theme.accentHover : (bridge.shuffleMode !== 0 ? Theme.accent : "transparent")
+                        border.width: shuffleBtn.activeFocus ? 2 : 1
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Cycle shuffle mode"
+
+                        Keys.onSpacePressed: bridge.cycleShuffleMode()
+                        Keys.onReturnPressed: bridge.cycleShuffleMode()
 
                         VectorIcon {
                             anchors.centerIn: parent
@@ -90,46 +111,75 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: bridge.cycleShuffleMode()
+                            onClicked: {
+                                shuffleBtn.forceActiveFocus();
+                                bridge.cycleShuffleMode();
+                            }
                         }
-                        ToolTip.visible: shufMouse.containsMouse
-                        ToolTip.text: bridge.shuffleMode === 0 ? "Shuffle: Off" : (bridge.shuffleMode === 1 ? "Shuffle: Tracks" : "Shuffle: Albums")
+                        ToolTip.visible: shufMouse.containsMouse || shuffleBtn.activeFocus
+                        ToolTip.text: (bridge.shuffleMode === 0 ? "Shuffle: Off" : (bridge.shuffleMode === 1 ? "Shuffle: Tracks" : "Shuffle: Albums")) + " (" + bridge.getHotkeySequence("cycle_shuffle") + ")"
                     }
 
                     // Stop Button
                     Rectangle {
+                        id: stopBtn
                         width: 28
                         height: 28
                         radius: 2
                         color: stopMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                        border.color: stopBtn.activeFocus ? Theme.accent : "transparent"
+                        border.width: stopBtn.activeFocus ? 2 : 0
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Stop playback"
+
+                        Keys.onSpacePressed: bridge.stop()
+                        Keys.onReturnPressed: bridge.stop()
+
                         VectorIcon { anchors.centerIn: parent; name: "stop"; width: 12; height: 12; color: Theme.textSecondary }
                         MouseArea {
                             id: stopMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: bridge.stop()
+                            onClicked: {
+                                stopBtn.forceActiveFocus();
+                                bridge.stop();
+                            }
                         }
-                        ToolTip.visible: stopMouse.containsMouse
-                        ToolTip.text: "Stop (X)"
+                        ToolTip.visible: stopMouse.containsMouse || stopBtn.activeFocus
+                        ToolTip.text: "Stop (" + bridge.getHotkeySequence("stop") + ")"
                     }
 
                     // Previous Button
                     Rectangle {
+                        id: prevBtn
                         width: 28
                         height: 28
                         radius: 2
                         color: prevMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                        border.color: prevBtn.activeFocus ? Theme.accent : "transparent"
+                        border.width: prevBtn.activeFocus ? 2 : 0
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Previous track"
+
+                        Keys.onSpacePressed: bridge.previousTrack()
+                        Keys.onReturnPressed: bridge.previousTrack()
+
                         VectorIcon { anchors.centerIn: parent; name: "previous"; width: 14; height: 14; color: Theme.textPrimary }
                         MouseArea {
                             id: prevMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: bridge.previousTrack()
+                            onClicked: {
+                                prevBtn.forceActiveFocus();
+                                bridge.previousTrack();
+                            }
                         }
-                        ToolTip.visible: prevMouse.containsMouse
-                        ToolTip.text: "Previous (Z)"
+                        ToolTip.visible: prevMouse.containsMouse || prevBtn.activeFocus
+                        ToolTip.text: "Previous (" + bridge.getHotkeySequence("prev_track") + ")"
                     }
                 }
 
@@ -142,30 +192,50 @@ Rectangle {
 
                     // Next Button
                     Rectangle {
+                        id: nextBtn
                         width: 28
                         height: 28
                         radius: 2
                         color: nextMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                        border.color: nextBtn.activeFocus ? Theme.accent : "transparent"
+                        border.width: nextBtn.activeFocus ? 2 : 0
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Next track"
+
+                        Keys.onSpacePressed: bridge.nextTrack()
+                        Keys.onReturnPressed: bridge.nextTrack()
+
                         VectorIcon { anchors.centerIn: parent; name: "next"; width: 14; height: 14; color: Theme.textPrimary }
                         MouseArea {
                             id: nextMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: bridge.nextTrack()
+                            onClicked: {
+                                nextBtn.forceActiveFocus();
+                                bridge.nextTrack();
+                            }
                         }
-                        ToolTip.visible: nextMouse.containsMouse
-                        ToolTip.text: "Next (B)"
+                        ToolTip.visible: nextMouse.containsMouse || nextBtn.activeFocus
+                        ToolTip.text: "Next (" + bridge.getHotkeySequence("next_track") + ")"
                     }
 
                     // Repeat Button (Cycle: Off -> All -> One)
                     Rectangle {
+                        id: repeatBtn
                         width: 24
                         height: 24
                         radius: 2
                         color: bridge.repeatMode !== 0 ? Theme.selection : (repMouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                        border.color: bridge.repeatMode !== 0 ? Theme.accent : "transparent"
-                        border.width: 1
+                        border.color: repeatBtn.activeFocus ? Theme.accentHover : (bridge.repeatMode !== 0 ? Theme.accent : "transparent")
+                        border.width: repeatBtn.activeFocus ? 2 : 1
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Cycle repeat mode"
+
+                        Keys.onSpacePressed: bridge.cycleRepeatMode()
+                        Keys.onReturnPressed: bridge.cycleRepeatMode()
 
                         VectorIcon {
                             anchors.centerIn: parent
@@ -179,10 +249,13 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: bridge.cycleRepeatMode()
+                            onClicked: {
+                                repeatBtn.forceActiveFocus();
+                                bridge.cycleRepeatMode();
+                            }
                         }
-                        ToolTip.visible: repMouse.containsMouse
-                        ToolTip.text: bridge.repeatMode === 0 ? "Repeat: Off" : (bridge.repeatMode === 1 ? "Repeat: All" : "Repeat: One")
+                        ToolTip.visible: repMouse.containsMouse || repeatBtn.activeFocus
+                        ToolTip.text: (bridge.repeatMode === 0 ? "Repeat: Off" : (bridge.repeatMode === 1 ? "Repeat: All" : "Repeat: One")) + " (" + bridge.getHotkeySequence("cycle_repeat") + ")"
                     }
                 }
             }
@@ -431,18 +504,36 @@ Rectangle {
             spacing: 10
             clip: true
 
-            Item { Layout.fillWidth: true }
+            Rectangle {
+                id: muteBtn
+                width: 24
+                height: 24
+                radius: Theme.cornerRadiusSmall
+                color: muteMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                border.color: muteBtn.activeFocus ? Theme.accent : "transparent"
+                border.width: muteBtn.activeFocus ? 2 : 0
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: bridge.isMuted ? "Unmute audio" : "Mute audio"
 
-            VectorIcon {
-                name: bridge.isMuted ? "volume_mute" : "volume"
-                width: 14
-                height: 14
-                color: Theme.textSecondary
+                Keys.onSpacePressed: bridge.toggleMute()
+                Keys.onReturnPressed: bridge.toggleMute()
+
+                VectorIcon {
+                    anchors.centerIn: parent
+                    name: bridge.isMuted ? "volume_mute" : "volume"
+                    width: 14
+                    height: 14
+                    color: muteBtn.activeFocus ? Theme.accent : Theme.textSecondary
+                }
+
                 MouseArea {
+                    id: muteMouse
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: (mouse) => {
+                        muteBtn.forceActiveFocus();
                         if (mouse.button === Qt.RightButton) {
                             root.requestVolumeContextMenu();
                         } else {
@@ -450,6 +541,9 @@ Rectangle {
                         }
                     }
                 }
+
+                ToolTip.visible: muteMouse.containsMouse || muteBtn.activeFocus
+                ToolTip.text: (bridge.isMuted ? "Unmute" : "Mute") + " (" + bridge.getHotkeySequence("toggle_mute") + ")"
             }
 
             Slider {
@@ -459,6 +553,15 @@ Rectangle {
                 from: 0
                 to: 1
                 value: bridge.volume
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Slider
+                Accessible.name: "Volume level slider"
+
+                Keys.onLeftPressed: bridge.setVolume(bridge.volume - 0.05)
+                Keys.onRightPressed: bridge.setVolume(bridge.volume + 0.05)
+                Keys.onDownPressed: bridge.setVolume(bridge.volume - 0.05)
+                Keys.onUpPressed: bridge.setVolume(bridge.volume + 0.05)
+
                 onMoved: bridge.setVolume(value)
 
                 MouseArea {
@@ -480,6 +583,8 @@ Rectangle {
                     height: 4
                     radius: 2
                     color: Theme.surfaceElevated
+                    border.color: volumeSlider.activeFocus ? Theme.accent : "transparent"
+                    border.width: volumeSlider.activeFocus ? 1 : 0
 
                     Rectangle {
                         width: volumeSlider.visualPosition * parent.width
@@ -492,10 +597,12 @@ Rectangle {
                 handle: Rectangle {
                     x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
                     y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                    implicitWidth: 8
-                    implicitHeight: 8
-                    radius: 4
-                    color: Theme.textPrimary
+                    implicitWidth: volumeSlider.activeFocus ? 10 : 8
+                    implicitHeight: volumeSlider.activeFocus ? 10 : 8
+                    radius: 5
+                    color: volumeSlider.activeFocus ? Theme.accentHover : Theme.textPrimary
+                    border.color: volumeSlider.activeFocus ? Theme.textPrimary : "transparent"
+                    border.width: volumeSlider.activeFocus ? 1 : 0
                 }
             }
 
@@ -523,18 +630,33 @@ Rectangle {
 
             // Fullscreen Toggle
             Rectangle {
+                id: fsBtn
                 width: 24
                 height: 24
                 radius: 2
                 color: fsMouse.containsMouse ? Theme.surfaceElevated : "transparent"
-                VectorIcon { anchors.centerIn: parent; name: "fullscreen"; width: 12; height: 12; color: Theme.textSecondary }
+                border.color: fsBtn.activeFocus ? Theme.accent : "transparent"
+                border.width: fsBtn.activeFocus ? 2 : 0
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: "Toggle fullscreen window"
+
+                Keys.onSpacePressed: root.requestToggleFullscreen()
+                Keys.onReturnPressed: root.requestToggleFullscreen()
+
+                VectorIcon { anchors.centerIn: parent; name: "fullscreen"; width: 12; height: 12; color: fsBtn.activeFocus ? Theme.accent : Theme.textSecondary }
                 MouseArea {
                     id: fsMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.requestToggleFullscreen()
+                    onClicked: {
+                        fsBtn.forceActiveFocus();
+                        root.requestToggleFullscreen();
+                    }
                 }
+                ToolTip.visible: fsMouse.containsMouse || fsBtn.activeFocus
+                ToolTip.text: "Toggle Fullscreen (" + bridge.getHotkeySequence("toggle_fullscreen") + ")"
             }
         }
     }

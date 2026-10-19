@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QUrl>
 
+#include "GlobalMediaKeysHook.hpp"
 #include "MacMediaControls.hpp"
 #include "MprisAdapter.hpp"
 #include "QtBridge.hpp"
@@ -16,7 +17,8 @@ DesktopIntegrationManager::DesktopIntegrationManager(QtBridge *bridge,
     : QObject(parent), m_bridge(bridge),
       m_singleInstance(new SingleInstanceManager(this)),
       m_trayAdapter(new DesktopTrayAdapter(this)),
-      m_notificationAdapter(new DesktopNotificationAdapter(this)) {
+      m_notificationAdapter(new DesktopNotificationAdapter(this)),
+      m_globalMediaKeysHook(new GlobalMediaKeysHook(this)) {
 
 #if defined(Q_OS_WIN)
   m_mediaControls = new WindowsMediaControls(this);
@@ -54,6 +56,7 @@ bool DesktopIntegrationManager::initialize(const QStringList &args,
   m_trayAdapter->initialize();
   m_notificationAdapter->initialize(m_trayAdapter->trayIcon());
   m_mediaControls->initialize();
+  m_globalMediaKeysHook->initialize();
 
   // Apply initial settings from QtBridge
   if (m_bridge) {
@@ -61,6 +64,7 @@ bool DesktopIntegrationManager::initialize(const QStringList &args,
     m_notificationAdapter->setDurationSec(m_bridge->notificationDurationSec());
     m_notificationAdapter->setSuppressWhenFocused(
         m_bridge->suppressNotificationsWhenFocused());
+    m_globalMediaKeysHook->setEnabled(m_bridge->globalMediaKeysEnabled());
   }
 
   // Parse and execute command line arguments for the primary instance
@@ -83,6 +87,8 @@ void DesktopIntegrationManager::wireSignals() {
     connect(m_bridge, &QtBridge::playbackModeChanged, this,
             &DesktopIntegrationManager::onPlaybackModeChanged);
     connect(m_bridge, &QtBridge::settingsChanged, this,
+            &DesktopIntegrationManager::onSettingsChanged);
+    connect(m_bridge, &QtBridge::hotkeysChanged, this,
             &DesktopIntegrationManager::onSettingsChanged);
   }
 
@@ -210,6 +216,45 @@ void DesktopIntegrationManager::wireSignals() {
               QCoreApplication::quit();
             });
   }
+
+  // Wire Global Media Keys Hook signals
+  if (m_globalMediaKeysHook) {
+    connect(m_globalMediaKeysHook, &GlobalMediaKeysHook::playPauseRequested,
+            this, [this]() {
+              if (m_bridge)
+                m_bridge->togglePlayPause();
+            });
+    connect(m_globalMediaKeysHook, &GlobalMediaKeysHook::stopRequested, this,
+            [this]() {
+              if (m_bridge)
+                m_bridge->stop();
+            });
+    connect(m_globalMediaKeysHook, &GlobalMediaKeysHook::nextRequested, this,
+            [this]() {
+              if (m_bridge)
+                m_bridge->nextTrack();
+            });
+    connect(m_globalMediaKeysHook, &GlobalMediaKeysHook::previousRequested,
+            this, [this]() {
+              if (m_bridge)
+                m_bridge->previousTrack();
+            });
+    connect(m_globalMediaKeysHook, &GlobalMediaKeysHook::muteRequested, this,
+            [this]() {
+              if (m_bridge)
+                m_bridge->toggleMute();
+            });
+    connect(m_globalMediaKeysHook, &GlobalMediaKeysHook::volumeUpRequested,
+            this, [this]() {
+              if (m_bridge)
+                m_bridge->setVolume(m_bridge->volume() + 0.05f);
+            });
+    connect(m_globalMediaKeysHook, &GlobalMediaKeysHook::volumeDownRequested,
+            this, [this]() {
+              if (m_bridge)
+                m_bridge->setVolume(m_bridge->volume() - 0.05f);
+            });
+  }
 }
 
 void DesktopIntegrationManager::onPlaybackChanged() {
@@ -296,13 +341,18 @@ void DesktopIntegrationManager::onPlaybackModeChanged() {
 }
 
 void DesktopIntegrationManager::onSettingsChanged() {
-  if (!m_bridge || !m_notificationAdapter) {
+  if (!m_bridge) {
     return;
   }
-  m_notificationAdapter->setEnabled(m_bridge->showNotifications());
-  m_notificationAdapter->setDurationSec(m_bridge->notificationDurationSec());
-  m_notificationAdapter->setSuppressWhenFocused(
-      m_bridge->suppressNotificationsWhenFocused());
+  if (m_notificationAdapter) {
+    m_notificationAdapter->setEnabled(m_bridge->showNotifications());
+    m_notificationAdapter->setDurationSec(m_bridge->notificationDurationSec());
+    m_notificationAdapter->setSuppressWhenFocused(
+        m_bridge->suppressNotificationsWhenFocused());
+  }
+  if (m_globalMediaKeysHook) {
+    m_globalMediaKeysHook->setEnabled(m_bridge->globalMediaKeysEnabled());
+  }
 }
 
 void DesktopIntegrationManager::onCliCommandReceived(const CliCommand &cmd) {

@@ -39,10 +39,13 @@ qt_add_library(ui_adapter STATIC
     desktop/DesktopNotificationAdapter.cpp
     desktop/SingleInstanceManager.hpp
     desktop/SingleInstanceManager.cpp
+    desktop/GlobalMediaKeysHook.hpp
+    desktop/GlobalMediaKeysHook.cpp
     desktop/DesktopIntegrationManager.hpp
     desktop/DesktopIntegrationManager.cpp
     ${CMAKE_SOURCE_DIR}/themes/themes.qrc
     ${CMAKE_SOURCE_DIR}/deploy/icons.qrc
+    ${CMAKE_SOURCE_DIR}/i18n/i18n.qrc
 )
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/themes/
@@ -69,6 +72,7 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/components/ContextMenu.qml
         ui_qt/qml/components/EqualizerOverlay.qml
         ui_qt/qml/components/WaveVisualizer.qml
+        ui_qt/qml/components/ToastBanner.qml
         ui_qt/qml/dialogs/PreferencesDialog.qml
         ui_qt/qml/dialogs/TagEditorDialog.qml
         ui_qt/qml/dialogs/OpenUrlDialog.qml

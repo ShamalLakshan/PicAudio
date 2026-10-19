@@ -87,6 +87,9 @@ public:
   [[nodiscard]] PlatformMediaControls *mediaControls() const {
     return m_mediaControls;
   }
+  [[nodiscard]] class GlobalMediaKeysHook *globalMediaKeysHook() const {
+    return m_globalMediaKeysHook;
+  }
 
 private slots:
   void onPlaybackChanged();
@@ -107,6 +110,7 @@ private:
   DesktopTrayAdapter *m_trayAdapter{nullptr};
   DesktopNotificationAdapter *m_notificationAdapter{nullptr};
   PlatformMediaControls *m_mediaControls{nullptr};
+  class GlobalMediaKeysHook *m_globalMediaKeysHook{nullptr};
 
   QString m_lastTrackTitle;
   bool m_lastPlaying{false};

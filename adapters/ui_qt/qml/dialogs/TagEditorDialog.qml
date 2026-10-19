@@ -109,15 +109,15 @@ Dialog {
             id: formScrollView
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.leftMargin: Theme.panelPadding
-            Layout.rightMargin: Theme.panelPadding
-            Layout.topMargin: Theme.spacingMedium
-            Layout.bottomMargin: Theme.spacingMedium
+            leftPadding: Theme.panelPadding
+            rightPadding: Theme.panelPadding
+            topPadding: Theme.spacingMedium
+            bottomPadding: Theme.spacingMedium
             clip: true
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
             ColumnLayout {
-                width: formScrollView.availableWidth - 8
+                width: formScrollView.availableWidth
                 spacing: Theme.spacingLarge
 
                 Text {
