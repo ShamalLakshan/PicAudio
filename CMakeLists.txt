@@ -9,14 +9,17 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-enable_testing()
+include(CTest)
+option(BUILD_TESTING "Build unit tests" ON)
 
 add_subdirectory(core)
 add_subdirectory(adapters)
 add_subdirectory(app)
 add_subdirectory(sdk)
 add_subdirectory(plugins)
-add_subdirectory(tests)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 # Packaging
 set(CPACK_PACKAGE_NAME "PicAudio")

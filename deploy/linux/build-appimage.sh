@@ -52,7 +52,8 @@ mkdir -p "${APP_DIR}"
 echo "--> Configuring and compiling CMake in Release mode..."
 cmake -B "${BUILD_DIR}" -S "${REPO_ROOT}" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=OFF
 
 cmake --build "${BUILD_DIR}" -j"$(nproc)"
 
@@ -93,7 +94,11 @@ fi
 
 # 4. Run linuxdeploy to bundle dependencies and generate AppImage
 echo "--> Sanitizing Qt plugins and preparing bundle..."
-export PATH="${TOOLS_DIR}:${PATH}"
+if [ -d "/usr/lib/qt6/bin" ]; then
+    export PATH="/usr/lib/qt6/bin:${TOOLS_DIR}:${PATH}"
+else
+    export PATH="${TOOLS_DIR}:${PATH}"
+fi
 export QML_SOURCES_PATHS="${REPO_ROOT}/adapters/ui_qt/qml"
 
 # Support running in environments without FUSE (Docker, CI)
@@ -107,6 +112,8 @@ if command -v qmake6 &> /dev/null; then
     REAL_QMAKE="$(which qmake6)"
 elif command -v qmake &> /dev/null; then
     REAL_QMAKE="$(which qmake)"
+elif [ -x "/usr/lib/qt6/bin/qmake" ]; then
+    REAL_QMAKE="/usr/lib/qt6/bin/qmake"
 fi
 
 if [ -n "${REAL_QMAKE}" ]; then

@@ -1,6 +1,19 @@
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTEST REQUIRED gtest gtest_main)
+
+find_package(GTest QUIET)
+if(GTest_FOUND)
+    set(GTEST_LIBRARIES GTest::gtest GTest::gtest_main)
+else()
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(GTEST QUIET gtest gtest_main)
+    endif()
+endif()
+
+if(NOT GTEST_FOUND AND NOT GTest_FOUND)
+    message(WARNING "GoogleTest not found; skipping unit tests.")
+    return()
+endif()
 
 add_executable(picaudio_tests
     test_queue_service.cpp

@@ -1,10 +1,6 @@
-name: Portable Builds (Smoke Testing)
+name: Portable Builds (Release Packages)
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -26,16 +22,28 @@ jobs:
             build-essential \
             cmake \
             ninja-build \
+            pkg-config \
             libsqlite3-dev \
             libtag1-dev \
             libgtest-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libxkbcommon-dev \
+            libvulkan-dev \
             qt6-base-dev \
+            qt6-base-dev-tools \
             qt6-declarative-dev \
             qt6-multimedia-dev \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            qt6-wayland \
+            qt6-wayland-dev \
             qml6-module-qtquick \
             qml6-module-qtquick-controls \
             qml6-module-qtquick-layouts \
             qml6-module-qtquick-templates \
+            qml6-module-qt-labs-platform \
+            qml6-module-qtcore \
             libpulse-dev \
             libasound2-dev \
             file \
@@ -44,7 +52,7 @@ jobs:
 
       - name: Build unit tests and run verification
         run: |
-          cmake -B build-test -S . -DCMAKE_BUILD_TYPE=Release
+          cmake -B build-test -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
           cmake --build build-test -j$(nproc)
           ctest --test-dir build-test --output-on-failure
 
@@ -61,7 +69,7 @@ jobs:
           if-no-files-found: error
 
   # ==========================================
-  # Windows Portable ZIP Build
+  # Windows Portable Bundle & EXE Build
   # ==========================================
   windows-portable:
     name: Windows Portable (x64)
@@ -93,7 +101,8 @@ jobs:
         run: |
           cmake -B build -S . `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DBUILD_TESTING=OFF
           cmake --build build --config Release -j$env:NUMBER_OF_PROCESSORS
 
       - name: Package Windows portable bundle
@@ -101,45 +110,9 @@ jobs:
         run: |
           deploy/windows/package-portable.ps1 -BuildDir "build" -OutputDir "dist" -Arch "x64"
 
-      - name: Upload Windows Portable ZIP
+      - name: Upload Windows Portable Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PicAudio-Windows-x64-Portable
-          path: dist/PicAudio-windows-x64-portable.zip
-          if-no-files-found: error
-
-  # ==========================================
-  # macOS Portable Bundle Build
-  # ==========================================
-  macos-portable:
-    name: macOS Portable (Universal)
-    runs-on: macos-14
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Homebrew dependencies
-        run: |
-          brew install qt@6 taglib sqlite ninja
-
-      - name: Configure and build
-        run: |
-          export CMAKE_PREFIX_PATH="$(brew --prefix qt@6):$(brew --prefix taglib)"
-          cmake -B build -S . \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
-          cmake --build build
-
-      - name: Package macOS portable bundle
-        run: |
-          chmod +x deploy/macos/package-portable.sh
-          ./deploy/macos/package-portable.sh build dist
-
-      - name: Upload macOS Portable ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: PicAudio-macOS-Universal-Portable
-          path: dist/PicAudio-macos-universal-portable.zip
+          path: dist/PicAudio-windows-x64-portable.*
           if-no-files-found: error
