@@ -112,9 +112,14 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
+set(QT_QML_NO_CACHEGEN ON)
+
 qt_add_qml_module(ui_adapter
     URI PlayerUI
     VERSION 1.0
+    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/PlayerUI
+    NO_CACHEGEN
+    NO_LINT
     QML_FILES
         ui_qt/qml/Main.qml
         ui_qt/qml/VectorIcon.qml
