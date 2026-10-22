@@ -55,7 +55,7 @@ cmake -B "${BUILD_DIR}" -S "${REPO_ROOT}" \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DBUILD_TESTING=OFF
 
-cmake --build "${BUILD_DIR}" -j"$(nproc)"
+cmake --build "${BUILD_DIR}" --parallel
 
 # 2. Stage files into AppDir
 echo "--> Staging files into AppDir..."
@@ -224,11 +224,19 @@ echo "--> Packaging final AppImage..."
 mv PicAudio-*.AppImage "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" 2>/dev/null || \
 mv *PicAudio*.AppImage "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" 2>/dev/null || true
 
+if [ ! -f "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" ]; then
+    FOUND_APPIMAGE="$(find "${REPO_ROOT}" -maxdepth 2 -name "*PicAudio*.AppImage" -print -quit 2>/dev/null || true)"
+    if [ -n "${FOUND_APPIMAGE}" ] && [ -f "${FOUND_APPIMAGE}" ]; then
+        mv "${FOUND_APPIMAGE}" "${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
+    fi
+fi
+
 if [ -f "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" ]; then
     echo "=== AppImage created successfully! ==="
     echo "Location: ${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
     ls -lh "${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
 else
-    echo "AppDir prepared at: ${APP_DIR}"
+    echo "ERROR: PicAudio AppImage was not generated in ${OUTPUT_DIR}" >&2
+    exit 1
 fi
 

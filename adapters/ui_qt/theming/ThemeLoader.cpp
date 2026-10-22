@@ -15,6 +15,16 @@
 
 namespace adapters {
 
+namespace {
+bool isValidColorName(const QString &str) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+  return QColor::isValidColorName(str);
+#else
+  return QColor::isValidColor(str);
+#endif
+}
+} // namespace
+
 ThemeLoader::ThemeLoader(QObject *parent)
     : QObject(parent), m_tokens(getDefaultDarkStudioTheme()) {
 
@@ -271,7 +281,7 @@ bool ThemeLoader::validateThemeJson(const QJsonObject &root,
       return false;
     }
     QString colStr = colors[cKey].toString();
-    if (!QColor::isValidColorName(colStr)) {
+    if (!isValidColorName(colStr)) {
       errorReason =
           QString("Invalid color hex format for '%1': '%2'").arg(cKey, colStr);
       return false;
@@ -306,7 +316,7 @@ ThemeTokens ThemeLoader::parseThemeJson(const QJsonObject &root,
     auto readColor = [&](const char *key, QString &target) {
       if (c.contains(key) && c[key].isString()) {
         QString val = c[key].toString();
-        if (QColor::isValidColorName(val))
+        if (isValidColorName(val))
           target = val;
       }
     };

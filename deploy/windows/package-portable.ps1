@@ -43,6 +43,13 @@ foreach ($cand in $CandidatePaths) {
 }
 
 if (-not $ExePath) {
+    $Found = Get-ChildItem -Path $BuildPath -Filter "PicAudio.exe" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($Found) {
+        $ExePath = $Found.FullName
+    }
+}
+
+if (-not $ExePath) {
     Write-Error "PicAudio.exe not found in $BuildPath. Please build the project first."
 }
 
@@ -77,13 +84,10 @@ if ($env:VCPKG_INSTALLATION_ROOT) {
 
 # 1.2 Copy MSVC CRT redistributable libraries if available to guarantee zero-dependency portable run
 if ($env:VCToolsRedistDir) {
-    $CrtDir = Join-Path $env:VCToolsRedistDir "$Arch\Microsoft.VC143.CRT"
-    if (-not (Test-Path $CrtDir)) {
-        $CrtDir = Join-Path $env:VCToolsRedistDir "$Arch\Microsoft.VC142.CRT"
-    }
-    if (Test-Path $CrtDir) {
-        Write-Host "--> Bundling MSVC CRT runtime libraries from $CrtDir..."
-        Get-ChildItem -Path $CrtDir -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
+    $CrtDirs = Get-ChildItem -Path (Join-Path $env:VCToolsRedistDir $Arch) -Filter "Microsoft.VC*.CRT" -Directory -ErrorAction SilentlyContinue
+    foreach ($dir in $CrtDirs) {
+        Write-Host "--> Bundling MSVC CRT runtime libraries from $($dir.FullName)..."
+        Get-ChildItem -Path $dir.FullName -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
             Copy-Item $_.FullName -Destination $StagePath -Force
         }
     }
@@ -92,7 +96,15 @@ if ($env:VCToolsRedistDir) {
 # 2. Run windeployqt to deploy Qt libraries, plugins, and QML dependencies
 $QmlDir = Join-Path $RepoRoot "adapters\ui_qt\qml"
 Write-Host "--> Running windeployqt with QML scanning..."
-& windeployqt --qmldir $QmlDir --compiler-runtime --no-translations (Join-Path $StagePath "PicAudio.exe")
+$WindeployqtCmd = "windeployqt"
+if (-not (Get-Command windeployqt -ErrorAction SilentlyContinue)) {
+    if ($env:QT_DIR -and (Test-Path (Join-Path $env:QT_DIR "bin\windeployqt.exe"))) {
+        $WindeployqtCmd = Join-Path $env:QT_DIR "bin\windeployqt.exe"
+    } elseif ($env:Qt6_DIR -and (Test-Path (Join-Path $env:Qt6_DIR "bin\windeployqt.exe"))) {
+        $WindeployqtCmd = Join-Path $env:Qt6_DIR "bin\windeployqt.exe"
+    }
+}
+& $WindeployqtCmd --release --qmldir $QmlDir --compiler-runtime --no-translations (Join-Path $StagePath "PicAudio.exe")
 
 # 3. Copy themes
 Write-Host "--> Bundling themes..."
@@ -128,18 +140,20 @@ Write-Host "=== Windows Portable ZIP created successfully! ===" -ForegroundColor
 Write-Host "File: $ZipFile"
 
 # 7. Create self-extracting portable EXE if 7-Zip is available
-$7zCmd = Get-Command 7z -ErrorAction SilentlyContinue
-if (-not $7zCmd -and (Test-Path "C:\Program Files\7-Zip\7z.exe")) {
-    $7zCmd = "C:\Program Files\7-Zip\7z.exe"
+$7z = $null
+if (Get-Command 7z -ErrorAction SilentlyContinue) {
+    $7z = "7z"
+} elseif (Test-Path "C:\Program Files\7-Zip\7z.exe") {
+    $7z = "C:\Program Files\7-Zip\7z.exe"
 }
 
-if ($7zCmd) {
+if ($7z) {
     $ExeArchive = Join-Path $OutputPath "PicAudio-windows-$Arch-portable.exe"
     if (Test-Path $ExeArchive) {
         Remove-Item -Force $ExeArchive
     }
     Write-Host "--> Creating self-extracting portable EXE: $ExeArchive..."
-    & $7zCmd a -sfx -r "$ExeArchive" "$StagePath\*"
+    & $7z a -sfx -r "$ExeArchive" "$StagePath\*"
     if (Test-Path $ExeArchive) {
         Write-Host "=== Windows Portable SFX EXE created successfully! ===" -ForegroundColor Green
         Write-Host "File: $ExeArchive"

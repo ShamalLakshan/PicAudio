@@ -1,12 +1,21 @@
-name: Portable Builds (Release Packages)
+name: Portable Build - Linux AppImage
 
 on:
+  push:
+    branches: [ main, dev ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+  pull_request:
+    branches: [ main, dev ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
   workflow_dispatch:
 
 jobs:
-  # ==========================================
-  # Linux AppImage Build
-  # ==========================================
   linux-appimage:
     name: Linux AppImage (x86_64)
     runs-on: ubuntu-22.04
@@ -30,6 +39,7 @@ jobs:
             libegl1-mesa-dev \
             libxkbcommon-dev \
             libvulkan-dev \
+            libfuse2 \
             qt6-base-dev \
             qt6-base-dev-tools \
             qt6-declarative-dev \
@@ -53,7 +63,7 @@ jobs:
       - name: Build unit tests and run verification
         run: |
           cmake -B build-test -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-          cmake --build build-test -j$(nproc)
+          cmake --build build-test --parallel
           ctest --test-dir build-test --output-on-failure
 
       - name: Package AppImage
@@ -66,53 +76,4 @@ jobs:
         with:
           name: PicAudio-Linux-x86_64-AppImage
           path: dist/PicAudio-x86_64.AppImage
-          if-no-files-found: error
-
-  # ==========================================
-  # Windows Portable Bundle & EXE Build
-  # ==========================================
-  windows-portable:
-    name: Windows Portable (x64)
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Install Qt 6
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: '6.6.3'
-          host: 'windows'
-          target: 'desktop'
-          arch: 'win64_msvc2019_64'
-          modules: 'qtmultimedia'
-
-      - name: Install vcpkg dependencies (TagLib, SQLite3)
-        run: |
-          vcpkg install sqlite3:x64-windows taglib:x64-windows
-
-      - name: Configure and build
-        run: |
-          cmake -B build -S . `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DBUILD_TESTING=OFF
-          cmake --build build --config Release -j$env:NUMBER_OF_PROCESSORS
-
-      - name: Package Windows portable bundle
-        shell: pwsh
-        run: |
-          deploy/windows/package-portable.ps1 -BuildDir "build" -OutputDir "dist" -Arch "x64"
-
-      - name: Upload Windows Portable Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: PicAudio-Windows-x64-Portable
-          path: dist/PicAudio-windows-x64-portable.*
           if-no-files-found: error
