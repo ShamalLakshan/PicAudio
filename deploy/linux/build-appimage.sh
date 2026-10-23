@@ -73,23 +73,32 @@ cp "${SCRIPT_DIR}/picaudio.desktop" "${APP_DIR}/picaudio.desktop"
 cp "${SCRIPT_DIR}/icons/picaudio.svg" "${APP_DIR}/picaudio.svg"
 cp "${SCRIPT_DIR}/icons/picaudio.svg" "${APP_DIR}/.DirIcon"
 
-# 3. Fetch linuxdeploy and Qt plugin if not present
+# 3. Fetch linuxdeploy, Qt plugin and GStreamer plugin if not present
 echo "--> Setting up linuxdeploy..."
 LINUXDEPLOY="${TOOLS_DIR}/linuxdeploy-x86_64.AppImage"
 LINUXDEPLOY_QT="${TOOLS_DIR}/linuxdeploy-plugin-qt-x86_64.AppImage"
+LINUXDEPLOY_GST="${TOOLS_DIR}/linuxdeploy-plugin-gstreamer"
+export LINUXDEPLOY
 
 if [ ! -f "${LINUXDEPLOY}" ]; then
     echo "Downloading linuxdeploy..."
-    curl -fsSL -o "${LINUXDEPLOY}" \
+    curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o "${LINUXDEPLOY}" \
         "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
     chmod +x "${LINUXDEPLOY}"
 fi
 
 if [ ! -f "${LINUXDEPLOY_QT}" ]; then
     echo "Downloading linuxdeploy-plugin-qt..."
-    curl -fsSL -o "${LINUXDEPLOY_QT}" \
+    curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o "${LINUXDEPLOY_QT}" \
         "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
     chmod +x "${LINUXDEPLOY_QT}"
+fi
+
+if [ ! -f "${LINUXDEPLOY_GST}" ]; then
+    echo "Downloading linuxdeploy-plugin-gstreamer..."
+    curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o "${LINUXDEPLOY_GST}" \
+        "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gstreamer/master/linuxdeploy-plugin-gstreamer.sh"
+    chmod +x "${LINUXDEPLOY_GST}"
 fi
 
 # 4. Run linuxdeploy to bundle dependencies and generate AppImage
@@ -193,13 +202,47 @@ else
     echo "--> No Wayland platform plugins detected; continuing with default xcb"
 fi
 
-# Run linuxdeploy with Qt plugin
+# Locate GStreamer plugins and scanner directories dynamically
+if [ -z "${GSTREAMER_HELPERS_DIR:-}" ]; then
+    if [ -d "/usr/lib/$(uname -m)-linux-gnu/gstreamer1.0/gstreamer-1.0" ]; then
+        export GSTREAMER_HELPERS_DIR="/usr/lib/$(uname -m)-linux-gnu/gstreamer1.0/gstreamer-1.0"
+    elif [ -d "/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0" ]; then
+        export GSTREAMER_HELPERS_DIR="/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0"
+    elif [ -d "/usr/lib/gstreamer-1.0" ]; then
+        export GSTREAMER_HELPERS_DIR="/usr/lib/gstreamer-1.0"
+    else
+        SCANNER_BIN="$(which gst-plugin-scanner 2>/dev/null || find /usr/lib -name gst-plugin-scanner 2>/dev/null | head -n1 || true)"
+        if [ -n "${SCANNER_BIN}" ] && [ -f "${SCANNER_BIN}" ]; then
+            export GSTREAMER_HELPERS_DIR="$(dirname "${SCANNER_BIN}")"
+        fi
+    fi
+fi
+
+if [ -z "${GSTREAMER_PLUGINS_DIR:-}" ]; then
+    if [ -d "/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0" ]; then
+        export GSTREAMER_PLUGINS_DIR="/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0"
+    elif [ -d "/usr/lib/gstreamer-1.0" ]; then
+        export GSTREAMER_PLUGINS_DIR="/usr/lib/gstreamer-1.0"
+    else
+        GST_DIR="$(find /usr/lib -maxdepth 3 -type d -name "gstreamer-1.0" 2>/dev/null | head -n1 || true)"
+        [ -n "${GST_DIR}" ] && export GSTREAMER_PLUGINS_DIR="${GST_DIR}"
+    fi
+fi
+
+echo "--> GStreamer Plugins Directory: ${GSTREAMER_PLUGINS_DIR:-not found}"
+echo "--> GStreamer Helpers Directory: ${GSTREAMER_HELPERS_DIR:-not found}"
+
+# Run linuxdeploy with Qt and GStreamer plugins
 "${LINUXDEPLOY}" \
     --appdir "${APP_DIR}" \
     --executable "${APP_DIR}/usr/bin/PicAudio" \
     --desktop-file "${APP_DIR}/usr/share/applications/picaudio.desktop" \
     --icon-file "${APP_DIR}/usr/share/icons/hicolor/scalable/apps/picaudio.svg" \
-    --plugin qt
+    --plugin qt \
+    --plugin gstreamer
+
+# Ensure gst-plugin-scanner has execute permissions if deployed
+find "${APP_DIR}/usr/lib" -type f -name gst-plugin-scanner -exec chmod +x {} + 2>/dev/null || true
 
 # 5. Bundle Wayland shell integrations
 echo "--> Bundling Wayland shell and graphics integrations..."
@@ -223,13 +266,67 @@ fi
 # Remove system crypto libraries that cause TLS/dlopen segmentation faults on modern distros
 rm -f "${APP_DIR}/usr/lib/libleancrypto"* "${APP_DIR}/usr/lib/libcrypt."* 2>/dev/null || true
 
-# 6. Create custom AppRun launcher with Wayland/X11 fallback
-echo "--> Setting up AppRun launcher..."
+# 6. Create custom AppRun launcher with Wayland/X11 fallback and isolated GStreamer registry
+echo "--> Setting up AppRun launcher and hooks..."
+mkdir -p "${APP_DIR}/apprun-hooks"
+cat << 'EOF' > "${APP_DIR}/apprun-hooks/01-picaudio.sh"
+#!/usr/bin/env bash
+# Graceful platform fallback: try Wayland first if session is Wayland, fallback to XCB/X11
+if [ -z "${QT_QPA_PLATFORM:-}" ]; then
+    export QT_QPA_PLATFORM="wayland;xcb"
+fi
+
+# Handle portable data mode
+PORTABLE_MODE=false
+for arg in "$@"; do
+    if [ "$arg" = "--portable" ]; then
+        PORTABLE_MODE=true
+    fi
+done
+
+APPIMAGE_DIR=""
+if [ -n "${APPIMAGE:-}" ]; then
+    APPIMAGE_DIR="$(dirname "$(readlink -f "${APPIMAGE}")")"
+elif [ -n "${OWD:-}" ]; then
+    APPIMAGE_DIR="${OWD}"
+fi
+
+if [ -n "${APPIMAGE_DIR}" ]; then
+    if [ -f "${APPIMAGE_DIR}/portable.dat" ] || [ -d "${APPIMAGE_DIR}/data" ]; then
+        PORTABLE_MODE=true
+    fi
+fi
+
+if [ "${PORTABLE_MODE}" = true ] && [ -n "${APPIMAGE_DIR}" ]; then
+    export PICAUDIO_PORTABLE=1
+    export PICAUDIO_DATA_DIR="${APPIMAGE_DIR}/data"
+    export XDG_DATA_HOME="${APPIMAGE_DIR}/data/share"
+    export XDG_CONFIG_HOME="${APPIMAGE_DIR}/data/config"
+    export XDG_CACHE_HOME="${APPIMAGE_DIR}/data/cache"
+    mkdir -p "${XDG_DATA_HOME}" "${XDG_CONFIG_HOME}" "${XDG_CACHE_HOME}" 2>/dev/null || true
+fi
+
+# Isolate GStreamer registry cache from host OS to prevent host cache corruption
+export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/picaudio/gstreamer-1.0/registry.x86_64.bin"
+mkdir -p "$(dirname "${GST_REGISTRY_1_0}")" 2>/dev/null || true
+
+# Explicit fallback ensuring bundled GStreamer plugins and scanner take priority
+if [ -d "${APPDIR}/usr/lib/gstreamer-1.0" ]; then
+    export GST_REGISTRY_REUSE_PLUGIN_SCANNER="no"
+    export GST_PLUGIN_SYSTEM_PATH_1_0="${APPDIR}/usr/lib/gstreamer-1.0"
+    export GST_PLUGIN_PATH_1_0="${APPDIR}/usr/lib/gstreamer-1.0"
+    GST_SCANNER="$(find "${APPDIR}/usr/lib" -type f -name gst-plugin-scanner 2>/dev/null | head -n1)"
+    [ -n "$GST_SCANNER" ] && export GST_PLUGIN_SCANNER_1_0="$GST_SCANNER"
+fi
+EOF
+chmod +x "${APP_DIR}/apprun-hooks/01-picaudio.sh"
+
 CUSTOM_APPRUN="${APP_DIR}/AppRun"
 rm -f "${CUSTOM_APPRUN}"
 cat << 'EOF' > "${CUSTOM_APPRUN}"
 #!/usr/bin/env bash
 HERE="$(dirname "$(readlink -f "${0}")")"
+export APPDIR="${HERE}"
 
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH:-}"
@@ -241,6 +338,58 @@ if [ -z "${QT_QPA_PLATFORM:-}" ]; then
     export QT_QPA_PLATFORM="wayland;xcb"
 fi
 
+# Handle portable data mode
+PORTABLE_MODE=false
+for arg in "$@"; do
+    if [ "$arg" = "--portable" ]; then
+        PORTABLE_MODE=true
+    fi
+done
+
+APPIMAGE_DIR=""
+if [ -n "${APPIMAGE:-}" ]; then
+    APPIMAGE_DIR="$(dirname "$(readlink -f "${APPIMAGE}")")"
+elif [ -n "${OWD:-}" ]; then
+    APPIMAGE_DIR="${OWD}"
+fi
+
+if [ -n "${APPIMAGE_DIR}" ]; then
+    if [ -f "${APPIMAGE_DIR}/portable.dat" ] || [ -d "${APPIMAGE_DIR}/data" ]; then
+        PORTABLE_MODE=true
+    fi
+fi
+
+if [ "${PORTABLE_MODE}" = true ] && [ -n "${APPIMAGE_DIR}" ]; then
+    export PICAUDIO_PORTABLE=1
+    export PICAUDIO_DATA_DIR="${APPIMAGE_DIR}/data"
+    export XDG_DATA_HOME="${APPIMAGE_DIR}/data/share"
+    export XDG_CONFIG_HOME="${APPIMAGE_DIR}/data/config"
+    export XDG_CACHE_HOME="${APPIMAGE_DIR}/data/cache"
+    mkdir -p "${XDG_DATA_HOME}" "${XDG_CONFIG_HOME}" "${XDG_CACHE_HOME}" 2>/dev/null || true
+fi
+
+# Source all AppRun hooks (including GStreamer plugin hook)
+if [ -d "${HERE}/apprun-hooks" ]; then
+    for hook in "${HERE}"/apprun-hooks/*; do
+        if [ -f "$hook" ]; then
+            source "$hook"
+        fi
+    done
+fi
+
+# Ensure bundled GStreamer plugins and scanner take priority
+if [ -d "${HERE}/usr/lib/gstreamer-1.0" ]; then
+    export GST_REGISTRY_REUSE_PLUGIN_SCANNER="no"
+    export GST_PLUGIN_SYSTEM_PATH_1_0="${HERE}/usr/lib/gstreamer-1.0"
+    export GST_PLUGIN_PATH_1_0="${HERE}/usr/lib/gstreamer-1.0"
+    GST_SCANNER="$(find "${HERE}/usr/lib" -type f -name gst-plugin-scanner 2>/dev/null | head -n1)"
+    [ -n "$GST_SCANNER" ] && export GST_PLUGIN_SCANNER_1_0="$GST_SCANNER"
+fi
+
+# Isolate GStreamer registry cache from host OS to avoid host cache corruption
+export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/picaudio/gstreamer-1.0/registry.x86_64.bin"
+mkdir -p "$(dirname "${GST_REGISTRY_1_0}")" 2>/dev/null || true
+
 exec "${HERE}/usr/bin/PicAudio" "$@"
 EOF
 chmod +x "${CUSTOM_APPRUN}"
@@ -249,6 +398,7 @@ chmod +x "${CUSTOM_APPRUN}"
 echo "--> Packaging final AppImage..."
 "${LINUXDEPLOY}" \
     --appdir "${APP_DIR}" \
+    --custom-apprun "${CUSTOM_APPRUN}" \
     --output appimage
 
 # Move generated AppImage to output directory

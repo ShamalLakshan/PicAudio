@@ -83,8 +83,15 @@ if ($env:VCPKG_INSTALLATION_ROOT) {
 }
 
 # 1.2 Copy MSVC CRT redistributable libraries if available to guarantee zero-dependency portable run
-if ($env:VCToolsRedistDir) {
-    $CrtDirs = Get-ChildItem -Path (Join-Path $env:VCToolsRedistDir $Arch) -Filter "Microsoft.VC*.CRT" -Directory -ErrorAction SilentlyContinue
+$RedistRoot = $env:VCToolsRedistDir
+if (-not $RedistRoot) {
+    $VsRedistCand = Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio\*\*\VC\Redist\MSVC\*" -Directory -ErrorAction SilentlyContinue | Select-Object -Last 1
+    if ($VsRedistCand) {
+        $RedistRoot = $VsRedistCand.FullName
+    }
+}
+if ($RedistRoot) {
+    $CrtDirs = Get-ChildItem -Path (Join-Path $RedistRoot $Arch) -Filter "Microsoft.VC*.CRT" -Directory -ErrorAction SilentlyContinue
     foreach ($dir in $CrtDirs) {
         Write-Host "--> Bundling MSVC CRT runtime libraries from $($dir.FullName)..."
         Get-ChildItem -Path $dir.FullName -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
