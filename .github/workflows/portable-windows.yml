@@ -1,18 +1,6 @@
 name: Portable Build - Windows Portable
 
 on:
-  push:
-    branches: [ main, dev ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-  pull_request:
-    branches: [ main, dev ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
   workflow_dispatch:
 
 jobs:

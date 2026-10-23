@@ -8,8 +8,14 @@
 #include <taglib/asftag.h>
 #include <taglib/attachedpictureframe.h>
 #include <taglib/audioproperties.h>
+#if __has_include(<taglib/dsdifffile.h>)
 #include <taglib/dsdifffile.h>
+#define PIC_AUDIO_HAS_TAGLIB_DSDIFF 1
+#endif
+#if __has_include(<taglib/dsffile.h>)
 #include <taglib/dsffile.h>
+#define PIC_AUDIO_HAS_TAGLIB_DSF 1
+#endif
 #include <taglib/fileref.h>
 #include <taglib/flacfile.h>
 #include <taglib/flacpicture.h>
@@ -417,6 +423,7 @@ TagLibMetadataAdapter::extractEmbeddedArtwork(const std::string &filePath) {
   }
 
   if (ext == ".dsf") {
+#if defined(PIC_AUDIO_HAS_TAGLIB_DSF)
     TagLib::DSF::File dsfFile(filePath.c_str());
     if (dsfFile.isValid() && dsfFile.tag()) {
       auto *id3v2 = dynamic_cast<TagLib::ID3v2::Tag *>(dsfFile.tag());
@@ -426,15 +433,18 @@ TagLibMetadataAdapter::extractEmbeddedArtwork(const std::string &filePath) {
           return art;
       }
     }
+#endif
   }
 
   if (ext == ".dff") {
+#if defined(PIC_AUDIO_HAS_TAGLIB_DSDIFF)
     TagLib::DSDIFF::File dffFile(filePath.c_str());
     if (dffFile.isValid() && dffFile.ID3v2Tag()) {
       auto art = extractFromId3v2(dffFile.ID3v2Tag());
       if (art)
         return art;
     }
+#endif
   }
 
   if (ext == ".ape") {
