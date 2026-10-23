@@ -163,8 +163,35 @@ EOF
     fi
 fi
 
-# Deploy both X11 (xcb) and Wayland platform plugins
-export EXTRA_PLATFORM_PLUGINS="libqwayland.so"
+# Detect available Wayland platform plugins dynamically
+WAYLAND_PLUGINS=""
+PLATFORMS_DIR=""
+if [ -n "${CLEAN_PLUGINS:-}" ] && [ -d "${CLEAN_PLUGINS}/platforms" ]; then
+    PLATFORMS_DIR="${CLEAN_PLUGINS}/platforms"
+elif [ -n "${QT_ORIG_PLUGINS:-}" ] && [ -d "${QT_ORIG_PLUGINS}/platforms" ]; then
+    PLATFORMS_DIR="${QT_ORIG_PLUGINS}/platforms"
+fi
+
+if [ -n "${PLATFORMS_DIR}" ]; then
+    for p in "${PLATFORMS_DIR}"/libqwayland*.so; do
+        if [ -f "$p" ]; then
+            plugin_name="$(basename "$p")"
+            if [ -z "${WAYLAND_PLUGINS}" ]; then
+                WAYLAND_PLUGINS="${plugin_name}"
+            else
+                WAYLAND_PLUGINS="${WAYLAND_PLUGINS};${plugin_name}"
+            fi
+        fi
+    done
+fi
+
+if [ -n "${WAYLAND_PLUGINS}" ]; then
+    export EXTRA_PLATFORM_PLUGINS="${WAYLAND_PLUGINS}"
+    echo "--> Detected Wayland platform plugins: ${EXTRA_PLATFORM_PLUGINS}"
+else
+    unset EXTRA_PLATFORM_PLUGINS 2>/dev/null || true
+    echo "--> No Wayland platform plugins detected; continuing with default xcb"
+fi
 
 # Run linuxdeploy with Qt plugin
 "${LINUXDEPLOY}" \
@@ -177,8 +204,12 @@ export EXTRA_PLATFORM_PLUGINS="libqwayland.so"
 # 5. Bundle Wayland shell integrations
 echo "--> Bundling Wayland shell and graphics integrations..."
 mkdir -p "${APP_DIR}/usr/plugins/platforms"
-if [ -f "${CLEAN_PLUGINS}/platforms/libqwayland.so" ]; then
-    cp -f "${CLEAN_PLUGINS}/platforms/libqwayland.so" "${APP_DIR}/usr/plugins/platforms/"
+if [ -n "${PLATFORMS_DIR}" ]; then
+    for p in "${PLATFORMS_DIR}"/libqwayland*.so; do
+        if [ -f "$p" ]; then
+            cp -f "$p" "${APP_DIR}/usr/plugins/platforms/"
+        fi
+    done
 fi
 
 if [ -n "${QT_ORIG_PLUGINS:-}" ] && [ -d "${QT_ORIG_PLUGINS}" ]; then
