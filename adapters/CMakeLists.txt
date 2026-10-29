@@ -121,6 +121,7 @@ set(QT_QML_NO_CACHEGEN ON)
 qt_add_qml_module(ui_adapter
     URI PlayerUI
     VERSION 1.0
+    RESOURCE_PREFIX "/"
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/PlayerUI
     NO_CACHEGEN
     NO_LINT

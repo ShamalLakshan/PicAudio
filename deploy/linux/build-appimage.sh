@@ -101,6 +101,24 @@ if [ ! -f "${LINUXDEPLOY_GST}" ]; then
     chmod +x "${LINUXDEPLOY_GST}"
 fi
 
+if ! command -v patchelf &> /dev/null && [ ! -f "${TOOLS_DIR}/patchelf" ]; then
+    echo "Downloading patchelf..."
+    curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 \
+        "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0-x86_64.tar.gz" | \
+        tar -xz -C "${TOOLS_DIR}" ./bin/patchelf --strip-components=2
+    chmod +x "${TOOLS_DIR}/patchelf"
+fi
+
+if [ ! -d "${TOOLS_DIR}/appimagetool-prefix" ]; then
+    echo "Extracting appimagetool from linuxdeploy..."
+    (
+        cd "${TOOLS_DIR}"
+        "${LINUXDEPLOY}" --appimage-extract >/dev/null
+        cp -r squashfs-root/plugins/linuxdeploy-plugin-appimage/appimagetool-prefix "${TOOLS_DIR}/appimagetool-prefix"
+        rm -rf squashfs-root
+    )
+fi
+
 # 4. Run linuxdeploy to bundle dependencies and generate AppImage
 echo "--> Sanitizing Qt plugins and preparing bundle..."
 if [ -d "/usr/lib/qt6/bin" ]; then
@@ -267,108 +285,26 @@ fi
 rm -f "${APP_DIR}/usr/lib/libleancrypto"* "${APP_DIR}/usr/lib/libcrypt."* 2>/dev/null || true
 
 # 6. Create custom AppRun launcher with Wayland/X11 fallback and isolated GStreamer registry
-echo "--> Setting up AppRun launcher and hooks..."
-mkdir -p "${APP_DIR}/apprun-hooks"
-cat << 'EOF' > "${APP_DIR}/apprun-hooks/01-picaudio.sh"
+echo "--> Setting up AppRun launcher..."
+rm -f "${APP_DIR}/AppRun" "${APP_DIR}/AppRun.wrapped"
+cat << 'EOF' > "${APP_DIR}/AppRun"
 #!/usr/bin/env bash
-# Graceful platform fallback: try Wayland first if session is Wayland, fallback to XCB/X11
-if [ -z "${QT_QPA_PLATFORM:-}" ]; then
-    export QT_QPA_PLATFORM="wayland;xcb"
-fi
+set -e
 
-# Handle portable data mode
-PORTABLE_MODE=false
-for arg in "$@"; do
-    if [ "$arg" = "--portable" ]; then
-        PORTABLE_MODE=true
-    fi
-done
-
-APPIMAGE_DIR=""
-if [ -n "${APPIMAGE:-}" ]; then
-    APPIMAGE_DIR="$(dirname "$(readlink -f "${APPIMAGE}")")"
-elif [ -n "${OWD:-}" ]; then
-    APPIMAGE_DIR="${OWD}"
-fi
-
-if [ -n "${APPIMAGE_DIR}" ]; then
-    if [ -f "${APPIMAGE_DIR}/portable.dat" ] || [ -d "${APPIMAGE_DIR}/data" ]; then
-        PORTABLE_MODE=true
-    fi
-fi
-
-if [ "${PORTABLE_MODE}" = true ] && [ -n "${APPIMAGE_DIR}" ]; then
-    export PICAUDIO_PORTABLE=1
-    export PICAUDIO_DATA_DIR="${APPIMAGE_DIR}/data"
-    export XDG_DATA_HOME="${APPIMAGE_DIR}/data/share"
-    export XDG_CONFIG_HOME="${APPIMAGE_DIR}/data/config"
-    export XDG_CACHE_HOME="${APPIMAGE_DIR}/data/cache"
-    mkdir -p "${XDG_DATA_HOME}" "${XDG_CONFIG_HOME}" "${XDG_CACHE_HOME}" 2>/dev/null || true
-fi
-
-# Isolate GStreamer registry cache from host OS to prevent host cache corruption
-export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/picaudio/gstreamer-1.0/registry.x86_64.bin"
-mkdir -p "$(dirname "${GST_REGISTRY_1_0}")" 2>/dev/null || true
-
-# Explicit fallback ensuring bundled GStreamer plugins and scanner take priority
-if [ -d "${APPDIR}/usr/lib/gstreamer-1.0" ]; then
-    export GST_REGISTRY_REUSE_PLUGIN_SCANNER="no"
-    export GST_PLUGIN_SYSTEM_PATH_1_0="${APPDIR}/usr/lib/gstreamer-1.0"
-    export GST_PLUGIN_PATH_1_0="${APPDIR}/usr/lib/gstreamer-1.0"
-    GST_SCANNER="$(find "${APPDIR}/usr/lib" -type f -name gst-plugin-scanner 2>/dev/null | head -n1)"
-    [ -n "$GST_SCANNER" ] && export GST_PLUGIN_SCANNER_1_0="$GST_SCANNER"
-fi
-EOF
-chmod +x "${APP_DIR}/apprun-hooks/01-picaudio.sh"
-
-CUSTOM_APPRUN="${APP_DIR}/AppRun"
-rm -f "${CUSTOM_APPRUN}"
-cat << 'EOF' > "${CUSTOM_APPRUN}"
-#!/usr/bin/env bash
 HERE="$(dirname "$(readlink -f "${0}")")"
 export APPDIR="${HERE}"
 
 export PATH="${HERE}/usr/bin:${PATH}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH:-}"
-export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH:-}"
-export QML2_IMPORT_PATH="${HERE}/usr/qml:${QML2_IMPORT_PATH:-}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+export QT_PLUGIN_PATH="${HERE}/usr/plugins"
+export QML2_IMPORT_PATH="${HERE}/usr/qml"
 
 # Graceful platform fallback: try Wayland first if session is Wayland, fallback to XCB/X11
 if [ -z "${QT_QPA_PLATFORM:-}" ]; then
     export QT_QPA_PLATFORM="wayland;xcb"
 fi
 
-# Handle portable data mode
-PORTABLE_MODE=false
-for arg in "$@"; do
-    if [ "$arg" = "--portable" ]; then
-        PORTABLE_MODE=true
-    fi
-done
-
-APPIMAGE_DIR=""
-if [ -n "${APPIMAGE:-}" ]; then
-    APPIMAGE_DIR="$(dirname "$(readlink -f "${APPIMAGE}")")"
-elif [ -n "${OWD:-}" ]; then
-    APPIMAGE_DIR="${OWD}"
-fi
-
-if [ -n "${APPIMAGE_DIR}" ]; then
-    if [ -f "${APPIMAGE_DIR}/portable.dat" ] || [ -d "${APPIMAGE_DIR}/data" ]; then
-        PORTABLE_MODE=true
-    fi
-fi
-
-if [ "${PORTABLE_MODE}" = true ] && [ -n "${APPIMAGE_DIR}" ]; then
-    export PICAUDIO_PORTABLE=1
-    export PICAUDIO_DATA_DIR="${APPIMAGE_DIR}/data"
-    export XDG_DATA_HOME="${APPIMAGE_DIR}/data/share"
-    export XDG_CONFIG_HOME="${APPIMAGE_DIR}/data/config"
-    export XDG_CACHE_HOME="${APPIMAGE_DIR}/data/cache"
-    mkdir -p "${XDG_DATA_HOME}" "${XDG_CONFIG_HOME}" "${XDG_CACHE_HOME}" 2>/dev/null || true
-fi
-
-# Source all AppRun hooks (including GStreamer plugin hook)
+# Source all AppRun hooks (e.g. from linuxdeploy plugins)
 if [ -d "${HERE}/apprun-hooks" ]; then
     for hook in "${HERE}"/apprun-hooks/*; do
         if [ -f "$hook" ]; then
@@ -386,31 +322,17 @@ if [ -d "${HERE}/usr/lib/gstreamer-1.0" ]; then
     [ -n "$GST_SCANNER" ] && export GST_PLUGIN_SCANNER_1_0="$GST_SCANNER"
 fi
 
-# Isolate GStreamer registry cache from host OS to avoid host cache corruption
+# Isolate GStreamer registry cache to standard user cache directory
 export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/picaudio/gstreamer-1.0/registry.x86_64.bin"
 mkdir -p "$(dirname "${GST_REGISTRY_1_0}")" 2>/dev/null || true
 
 exec "${HERE}/usr/bin/PicAudio" "$@"
 EOF
-chmod +x "${CUSTOM_APPRUN}"
+chmod +x "${APP_DIR}/AppRun"
 
-# 7. Generate final AppImage
-echo "--> Packaging final AppImage..."
-"${LINUXDEPLOY}" \
-    --appdir "${APP_DIR}" \
-    --custom-apprun "${CUSTOM_APPRUN}" \
-    --output appimage
-
-# Move generated AppImage to output directory
-mv PicAudio-*.AppImage "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" 2>/dev/null || \
-mv *PicAudio*.AppImage "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" 2>/dev/null || true
-
-if [ ! -f "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" ]; then
-    FOUND_APPIMAGE="$(find "${REPO_ROOT}" -maxdepth 2 -name "*PicAudio*.AppImage" -print -quit 2>/dev/null || true)"
-    if [ -n "${FOUND_APPIMAGE}" ] && [ -f "${FOUND_APPIMAGE}" ]; then
-        mv "${FOUND_APPIMAGE}" "${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
-    fi
-fi
+# 7. Generate final AppImage using appimagetool
+echo "--> Packaging final AppImage with appimagetool..."
+ARCH=x86_64 "${TOOLS_DIR}/appimagetool-prefix/AppRun" "${APP_DIR}" "${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
 
 if [ -f "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" ]; then
     echo "=== AppImage created successfully! ==="
