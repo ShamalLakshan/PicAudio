@@ -4,6 +4,9 @@ set -euo pipefail
 # PicAudio Linux AppImage Generator
 # Builds a self-contained portable AppImage for Linux x86_64
 
+# Ensure AppImages (linuxdeploy, appimagetool, plugins) run cleanly without requiring FUSE
+export APPIMAGE_EXTRACT_AND_RUN=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -314,10 +317,17 @@ if [ -d "${HERE}/apprun-hooks" ]; then
 fi
 
 # Ensure bundled GStreamer plugins and scanner take priority
+GST_DIR=""
 if [ -d "${HERE}/usr/lib/gstreamer-1.0" ]; then
+    GST_DIR="${HERE}/usr/lib/gstreamer-1.0"
+else
+    GST_DIR="$(find "${HERE}/usr/lib" -maxdepth 3 -type d -name "gstreamer-1.0" 2>/dev/null | head -n1)"
+fi
+
+if [ -n "${GST_DIR}" ] && [ -d "${GST_DIR}" ]; then
     export GST_REGISTRY_REUSE_PLUGIN_SCANNER="no"
-    export GST_PLUGIN_SYSTEM_PATH_1_0="${HERE}/usr/lib/gstreamer-1.0"
-    export GST_PLUGIN_PATH_1_0="${HERE}/usr/lib/gstreamer-1.0"
+    export GST_PLUGIN_SYSTEM_PATH_1_0="${GST_DIR}"
+    export GST_PLUGIN_PATH_1_0="${GST_DIR}"
     GST_SCANNER="$(find "${HERE}/usr/lib" -type f -name gst-plugin-scanner 2>/dev/null | head -n1)"
     [ -n "$GST_SCANNER" ] && export GST_PLUGIN_SCANNER_1_0="$GST_SCANNER"
 fi

@@ -8,6 +8,10 @@ jobs:
     name: Linux AppImage (x86_64)
     runs-on: ubuntu-22.04
 
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: 1
+      QT_QPA_PLATFORM: offscreen
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,6 +57,7 @@ jobs:
             qml6-module-qtquick-controls \
             qml6-module-qtquick-layouts \
             qml6-module-qtquick-templates \
+            qml6-module-qtquick-dialogs \
             qml6-module-qt-labs-platform \
             qml6-module-qtcore \
             libpulse-dev \
@@ -60,6 +65,12 @@ jobs:
             file \
             curl \
             zlib1g-dev
+
+      - name: Compile and install GoogleTest
+        run: |
+          sudo cmake -B /tmp/gtest-build -S /usr/src/googletest
+          sudo cmake --build /tmp/gtest-build --parallel
+          sudo cmake --install /tmp/gtest-build
 
       - name: Build unit tests and run verification
         run: |
@@ -71,10 +82,13 @@ jobs:
         run: |
           chmod +x deploy/linux/build-appimage.sh
           ./deploy/linux/build-appimage.sh
+          sha256sum dist/PicAudio-x86_64.AppImage > dist/PicAudio-x86_64.AppImage.sha256
 
       - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
         with:
           name: PicAudio-Linux-x86_64-AppImage
-          path: dist/PicAudio-x86_64.AppImage
+          path: |
+            dist/PicAudio-x86_64.AppImage
+            dist/PicAudio-x86_64.AppImage.sha256
           if-no-files-found: error
