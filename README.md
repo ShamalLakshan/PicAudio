@@ -16,6 +16,19 @@
 
 > Still under development...
 
+## Plugins & Public SDK
+
+PicAudio features a compiler-agnostic C-ABI plugin architecture allowing third-party developers to extend the player without recompiling the host application:
+- **Visualizers**: Real-time FFT spectrum analyzers, peak meters, and fluid waveforms.
+- **Lyrics & Scrobbling**: Synchronized `.lrc` parsers, Last.fm and ListenBrainz scrobbling.
+- **DSP & Effects**: Pre/post hardware buffer audio processing and filter chains.
+- **Metadata**: Custom tag enrichers and online metadata scrapers.
+
+Developers can explore:
+- [**Plugin Developer Guide & SDK API Reference**](docs/PLUGIN_API.md)
+- [**Plugin Manifest Schema**](docs/plugin-schema.json)
+- [**Sample Plugin Boilerplate**](sdk/templates/)
+
 ## Acknowledgements & Attributions
 
 PicAudio stands on the shoulders of outstanding open-source libraries, audio standards, and pioneer desktop audio players. See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for the complete list of credits and references.

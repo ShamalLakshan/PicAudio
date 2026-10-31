@@ -42,6 +42,8 @@ public:
   core::AudioStreamInfo getStreamInfo() const override;
 
   void setEndOfTrackCallback(std::function<void()> callback) override;
+  void setAudioBufferCallback(
+      core::IAudioEnginePort::AudioBufferCallback callback) override;
   void setPlaybackRate(float rate) override;
   float getPlaybackRate() const override;
 
@@ -64,6 +66,7 @@ private:
   core::AudioStreamInfo m_streamInfo;
   mutable std::mutex m_mutex;
   std::function<void()> m_endOfTrackCallback;
+  core::IAudioEnginePort::AudioBufferCallback m_audioBufferCallback;
   std::string m_currentFilePath;
 
   mutable std::mutex m_visMutex;

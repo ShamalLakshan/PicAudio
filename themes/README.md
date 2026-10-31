@@ -34,19 +34,19 @@ Every theme is defined as a standalone `.json` file that complies with [`docs/th
     "description": "Short summary of the aesthetic"
   },
   "colors": {
-    "background": "#141416",
-    "surface": "#161619",
-    "surfaceElevated": "#1e1e24",
-    "panelBorder": "#24242c",
-    "accent": "#3a82f7",
-    "accentHover": "#5c9eff",
+    "background": "#000000",
+    "surface": "#0d0d0d",
+    "surfaceElevated": "#171717",
+    "panelBorder": "#262626",
+    "accent": "#ffffff",
+    "accentHover": "#e5e5e5",
     "textPrimary": "#ffffff",
-    "textSecondary": "#c0c0d0",
-    "textMuted": "#777788",
-    "selection": "#1f2a3e",
-    "error": "#ff4a4a",
-    "warning": "#f5a623",
-    "success": "#28c840"
+    "textSecondary": "#a3a3a3",
+    "textMuted": "#737373",
+    "selection": "#262626",
+    "error": "#ef4444",
+    "warning": "#f59e0b",
+    "success": "#22c55e"
   },
   "typography": {
     "fontFamily": "Inter, sans-serif",

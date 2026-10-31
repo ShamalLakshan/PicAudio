@@ -1,0 +1,22 @@
+{
+  "id": "com.picaudio.spectrum",
+  "name": "Spectrum Visualizer",
+  "version": "1.0.0",
+  "author": "PicAudio Team",
+  "description": "Real-time FFT audio spectrum visualizer plugin with logarithmic frequency binning, temporal smoothing, and peak decay.",
+  "homepage": "https://github.com/ShamalLakshan/PicAudio",
+  "targetApiVersion": "1.0.0",
+  "capabilities": [
+    "visualizer",
+    "ui"
+  ],
+  "actions": [
+    {
+      "id": "open_visualizer",
+      "label": "Open Visualizer View",
+      "tooltip": "Jump to full-stage audio visualizer view in Now Playing",
+      "iconName": "equalizer",
+      "isPrimary": true
+    }
+  ]
+}

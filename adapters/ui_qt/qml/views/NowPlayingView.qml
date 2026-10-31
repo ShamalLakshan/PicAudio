@@ -426,7 +426,7 @@ Item {
 
                 ScrollView {
                     anchors.fill: parent
-                    contentWidth: width
+                    contentWidth: availableWidth
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
@@ -972,7 +972,7 @@ Item {
                         ScrollView {
                             anchors.fill: parent
                             anchors.margins: Theme.panelPadding * 1.2
-                            contentWidth: width
+                            contentWidth: availableWidth
                             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 

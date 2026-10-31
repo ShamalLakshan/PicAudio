@@ -16,6 +16,7 @@
 #include "core/services/PlayerService.hpp"
 #include "desktop/DesktopIntegrationManager.hpp"
 #include "metadata/TagLibMetadataAdapter.hpp"
+#include "plugin/PluginManager.hpp"
 #include "providers/AlbumArtImageProvider.hpp"
 #include "storage/SqliteDatabaseAdapter.hpp"
 #include "theming/ThemeLoader.hpp"
@@ -51,9 +52,10 @@ int main(int argc, char *argv[]) {
 #ifdef Q_OS_WIN
   const QString baseDir = QCoreApplication::applicationDirPath();
   const QString portableDir = baseDir + "/data";
-  const bool isPortable = QFile::exists(baseDir + "/portable.dat") ||
-                          app.arguments().contains(QStringLiteral("--portable")) ||
-                          qEnvironmentVariableIsSet("PICAUDIO_PORTABLE");
+  const bool isPortable =
+      QFile::exists(baseDir + "/portable.dat") ||
+      app.arguments().contains(QStringLiteral("--portable")) ||
+      qEnvironmentVariableIsSet("PICAUDIO_PORTABLE");
   if (isPortable) {
     appDataDir = portableDir;
     QDir().mkpath(appDataDir);
@@ -65,13 +67,17 @@ int main(int argc, char *argv[]) {
     QDir().mkpath(appDataDir);
   }
 #else
-  // On Linux/POSIX (including AppImage), follow standard XDG directory specifications
-  const bool isPortable = !qEnvironmentVariableIsSet("APPIMAGE") &&
-                          (QFile::exists(QCoreApplication::applicationDirPath() + "/portable.dat") ||
-                           app.arguments().contains(QStringLiteral("--portable")) ||
-                           qEnvironmentVariableIsSet("PICAUDIO_PORTABLE"));
+  // On Linux/POSIX (including AppImage), follow standard XDG directory
+  // specifications
+  const bool isPortable =
+      !qEnvironmentVariableIsSet("APPIMAGE") &&
+      (QFile::exists(QCoreApplication::applicationDirPath() +
+                     "/portable.dat") ||
+       app.arguments().contains(QStringLiteral("--portable")) ||
+       qEnvironmentVariableIsSet("PICAUDIO_PORTABLE"));
   if (isPortable) {
-    const QString portableDir = QCoreApplication::applicationDirPath() + "/data";
+    const QString portableDir =
+        QCoreApplication::applicationDirPath() + "/data";
     appDataDir = portableDir;
     QDir().mkpath(appDataDir);
   } else {
@@ -99,6 +105,40 @@ int main(int argc, char *argv[]) {
 
   // Bridge connecting core to QML
   QtBridge bridge(playerService, libraryService, themeLoader.get());
+
+  // Dynamic Plugin Manager (Phase 2)
+  adapters::PluginManager pluginManager;
+  pluginManager.setThemeLoader(themeLoader.get());
+  pluginManager.setNavigateCallback([&bridge](int view) {
+    QMetaObject::invokeMethod(
+        &bridge, [&bridge, view]() { bridge.setActiveWorkspaceViewMode(view); },
+        Qt::QueuedConnection);
+  });
+  pluginManager.setToastCallback(
+      [&bridge](const QString &msg, const QString &lvl) {
+        QMetaObject::invokeMethod(
+            &bridge, [&bridge, msg, lvl]() { bridge.showToast(msg, lvl); },
+            Qt::QueuedConnection);
+      });
+  pluginManager.initialize(
+      {appDataDir + "/plugins",
+       QCoreApplication::applicationDirPath() + "/plugins",
+       QCoreApplication::applicationDirPath() + "/../plugins"});
+  pluginManager.scanAndLoadPlugins();
+  bridge.setPluginManager(&pluginManager);
+
+  // Notify theme plugins on base theme change
+  QObject::connect(themeLoader.get(), &adapters::ThemeLoader::themeChanged,
+                   [&pluginManager, themePtr = themeLoader.get()]() {
+                     pluginManager.routeBaseThemeChanged(themePtr->themeId());
+                   });
+
+  // Audio visualizer hook routing to plugins
+  audioEngine->setAudioBufferCallback(
+      [&pluginManager](const float *buffer, size_t frames, uint32_t sampleRate,
+                       uint8_t channels) {
+        pluginManager.routeAudioBuffer(buffer, frames, sampleRate, channels);
+      });
 
   // Desktop integration (Single-instance IPC, MPRIS, Tray, Notifications)
   adapters::DesktopIntegrationManager desktop(&bridge);
@@ -132,9 +172,10 @@ int main(int argc, char *argv[]) {
 
   // Guarantee audio stop and session save on application termination
   QObject::connect(&app, &QCoreApplication::aboutToQuit,
-                   [&bridge, &audioEngine]() {
+                   [&bridge, &audioEngine, &pluginManager]() {
                      audioEngine->stop();
                      bridge.savePlaybackSession();
+                     pluginManager.unloadAllPlugins();
                    });
 
   QUrl url(QStringLiteral("qrc:/PlayerUI/ui_qt/qml/Main.qml"));

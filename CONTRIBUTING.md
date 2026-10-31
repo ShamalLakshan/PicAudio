@@ -73,11 +73,13 @@ PicAudio/
 │   ├── storage/     # SQLite database adapter
 │   └── ui_qt/       # Qt/QML bridge, models, and UI components
 ├── app/             # Application entry point wiring adapters to services
-├── sdk/             # Public plugin interfaces
-├── plugins/         # First-party reference plugins
+├── sdk/             # Public plugin interfaces and templates
+├── plugins/         # First-party reference plugins (spectrum, lyrics/scrobbler)
 ├── tests/           # Unit tests and mocks
-└── docs/            # Architecture notes and theme schema
+└── docs/            # Architecture notes, plugin SDK guide, and schemas
 ```
+
+For authoring external plugins or writing dynamic audio extensions, see the [Plugin Developer Guide](docs/PLUGIN_API.md).
 
 ## Coding & Style Guidelines
 

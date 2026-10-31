@@ -138,19 +138,19 @@ ThemeTokens ThemeLoader::getDefaultDarkStudioTheme() {
   t.apiVersion = "0.1-unstable";
   t.description = "Default dark theme";
 
-  t.background = "#141416";
-  t.surface = "#161619";
-  t.surfaceElevated = "#1e1e24";
-  t.panelBorder = "#24242c";
-  t.accent = "#3a82f7";
-  t.accentHover = "#5c9eff";
+  t.background = "#000000";
+  t.surface = "#0d0d0d";
+  t.surfaceElevated = "#171717";
+  t.panelBorder = "#262626";
+  t.accent = "#ffffff";
+  t.accentHover = "#e5e5e5";
   t.textPrimary = "#ffffff";
-  t.textSecondary = "#c0c0d0";
-  t.textMuted = "#777788";
-  t.selection = "#1f2a3e";
-  t.error = "#ff4a4a";
-  t.warning = "#f5a623";
-  t.success = "#28c840";
+  t.textSecondary = "#a3a3a3";
+  t.textMuted = "#737373";
+  t.selection = "#262626";
+  t.error = "#ef4444";
+  t.warning = "#f59e0b";
+  t.success = "#22c55e";
 
   t.fontFamily = "sans-serif";
   t.fontSizeSmall = 9;
@@ -783,6 +783,98 @@ void ThemeLoader::refreshAvailableThemes() {
   // editing)
   if (!m_tokens.id.isEmpty() && m_themeRegistry.contains(m_tokens.id)) {
     m_tokens = m_themeRegistry[m_tokens.id].tokens;
+    emit themeChanged();
+  }
+}
+
+void ThemeLoader::setCustomColorToken(const QString &tokenName,
+                                      const QString &hexColor) {
+  if (!isValidColorName(hexColor))
+    return;
+  if (tokenName == QLatin1String("background"))
+    m_tokens.background = hexColor;
+  else if (tokenName == QLatin1String("surface"))
+    m_tokens.surface = hexColor;
+  else if (tokenName == QLatin1String("surfaceElevated"))
+    m_tokens.surfaceElevated = hexColor;
+  else if (tokenName == QLatin1String("panelBorder"))
+    m_tokens.panelBorder = hexColor;
+  else if (tokenName == QLatin1String("accent"))
+    m_tokens.accent = hexColor;
+  else if (tokenName == QLatin1String("accentHover"))
+    m_tokens.accentHover = hexColor;
+  else if (tokenName == QLatin1String("textPrimary"))
+    m_tokens.textPrimary = hexColor;
+  else if (tokenName == QLatin1String("textSecondary"))
+    m_tokens.textSecondary = hexColor;
+  else if (tokenName == QLatin1String("textMuted"))
+    m_tokens.textMuted = hexColor;
+  else if (tokenName == QLatin1String("selection"))
+    m_tokens.selection = hexColor;
+  else if (tokenName == QLatin1String("error"))
+    m_tokens.error = hexColor;
+  else if (tokenName == QLatin1String("warning"))
+    m_tokens.warning = hexColor;
+  else if (tokenName == QLatin1String("success"))
+    m_tokens.success = hexColor;
+  else
+    return;
+  emit themeChanged();
+}
+
+void ThemeLoader::applyColorOverrides(
+    const QMap<QString, QString> &colorOverrides) {
+  if (colorOverrides.isEmpty())
+    return;
+  bool changed = false;
+  for (auto it = colorOverrides.constBegin(); it != colorOverrides.constEnd();
+       ++it) {
+    if (!isValidColorName(it.value()))
+      continue;
+    const QString &k = it.key();
+    const QString &v = it.value();
+    if (k == QLatin1String("background")) {
+      m_tokens.background = v;
+      changed = true;
+    } else if (k == QLatin1String("surface")) {
+      m_tokens.surface = v;
+      changed = true;
+    } else if (k == QLatin1String("surfaceElevated")) {
+      m_tokens.surfaceElevated = v;
+      changed = true;
+    } else if (k == QLatin1String("panelBorder")) {
+      m_tokens.panelBorder = v;
+      changed = true;
+    } else if (k == QLatin1String("accent")) {
+      m_tokens.accent = v;
+      changed = true;
+    } else if (k == QLatin1String("accentHover")) {
+      m_tokens.accentHover = v;
+      changed = true;
+    } else if (k == QLatin1String("textPrimary")) {
+      m_tokens.textPrimary = v;
+      changed = true;
+    } else if (k == QLatin1String("textSecondary")) {
+      m_tokens.textSecondary = v;
+      changed = true;
+    } else if (k == QLatin1String("textMuted")) {
+      m_tokens.textMuted = v;
+      changed = true;
+    } else if (k == QLatin1String("selection")) {
+      m_tokens.selection = v;
+      changed = true;
+    } else if (k == QLatin1String("error")) {
+      m_tokens.error = v;
+      changed = true;
+    } else if (k == QLatin1String("warning")) {
+      m_tokens.warning = v;
+      changed = true;
+    } else if (k == QLatin1String("success")) {
+      m_tokens.success = v;
+      changed = true;
+    }
+  }
+  if (changed) {
     emit themeChanged();
   }
 }

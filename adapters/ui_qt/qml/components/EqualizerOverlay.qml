@@ -6,8 +6,10 @@ import "../components"
 
 Rectangle {
     id: root
-    width: Math.min(840, parent.width - 40)
-    height: 380
+    width: Math.min(840, parent ? parent.width - 40 : 840)
+    height: Math.min(420, parent ? parent.height - 40 : 380)
+    x: parent ? Math.max(16, Math.round((parent.width - width) / 2)) : 50
+    y: parent ? Math.max(16, Math.round((parent.height - height) / 2)) : 50
     radius: Theme.cornerRadiusMedium
     color: Theme.surface
     border.color: Theme.panelBorder
@@ -20,6 +22,22 @@ Rectangle {
     readonly property var bandFreqs: ["31 Hz", "63 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz"]
 
     signal closed()
+
+    function resetPosition() {
+        if (parent) {
+            x = Math.max(16, Math.round((parent.width - width) / 2));
+            y = Math.max(16, Math.round((parent.height - height) / 2));
+        }
+    }
+
+    onVisibleChanged: {
+        if (visible && (x <= 0 || y <= 0 || (parent && (x > parent.width - 60 || y > parent.height - 60)))) {
+            resetPosition();
+        }
+    }
+
+    onWidthChanged: if (eqCurveCanvas) eqCurveCanvas.requestPaint()
+    onHeightChanged: if (eqCurveCanvas) eqCurveCanvas.requestPaint()
 
     function setPreset(name) {
         var presets = {
@@ -54,6 +72,10 @@ Rectangle {
             color: Theme.surfaceElevated
             border.color: Theme.panelBorder
             border.width: 1
+
+            MovableHeaderArea {
+                target: root
+            }
 
             RowLayout {
                 anchors.fill: parent
@@ -391,5 +413,11 @@ Rectangle {
                 }
             }
         }
+    }
+
+    ResizeGrip {
+        target: root
+        minWidth: 620
+        minHeight: 320
     }
 }

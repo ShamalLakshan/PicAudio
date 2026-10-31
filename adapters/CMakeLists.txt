@@ -97,6 +97,8 @@ qt_add_library(ui_adapter STATIC
     desktop/GlobalMediaKeysHook.cpp
     desktop/DesktopIntegrationManager.hpp
     desktop/DesktopIntegrationManager.cpp
+    plugin/PluginManager.hpp
+    plugin/PluginManager.cpp
     ${CMAKE_SOURCE_DIR}/themes/themes.qrc
     ${CMAKE_SOURCE_DIR}/deploy/icons.qrc
     ${CMAKE_SOURCE_DIR}/i18n/i18n.qrc
@@ -131,6 +133,8 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/components/Badge.qml
         ui_qt/qml/components/ContextMenu.qml
         ui_qt/qml/components/EqualizerOverlay.qml
+        ui_qt/qml/components/MovableHeaderArea.qml
+        ui_qt/qml/components/ResizeGrip.qml
         ui_qt/qml/components/WaveVisualizer.qml
         ui_qt/qml/components/ToastBanner.qml
         ui_qt/qml/dialogs/PreferencesDialog.qml
@@ -162,6 +166,7 @@ qt_add_qml_module(ui_adapter
 
 target_link_libraries(ui_adapter PUBLIC
     player_core
+    picaudio_sdk
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
@@ -185,6 +190,7 @@ target_include_directories(ui_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/audio
     ${CMAKE_CURRENT_SOURCE_DIR}/desktop
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin
     ${SQLITE_INCLUDE_DIRS}
     ${TAGLIB_INCLUDE_DIRS}
 )

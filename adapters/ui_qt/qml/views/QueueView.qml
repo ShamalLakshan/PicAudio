@@ -47,7 +47,7 @@ Item {
             Text {
                 text: "Drop tracks or folders to enqueue"
                 color: Theme.accent
-                font.pixelSize: Theme.fontSizeMedium
+                font.pixelSize: Theme.fontSizeBase
                 font.family: Theme.fontFamily
                 font.bold: true
             }
@@ -387,29 +387,62 @@ Item {
         id: saveQueueDialog
         modal: true
         focus: true
-        anchors.centerIn: Overlay.overlay
+        x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500)) - width) / 2)
+        y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 400)) - height) / 2)
         width: 380
         padding: 0
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        header: Rectangle {
+            height: 38
+            color: Theme.surfaceElevated
+            border.color: Theme.panelBorder
+            border.width: 1
+
+            MovableHeaderArea {
+                target: saveQueueDialog
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                spacing: 8
+
+                VectorIcon {
+                    name: "queue"
+                    width: 14
+                    height: 14
+                    color: Theme.accent
+                }
+
+                Text {
+                    text: "Save Queue as Playlist"
+                    font.pixelSize: Theme.fontSizeBase
+                    font.bold: true
+                    color: Theme.textPrimary
+                    Layout.fillWidth: true
+                }
+            }
+        }
 
         background: Rectangle {
             color: Theme.surface
             border.color: Theme.panelBorder
             border.width: 1
             radius: Theme.cornerRadiusMedium
+
+            ResizeGrip {
+                target: saveQueueDialog
+                minWidth: 340
+                minHeight: 200
+            }
         }
 
         contentItem: ColumnLayout {
             spacing: 12
             anchors.fill: parent
             anchors.margins: 16
-
-            Text {
-                text: "Save Queue as Playlist"
-                font.pixelSize: Theme.fontSizeLarge
-                font.bold: true
-                color: Theme.textPrimary
-            }
 
             Text {
                 text: "Create a new static playlist containing all remaining tracks in the queue."
@@ -452,6 +485,13 @@ Item {
         }
 
         onAboutToShow: {
+            var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500);
+            var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 400);
+            if (x <= 0 || y <= 0 || x > ovW - 60 || y > ovH - 60) {
+                x = Math.max(16, Math.round((ovW - width) / 2));
+                y = Math.max(16, Math.round((ovH - height) / 2));
+            }
+
             queuePlaylistNameInput.text = "";
             queuePlaylistNameInput.forceActiveFocus();
         }

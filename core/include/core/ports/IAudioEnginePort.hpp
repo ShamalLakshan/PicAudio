@@ -44,6 +44,18 @@ public:
     (void)callback;
   }
 
+  using AudioBufferCallback =
+      std::function<void(const float *buffer, size_t frames,
+                         uint32_t sampleRate, uint8_t channels)>;
+
+  /**
+   * @brief Registers an audio buffer callback hook for real-time visualizers &
+   * DSP.
+   */
+  virtual void setAudioBufferCallback(AudioBufferCallback callback) {
+    (void)callback;
+  }
+
   /**
    * @brief Sets the audio playback rate multiplier.
    * @param rate Speed multiplier (e.g. 1.0f for normal speed).

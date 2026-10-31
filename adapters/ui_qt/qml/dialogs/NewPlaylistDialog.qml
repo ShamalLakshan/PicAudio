@@ -8,7 +8,8 @@ Dialog {
     id: root
     modal: true
     focus: true
-    anchors.centerIn: Overlay.overlay
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 400)) - height) / 2)
     width: Math.min(460, Overlay.overlay ? Overlay.overlay.width - 32 : 460)
     height: Math.min(isSmart ? 340 : 260, Overlay.overlay ? Overlay.overlay.height - 32 : (isSmart ? 340 : 260))
     padding: 0
@@ -32,6 +33,13 @@ Dialog {
     }
 
     onAboutToShow: {
+        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500);
+        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 400);
+        if (x <= 0 || y <= 0 || x > ovW - 60 || y > ovH - 60) {
+            x = Math.max(16, Math.round((ovW - width) / 2));
+            y = Math.max(16, Math.round((ovH - height) / 2));
+        }
+
         if (!isEdit) {
             playlistNameInput.text = "";
             smartCriteriaInput.text = "";
@@ -46,19 +54,26 @@ Dialog {
         radius: Theme.cornerRadiusMedium
     }
 
-    contentItem: ColumnLayout {
-        spacing: 0
+    contentItem: Item {
         clip: true
 
-        // Header
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 44
-            color: Theme.surfaceElevated
-            border.color: Theme.panelBorder
-            border.width: 1
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
 
-            RowLayout {
+            // Header
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                color: Theme.surfaceElevated
+                border.color: Theme.panelBorder
+                border.width: 1
+
+                MovableHeaderArea {
+                    target: root
+                }
+
+                RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
                 anchors.rightMargin: Theme.panelPadding
@@ -278,6 +293,13 @@ Dialog {
             }
         }
     }
+
+    ResizeGrip {
+        target: root
+        minWidth: 380
+        minHeight: 240
+    }
+}
 
     function submit() {
         var name = playlistNameInput.text.trim();

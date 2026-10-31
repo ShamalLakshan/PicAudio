@@ -1,5 +1,7 @@
 #include "QtBridge.hpp"
+#include "plugin/PluginManager.hpp"
 #include <QClipboard>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
@@ -381,6 +383,27 @@ void QtBridge::setupVisualizerTimer() {
 }
 
 void QtBridge::updateVisualizerData() {
+  if (m_pluginManager) {
+    float pluginBands[36];
+    size_t count = m_pluginManager->getFrequencyBands(pluginBands, 36);
+    if (count > 0) {
+      m_visualizerBands.clear();
+      m_visualizerBands.reserve(static_cast<qsizetype>(count));
+      for (size_t i = 0; i < count; ++i) {
+        m_visualizerBands.append(pluginBands[i]);
+      }
+      auto wave = m_player.getWaveformSamples(64);
+      m_visualizerWaveform.clear();
+      m_visualizerWaveform.reserve(static_cast<qsizetype>(wave.size()));
+      for (float w : wave) {
+        m_visualizerWaveform.append(w);
+      }
+      m_visualizerLevel = m_player.getAudioLevel();
+      emit visualizerDataChanged();
+      return;
+    }
+  }
+
   auto bands = m_player.getFrequencyBands(36);
   auto wave = m_player.getWaveformSamples(64);
   float level = m_player.getAudioLevel();
@@ -1108,6 +1131,23 @@ void QtBridge::updatePlaybackState(const core::Track &track) {
   emit positionChanged();
   syncQueueModel();
   refreshHistory();
+
+  if (m_pluginManager) {
+    picaudio::plugin::PicAudioTrackInfo info{};
+    info.id = track.id.c_str();
+    info.title = track.title.c_str();
+    info.artist = track.artist.c_str();
+    info.album = track.album.c_str();
+    info.albumArtist = track.artist.c_str();
+    info.genre = track.genre.c_str();
+    info.year = track.year;
+    info.trackNumber = track.trackNumber;
+    info.durationMs = track.durationMs;
+    info.filePath = track.filePath.c_str();
+    m_pluginManager->routeTrackStarted(info);
+    m_pluginManager->routePlaybackStateChanged(
+        picaudio::plugin::PicAudioPlaybackState::Playing);
+  }
 }
 
 void QtBridge::togglePlayPause() {
@@ -1115,8 +1155,16 @@ void QtBridge::togglePlayPause() {
   m_isPlaying = m_player.isPlaying();
   if (m_isPlaying) {
     m_positionTimer->start();
+    if (m_pluginManager) {
+      m_pluginManager->routePlaybackStateChanged(
+          picaudio::plugin::PicAudioPlaybackState::Playing);
+    }
   } else {
     m_positionTimer->stop();
+    if (m_pluginManager) {
+      m_pluginManager->routePlaybackStateChanged(
+          picaudio::plugin::PicAudioPlaybackState::Paused);
+    }
   }
   emit playbackChanged();
 }
@@ -1128,6 +1176,10 @@ void QtBridge::stop() {
   m_positionStr = "00:00";
   m_activeLyricIndex = -1;
   m_positionTimer->stop();
+  if (m_pluginManager) {
+    m_pluginManager->routePlaybackStateChanged(
+        picaudio::plugin::PicAudioPlaybackState::Stopped);
+  }
   emit playbackChanged();
   emit positionChanged();
   emit activeLyricIndexChanged();
@@ -4302,6 +4354,16 @@ void QtBridge::loadLyricsForTrack(const QString &filePath) {
     return;
   }
 
+  // Try dynamic plugin lyrics provider (Issue #29)
+  if (m_pluginManager) {
+    std::string pluginLyrics = m_pluginManager->routeFetchLyrics(
+        m_currentArtist.toStdString(), m_currentTrackTitle.toStdString());
+    if (!pluginLyrics.empty()) {
+      parseLrcContent(QString::fromUtf8(pluginLyrics.c_str()));
+      return;
+    }
+  }
+
   // No lyrics found
   m_hasLyrics = false;
   m_isLyricsSynchronized = false;
@@ -4446,4 +4508,152 @@ void QtBridge::reloadLyrics() {
   if (!m_currentFilePath.isEmpty()) {
     loadLyricsForTrack(m_currentFilePath);
   }
+}
+
+void QtBridge::setPluginManager(adapters::PluginManager *manager) {
+  m_pluginManager = manager;
+  if (m_pluginManager) {
+    connect(m_pluginManager, &adapters::PluginManager::pluginsChanged, this,
+            &QtBridge::pluginsChanged);
+  }
+}
+
+QVariantList QtBridge::getDiscoveredPlugins() const {
+  QVariantList list;
+  if (!m_pluginManager) {
+    return list;
+  }
+
+  const auto plugins = m_pluginManager->getDiscoveredPlugins();
+  for (const auto &p : plugins) {
+    QVariantMap map;
+    map[QStringLiteral("id")] = p.id;
+    map[QStringLiteral("name")] = p.name;
+    map[QStringLiteral("version")] = p.version;
+    map[QStringLiteral("author")] = p.author;
+    map[QStringLiteral("description")] = p.description;
+    map[QStringLiteral("homepage")] = p.homepage;
+    map[QStringLiteral("targetApiVersion")] = p.targetApiVersion;
+    map[QStringLiteral("capabilities")] = p.capabilities;
+    map[QStringLiteral("directory")] = p.directory;
+    map[QStringLiteral("libraryPath")] = p.libraryPath;
+    map[QStringLiteral("enabled")] = p.enabled;
+    map[QStringLiteral("loaded")] = p.loaded;
+    map[QStringLiteral("loadError")] = p.loadError;
+    map[QStringLiteral("isCompatible")] =
+        p.loadError.isEmpty() ||
+        !p.loadError.contains(QStringLiteral("Incompatible"));
+
+    QVariantList actionsList;
+    for (const auto &act : p.customActions) {
+      QVariantMap actMap;
+      actMap[QStringLiteral("id")] = act.id;
+      actMap[QStringLiteral("label")] = act.label;
+      actMap[QStringLiteral("tooltip")] = act.tooltip;
+      actMap[QStringLiteral("iconName")] = act.iconName;
+      actMap[QStringLiteral("isPrimary")] = act.isPrimary;
+      actionsList.append(actMap);
+    }
+    map[QStringLiteral("customActions")] = actionsList;
+
+    list.append(map);
+  }
+  return list;
+}
+
+bool QtBridge::setPluginEnabled(const QString &pluginId, bool enabled) {
+  if (!m_pluginManager) {
+    return false;
+  }
+  const bool changed = m_pluginManager->setPluginEnabled(pluginId, enabled);
+  if (changed) {
+    emit pluginsChanged();
+    showToast(enabled ? tr("Plugin enabled: %1").arg(pluginId)
+                      : tr("Plugin disabled: %1").arg(pluginId),
+              QStringLiteral("info"));
+  }
+  return changed;
+}
+
+void QtBridge::openPluginsDirectory() {
+  if (m_pluginManager) {
+    QDesktopServices::openUrl(
+        QUrl::fromLocalFile(m_pluginManager->getPrimaryPluginDirectory()));
+  }
+}
+
+void QtBridge::scanPlugins() {
+  if (m_pluginManager) {
+    m_pluginManager->scanAndLoadPlugins();
+    emit pluginsChanged();
+    showToast(tr("Rescanned plugins directory"), QStringLiteral("success"));
+  }
+}
+
+QVariantMap QtBridge::getPluginDetails(const QString &pluginId) const {
+  if (!m_pluginManager) {
+    return {};
+  }
+  for (const auto &p : m_pluginManager->getDiscoveredPlugins()) {
+    if (p.id == pluginId) {
+      QVariantMap map;
+      map[QStringLiteral("id")] = p.id;
+      map[QStringLiteral("name")] = p.name;
+      map[QStringLiteral("version")] = p.version;
+      map[QStringLiteral("author")] = p.author;
+      map[QStringLiteral("description")] = p.description;
+      map[QStringLiteral("homepage")] = p.homepage;
+      map[QStringLiteral("targetApiVersion")] = p.targetApiVersion;
+      map[QStringLiteral("capabilities")] = p.capabilities;
+      map[QStringLiteral("directory")] = p.directory;
+      map[QStringLiteral("libraryPath")] = p.libraryPath;
+      map[QStringLiteral("enabled")] = p.enabled;
+      map[QStringLiteral("loaded")] = p.loaded;
+      map[QStringLiteral("loadError")] = p.loadError;
+
+      QVariantList actionsList;
+      for (const auto &act : p.customActions) {
+        QVariantMap actMap;
+        actMap[QStringLiteral("id")] = act.id;
+        actMap[QStringLiteral("label")] = act.label;
+        actMap[QStringLiteral("tooltip")] = act.tooltip;
+        actMap[QStringLiteral("iconName")] = act.iconName;
+        actMap[QStringLiteral("isPrimary")] = act.isPrimary;
+        actionsList.append(actMap);
+      }
+      map[QStringLiteral("customActions")] = actionsList;
+
+      return map;
+    }
+  }
+  return {};
+}
+
+bool QtBridge::triggerPluginAction(const QString &pluginId,
+                                   const QString &actionId) {
+  if (!m_pluginManager) {
+    return false;
+  }
+  return m_pluginManager->triggerPluginAction(pluginId, actionId);
+}
+
+bool QtBridge::showPluginWindow(const QString &pluginId) {
+  if (!m_pluginManager) {
+    return false;
+  }
+  return m_pluginManager->showPluginWindow(pluginId);
+}
+
+bool QtBridge::hidePluginWindow(const QString &pluginId) {
+  if (!m_pluginManager) {
+    return false;
+  }
+  return m_pluginManager->hidePluginWindow(pluginId);
+}
+
+bool QtBridge::isPluginWindowVisible(const QString &pluginId) const {
+  if (!m_pluginManager) {
+    return false;
+  }
+  return m_pluginManager->isPluginWindowVisible(pluginId);
 }

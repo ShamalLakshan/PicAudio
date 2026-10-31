@@ -1,0 +1,24 @@
+{
+  "id": "com.picaudio.lyrics_scrobbler",
+  "name": "Synchronized Lyrics & Scrobbler",
+  "version": "1.0.0",
+  "author": "PicAudio Team",
+  "description": "Synchronized lyrics engine (.lrc files and embedded tags) with Last.fm and ListenBrainz scrobbling integration.",
+  "homepage": "https://github.com/ShamalLakshan/PicAudio",
+  "targetApiVersion": "1.0.0",
+  "capabilities": [
+    "lyrics",
+    "scrobbler",
+    "library",
+    "ui"
+  ],
+  "actions": [
+    {
+      "id": "scrobble_status",
+      "label": "Scrobble Status",
+      "tooltip": "Check pending scrobble queue and service status",
+      "iconName": "document",
+      "isPrimary": false
+    }
+  ]
+}

@@ -21,6 +21,7 @@ add_executable(picaudio_tests
     test_settings.cpp
     test_metadata_art.cpp
     test_desktop_integration.cpp
+    test_plugin_manager.cpp
 )
 
 target_include_directories(picaudio_tests PRIVATE
@@ -31,6 +32,10 @@ target_include_directories(picaudio_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/adapters
     ${CMAKE_SOURCE_DIR}/adapters/ui_qt
     ${CMAKE_SOURCE_DIR}/adapters/ui_qt/theming
+)
+
+target_compile_definitions(picaudio_tests PRIVATE
+    PICAUDIO_BUILD_DIR="${CMAKE_BINARY_DIR}"
 )
 
 target_link_libraries(picaudio_tests PRIVATE
