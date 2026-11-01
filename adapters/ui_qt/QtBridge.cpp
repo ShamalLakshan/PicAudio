@@ -204,6 +204,12 @@ void QtBridge::loadSettings() {
       s.value("audio/ditherMode", "Flat TPDF (Triangular)").toString();
   m_channelProcessing =
       s.value("audio/channelProcessing", "Stereo Passthrough").toString();
+  QString customMat = s.value("audio/customChannelMatrix", "").toString();
+  if (!customMat.isEmpty()) {
+    m_player.setSerializedChannelMatrix(customMat.toStdString());
+  } else {
+    setChannelProcessing(m_channelProcessing);
+  }
 
   // Hotkeys & Accelerators
   m_globalMediaKeysEnabled =
@@ -312,6 +318,7 @@ void QtBridge::saveSettings() {
   s.setValue("audio/resamplerQuality", m_resamplerQuality);
   s.setValue("audio/ditherMode", m_ditherMode);
   s.setValue("audio/channelProcessing", m_channelProcessing);
+  s.setValue("audio/customChannelMatrix", serializeChannelMatrix());
 
   // Hotkeys
   s.setValue("hotkeys/globalMediaKeysEnabled", m_globalMediaKeysEnabled);
@@ -428,6 +435,7 @@ void QtBridge::updateVisualizerData() {
 
   m_visualizerLevel = level;
   emit visualizerDataChanged();
+  emit channelLevelsChanged();
 }
 
 QString QtBridge::formatTime(qint64 ms) {
@@ -1824,7 +1832,7 @@ QVariantMap QtBridge::audioPipelineDiagnostics() const {
   map["resamplerQuality"] = m_resamplerQuality;
   map["ditherMode"] = m_ditherMode;
   map["channelProcessing"] = m_channelProcessing;
-  map["xruns"] = 0;
+  map["xruns"] = static_cast<qulonglong>(m_player.getXrunCount());
   map["state"] = m_isPlaying ? "Playing" : "Stopped";
   map["loopActive"] = isLoopActive();
   map["loopPointA"] = m_loopPointA;
@@ -3015,6 +3023,9 @@ void QtBridge::setShowStatusBar(bool enable) {
 void QtBridge::setAudioBackend(const QString &backend) {
   if (m_audioBackend != backend) {
     m_audioBackend = backend;
+    m_player.setAudioBackend(backend.toStdString());
+    refreshAudioDevices();
+    emit audioSettingsChanged();
     saveSettings();
   }
 }
@@ -3022,6 +3033,8 @@ void QtBridge::setAudioBackend(const QString &backend) {
 void QtBridge::setCurrentAudioDevice(const QString &device) {
   if (m_currentAudioDevice != device) {
     m_currentAudioDevice = device;
+    m_player.setAudioDevice(device.toStdString());
+    emit audioSettingsChanged();
     saveSettings();
   }
 }
@@ -3029,6 +3042,8 @@ void QtBridge::setCurrentAudioDevice(const QString &device) {
 void QtBridge::setBitPerfectExclusive(bool exclusive) {
   if (m_bitPerfectExclusive != exclusive) {
     m_bitPerfectExclusive = exclusive;
+    m_player.setBitPerfectExclusive(exclusive);
+    emit audioSettingsChanged();
     saveSettings();
   }
 }
@@ -3036,6 +3051,8 @@ void QtBridge::setBitPerfectExclusive(bool exclusive) {
 void QtBridge::setBufferLatencyMs(int ms) {
   if (m_bufferLatencyMs != ms) {
     m_bufferLatencyMs = ms;
+    m_player.setBufferLatencyMs(static_cast<uint32_t>(ms));
+    emit audioSettingsChanged();
     saveSettings();
   }
 }
@@ -3057,9 +3074,166 @@ void QtBridge::setDitherMode(const QString &mode) {
 void QtBridge::setChannelProcessing(const QString &mode) {
   if (m_channelProcessing != mode) {
     m_channelProcessing = mode;
+    if (mode == "Stereo Passthrough") {
+      m_player.setOutputChannelCount(2);
+      m_player.setChannelMatrixPreset(0);
+    } else if (mode == "Downmix Surround to Stereo") {
+      m_player.setOutputChannelCount(2);
+      m_player.setChannelMatrixPreset(1);
+    } else if (mode == "Mono Downmix") {
+      m_player.setOutputChannelCount(1);
+      m_player.setChannelMatrixPreset(2);
+    } else if (mode == "Upmix Stereo to 5.1") {
+      m_player.setOutputChannelCount(6);
+      m_player.setChannelMatrixPreset(3);
+    } else if (mode == "Cinema Surround Upmix (7.1)") {
+      m_player.setOutputChannelCount(8);
+      m_player.setChannelMatrixPreset(4);
+    }
+    emit channelProcessingChanged();
+    emit channelMatrixChanged();
+    emit audioSettingsChanged();
     saveSettings();
   }
 }
+
+int QtBridge::outputChannels() const {
+  return static_cast<int>(m_player.getOutputChannelCount());
+}
+
+void QtBridge::setOutputChannels(int channels) {
+  int clamped = std::clamp(channels, 1, 8);
+  if (clamped != outputChannels()) {
+    m_player.setOutputChannelCount(static_cast<uint8_t>(clamped));
+    emit channelProcessingChanged();
+    emit channelMatrixChanged();
+    emit audioSettingsChanged();
+    saveSettings();
+  }
+}
+
+QVariantList QtBridge::channelMatrix() const {
+  QVariantList rows;
+  for (size_t o = 0; o < 8; ++o) {
+    QVariantList cols;
+    for (size_t i = 0; i < 8; ++i) {
+      cols.append(
+          static_cast<double>(m_player.getChannelMatrixCoefficient(o, i)));
+    }
+    rows.append(QVariant::fromValue(cols));
+  }
+  return rows;
+}
+
+QVariantList QtBridge::channelLevels() const {
+  QVariantList list;
+  auto levels = m_player.getChannelLevels();
+  for (size_t i = 0; i < 8; ++i) {
+    if (i < levels.size()) {
+      list.append(static_cast<double>(levels[i]));
+    } else {
+      list.append(0.0);
+    }
+  }
+  return list;
+}
+
+void QtBridge::setChannelMatrixCell(int outChannel, int inChannel,
+                                    double gain) {
+  if (outChannel >= 0 && outChannel < 8 && inChannel >= 0 && inChannel < 8) {
+    m_player.setChannelMatrixCoefficient(static_cast<size_t>(outChannel),
+                                         static_cast<size_t>(inChannel),
+                                         static_cast<float>(gain));
+    m_channelProcessing = "Custom Channel Matrix";
+    emit channelMatrixChanged();
+    emit channelProcessingChanged();
+    emit audioSettingsChanged();
+    saveSettings();
+  }
+}
+
+double QtBridge::getChannelMatrixCell(int outChannel, int inChannel) const {
+  if (outChannel >= 0 && outChannel < 8 && inChannel >= 0 && inChannel < 8) {
+    return static_cast<double>(m_player.getChannelMatrixCoefficient(
+        static_cast<size_t>(outChannel), static_cast<size_t>(inChannel)));
+  }
+  return 0.0;
+}
+
+void QtBridge::setChannelMatrixPreset(int preset) {
+  m_player.setChannelMatrixPreset(preset);
+  if (preset == 0) {
+    m_channelProcessing = "Stereo Passthrough";
+  } else if (preset == 1) {
+    m_channelProcessing = "Downmix Surround to Stereo";
+  } else if (preset == 2) {
+    m_channelProcessing = "Mono Downmix";
+  } else if (preset == 3) {
+    m_channelProcessing = "Upmix Stereo to 5.1";
+  } else if (preset == 4) {
+    m_channelProcessing = "Cinema Surround Upmix (7.1)";
+  } else {
+    m_channelProcessing = "Custom Channel Matrix";
+  }
+  emit channelMatrixChanged();
+  emit channelProcessingChanged();
+  emit audioSettingsChanged();
+  saveSettings();
+}
+
+int QtBridge::getChannelMatrixPreset() const {
+  return m_player.getChannelMatrixPreset();
+}
+
+void QtBridge::normalizeChannelMatrix() {
+  m_player.normalizeChannelMatrix();
+  emit channelMatrixChanged();
+  saveSettings();
+}
+
+void QtBridge::resetChannelMatrixToIdentity() {
+  m_player.setChannelMatrixPreset(0);
+  m_channelProcessing = "Stereo Passthrough";
+  emit channelMatrixChanged();
+  emit channelProcessingChanged();
+  emit audioSettingsChanged();
+  saveSettings();
+}
+
+QString QtBridge::serializeChannelMatrix() const {
+  return QString::fromStdString(m_player.getSerializedChannelMatrix());
+}
+
+bool QtBridge::loadSerializedChannelMatrix(const QString &json) {
+  bool ok = m_player.setSerializedChannelMatrix(json.toStdString());
+  if (ok) {
+    m_channelProcessing = "Custom Channel Matrix";
+    emit channelMatrixChanged();
+    emit channelProcessingChanged();
+    emit audioSettingsChanged();
+    saveSettings();
+  }
+  return ok;
+}
+
+QString QtBridge::channelName(int index) const {
+  static const QString names[8] = {"FL", "FR", "FC", "LFE",
+                                   "RL", "RR", "SL", "SR"};
+  if (index >= 0 && index < 8)
+    return names[index];
+  return "";
+}
+
+QString QtBridge::channelFullName(int index) const {
+  static const QString fullNames[8] = {
+      "Front Left", "Front Right", "Front Center", "Subwoofer (LFE)",
+      "Rear Left",  "Rear Right",  "Side Left",    "Side Right"};
+  if (index >= 0 && index < 8)
+    return fullNames[index];
+  return "";
+}
+
+void QtBridge::openChannelMatrix() { emit openChannelMatrixRequested(); }
 
 void QtBridge::clearArtCache() {
   QString coversDir =
@@ -3079,6 +3253,15 @@ void QtBridge::checkForUpdates() {
 void QtBridge::refreshAudioDevices() {
   QStringList devices;
   devices.append("System Default Output");
+
+  auto hwDevices =
+      m_player.getAvailableAudioDevices(m_audioBackend.toStdString());
+  for (const auto &dev : hwDevices) {
+    QString label = QString::fromStdString(dev.name);
+    if (!label.isEmpty() && !devices.contains(label)) {
+      devices.append(label);
+    }
+  }
 
   const auto outputs = QMediaDevices::audioOutputs();
   for (const auto &dev : outputs) {

@@ -10,6 +10,9 @@ target_compile_definitions(lyrics_scrobbler PRIVATE PICAUDIO_PLUGIN_BUILD)
 target_link_libraries(lyrics_scrobbler PRIVATE picaudio_sdk)
 
 set_target_properties(lyrics_scrobbler PROPERTIES
+    AUTOMOC OFF
+    AUTOUIC OFF
+    AUTORCC OFF
     PREFIX ""
     OUTPUT_NAME "lyrics_scrobbler"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins/lyrics_scrobbler"

@@ -97,6 +97,101 @@ public:
     return 1.0f;
   }
 
+  void setAudioBackend(const std::string &backend) {
+    if (m_audioEngine) {
+      m_audioEngine->setAudioBackend(backend);
+    }
+  }
+  [[nodiscard]] std::string getAudioBackend() const {
+    return m_audioEngine ? m_audioEngine->getAudioBackend() : "";
+  }
+
+  void setAudioDevice(const std::string &device) {
+    if (m_audioEngine) {
+      m_audioEngine->setAudioDevice(device);
+    }
+  }
+  [[nodiscard]] std::string getAudioDevice() const {
+    return m_audioEngine ? m_audioEngine->getAudioDevice() : "";
+  }
+
+  void setBufferLatencyMs(uint32_t ms) {
+    if (m_audioEngine) {
+      m_audioEngine->setBufferLatencyMs(ms);
+    }
+  }
+  [[nodiscard]] uint32_t getBufferLatencyMs() const {
+    return m_audioEngine ? m_audioEngine->getBufferLatencyMs() : 50;
+  }
+
+  void setBitPerfectExclusive(bool exclusive) {
+    if (m_audioEngine) {
+      m_audioEngine->setBitPerfectExclusive(exclusive);
+    }
+  }
+  [[nodiscard]] bool isBitPerfectExclusive() const {
+    return m_audioEngine ? m_audioEngine->isBitPerfectExclusive() : true;
+  }
+
+  [[nodiscard]] uint64_t getXrunCount() const {
+    return m_audioEngine ? m_audioEngine->getXrunCount() : 0;
+  }
+
+  [[nodiscard]] std::vector<IAudioEnginePort::DeviceInfo>
+  getAvailableAudioDevices(const std::string &backend = "") const {
+    return m_audioEngine ? m_audioEngine->getAvailableDevices(backend)
+                         : std::vector<IAudioEnginePort::DeviceInfo>{};
+  }
+
+  void setChannelMatrixCoefficient(size_t outCh, size_t inCh, float gain) {
+    if (m_audioEngine) {
+      m_audioEngine->setChannelMatrixCoefficient(outCh, inCh, gain);
+    }
+  }
+  [[nodiscard]] float getChannelMatrixCoefficient(size_t outCh,
+                                                  size_t inCh) const {
+    return m_audioEngine
+               ? m_audioEngine->getChannelMatrixCoefficient(outCh, inCh)
+               : ((outCh == inCh) ? 1.0f : 0.0f);
+  }
+
+  void setChannelMatrixPreset(int preset) {
+    if (m_audioEngine) {
+      m_audioEngine->setChannelMatrixPreset(preset);
+    }
+  }
+  [[nodiscard]] int getChannelMatrixPreset() const {
+    return m_audioEngine ? m_audioEngine->getChannelMatrixPreset() : 0;
+  }
+
+  void normalizeChannelMatrix() {
+    if (m_audioEngine) {
+      m_audioEngine->normalizeChannelMatrix();
+    }
+  }
+
+  [[nodiscard]] std::vector<float> getChannelLevels() const {
+    return m_audioEngine ? m_audioEngine->getChannelLevels()
+                         : std::vector<float>{};
+  }
+
+  void setOutputChannelCount(uint8_t channels) {
+    if (m_audioEngine) {
+      m_audioEngine->setOutputChannelCount(channels);
+    }
+  }
+  [[nodiscard]] uint8_t getOutputChannelCount() const {
+    return m_audioEngine ? m_audioEngine->getOutputChannelCount() : 2;
+  }
+
+  [[nodiscard]] std::string getSerializedChannelMatrix() const {
+    return m_audioEngine ? m_audioEngine->getSerializedChannelMatrix() : "";
+  }
+  bool setSerializedChannelMatrix(const std::string &json) {
+    return m_audioEngine ? m_audioEngine->setSerializedChannelMatrix(json)
+                         : false;
+  }
+
   [[nodiscard]] PlaybackState getState() const { return m_state; }
   [[nodiscard]] bool isPlaying() const {
     return m_state == PlaybackState::Playing;

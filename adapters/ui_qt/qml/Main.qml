@@ -97,7 +97,7 @@ ApplicationWindow {
     }
 
     // Focus isolation state
-    readonly property bool isAnyDialogOpen: preferencesDialog.visible || tagEditorDialog.visible || openUrlDialog.visible || shortcutsDialog.visible || diagnosticsDialog.visible || aboutDialog.visible || sleepTimerDialog.visible || newPlaylistDialog.visible || renamePlaylistDialog.visible || deleteConfirmDialog.visible
+    readonly property bool isAnyDialogOpen: preferencesDialog.visible || tagEditorDialog.visible || openUrlDialog.visible || shortcutsDialog.visible || diagnosticsDialog.visible || channelMatrixDialog.visible || aboutDialog.visible || sleepTimerDialog.visible || newPlaylistDialog.visible || renamePlaylistDialog.visible || deleteConfirmDialog.visible
     readonly property bool isInputActive: topToolbar.isSearchActiveFocus || isAnyDialogOpen
 
     function playSelectedNow() {
@@ -223,6 +223,10 @@ ApplicationWindow {
 
     DiagnosticsDialog {
         id: diagnosticsDialog
+    }
+
+    ChannelMatrixDialog {
+        id: channelMatrixDialog
     }
 
     AboutDialog {
@@ -450,6 +454,13 @@ ApplicationWindow {
         onShowAudioSettingsRequested: {
             preferencesDialog.openTab(1);
             preferencesDialog.open();
+        }
+    }
+
+    Connections {
+        target: bridge
+        function onOpenChannelMatrixRequested() {
+            channelMatrixDialog.open();
         }
     }
 

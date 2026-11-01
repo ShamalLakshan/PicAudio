@@ -1854,13 +1854,22 @@ Dialog {
                             }
                         }
 
-                        StyledComboBox {
-                            id: channelCombo
-                            Layout.preferredWidth: 260
-                            model: ["Stereo Passthrough", "Downmix Surround to Stereo", "Upmix Stereo to 5.1", "Mono Downmix"]
-                            currentIndex: Math.max(0, model.indexOf(bridge.channelProcessing))
-                            onActivated: function(index) {
-                                bridge.setChannelProcessing(model[index])
+                        RowLayout {
+                            spacing: 8
+
+                            StyledComboBox {
+                                id: channelCombo
+                                Layout.preferredWidth: 220
+                                model: ["Stereo Passthrough", "Downmix Surround to Stereo", "Mono Downmix", "Upmix Stereo to 5.1", "Cinema Surround Upmix (7.1)", "Custom Channel Matrix"]
+                                currentIndex: Math.max(0, model.indexOf(bridge.channelProcessing))
+                                onActivated: function(index) {
+                                    bridge.setChannelProcessing(model[index])
+                                }
+                            }
+
+                            StyledButton {
+                                text: "Matrix..."
+                                onClicked: bridge.openChannelMatrix()
                             }
                         }
                     }

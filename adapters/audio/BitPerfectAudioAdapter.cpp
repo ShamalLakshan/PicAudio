@@ -1,4 +1,7 @@
 #include "BitPerfectAudioAdapter.hpp"
+#include "audio/AudioThreadPriority.hpp"
+#include "audio/alsa/AlsaAudioSink.hpp"
+#include "audio/pipewire/PipeWireAudioSink.hpp"
 #include <QUrl>
 #include <algorithm>
 #include <cmath>
@@ -8,7 +11,7 @@
 
 namespace adapters {
 
-BitPerfectAudioAdapter::BitPerfectAudioAdapter(QObject *parent)
+BitPerfectAudioEngine::BitPerfectAudioEngine(QObject *parent)
     : QObject(parent), m_player(std::make_unique<QMediaPlayer>()),
       m_audioOutput(std::make_unique<QAudioOutput>()) {
 
@@ -19,7 +22,7 @@ BitPerfectAudioAdapter::BitPerfectAudioAdapter(QObject *parent)
   m_bufferOutput = std::make_unique<QAudioBufferOutput>(this);
   m_player->setAudioBufferOutput(m_bufferOutput.get());
   connect(m_bufferOutput.get(), &QAudioBufferOutput::audioBufferReceived, this,
-          &BitPerfectAudioAdapter::handleAudioBuffer);
+          &BitPerfectAudioEngine::handleAudioBuffer);
 #endif
 
   connect(m_player.get(), &QMediaPlayer::mediaStatusChanged, this,
@@ -34,24 +37,25 @@ BitPerfectAudioAdapter::BitPerfectAudioAdapter(QObject *parent)
 
   connect(m_player.get(), &QMediaPlayer::errorOccurred, this,
           [this](QMediaPlayer::Error error, const QString &errorString) {
-            std::cerr << "BitPerfectAudioAdapter Error (" << error
+            std::cerr << "BitPerfectAudioEngine Error (" << error
                       << "): " << errorString.toStdString() << std::endl;
           });
 }
 
-BitPerfectAudioAdapter::~BitPerfectAudioAdapter() { stop(); }
+BitPerfectAudioEngine::~BitPerfectAudioEngine() { stop(); }
 
-bool BitPerfectAudioAdapter::initialize(uint32_t sampleRate, uint8_t channels) {
+bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
   std::lock_guard<std::mutex> lock(m_mutex);
   m_streamInfo.sampleRate = sampleRate;
   m_streamInfo.channels = channels;
   m_streamInfo.bitDepth = 24;
   m_streamInfo.isBitPerfect = true;
   m_streamInfo.codec = "FLAC/PCM";
+  m_matrixProcessor.configure(channels, m_outputChannels);
   return true;
 }
 
-bool BitPerfectAudioAdapter::load(const std::string &filePath) {
+bool BitPerfectAudioEngine::load(const std::string &filePath) {
   std::lock_guard<std::mutex> lock(m_mutex);
   m_currentFilePath = filePath;
   if (m_player) {
@@ -60,7 +64,7 @@ bool BitPerfectAudioAdapter::load(const std::string &filePath) {
   return true;
 }
 
-bool BitPerfectAudioAdapter::play() {
+bool BitPerfectAudioEngine::play() {
   if (m_player) {
     m_player->play();
     return true;
@@ -68,7 +72,7 @@ bool BitPerfectAudioAdapter::play() {
   return false;
 }
 
-bool BitPerfectAudioAdapter::pause() {
+bool BitPerfectAudioEngine::pause() {
   if (m_player) {
     m_player->pause();
     return true;
@@ -76,7 +80,7 @@ bool BitPerfectAudioAdapter::pause() {
   return false;
 }
 
-bool BitPerfectAudioAdapter::stop() {
+bool BitPerfectAudioEngine::stop() {
   if (m_player) {
     m_player->stop();
     return true;
@@ -84,7 +88,7 @@ bool BitPerfectAudioAdapter::stop() {
   return false;
 }
 
-bool BitPerfectAudioAdapter::seek(uint64_t positionMs) {
+bool BitPerfectAudioEngine::seek(uint64_t positionMs) {
   if (m_player) {
     m_player->setPosition(static_cast<qint64>(positionMs));
     return true;
@@ -92,60 +96,60 @@ bool BitPerfectAudioAdapter::seek(uint64_t positionMs) {
   return false;
 }
 
-void BitPerfectAudioAdapter::setVolume(float volume) {
+void BitPerfectAudioEngine::setVolume(float volume) {
   if (m_audioOutput) {
     m_audioOutput->setVolume(std::clamp(volume, 0.0f, 1.0f));
   }
 }
 
-float BitPerfectAudioAdapter::getVolume() const {
+float BitPerfectAudioEngine::getVolume() const {
   if (m_audioOutput) {
     return m_audioOutput->volume();
   }
   return 0.8f;
 }
 
-uint64_t BitPerfectAudioAdapter::getPositionMs() const {
+uint64_t BitPerfectAudioEngine::getPositionMs() const {
   if (m_player) {
     return static_cast<uint64_t>(std::max<qint64>(0, m_player->position()));
   }
   return 0;
 }
 
-uint64_t BitPerfectAudioAdapter::getDurationMs() const {
+uint64_t BitPerfectAudioEngine::getDurationMs() const {
   if (m_player) {
     return static_cast<uint64_t>(std::max<qint64>(0, m_player->duration()));
   }
   return 0;
 }
 
-bool BitPerfectAudioAdapter::isPlaying() const {
+bool BitPerfectAudioEngine::isPlaying() const {
   return m_player && (m_player->playbackState() == QMediaPlayer::PlayingState);
 }
 
-core::AudioStreamInfo BitPerfectAudioAdapter::getStreamInfo() const {
+core::AudioStreamInfo BitPerfectAudioEngine::getStreamInfo() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return m_streamInfo;
 }
 
-void BitPerfectAudioAdapter::setEndOfTrackCallback(
+void BitPerfectAudioEngine::setEndOfTrackCallback(
     std::function<void()> callback) {
   m_endOfTrackCallback = std::move(callback);
 }
 
-void BitPerfectAudioAdapter::setAudioBufferCallback(
+void BitPerfectAudioEngine::setAudioBufferCallback(
     core::IAudioEnginePort::AudioBufferCallback callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   m_audioBufferCallback = std::move(callback);
 }
 
-void BitPerfectAudioAdapter::setPlaybackRate(float rate) {
+void BitPerfectAudioEngine::setPlaybackRate(float rate) {
   if (m_player) {
     m_player->setPlaybackRate(static_cast<qreal>(rate));
   }
 }
 
-float BitPerfectAudioAdapter::getPlaybackRate() const {
+float BitPerfectAudioEngine::getPlaybackRate() const {
   if (m_player) {
     return static_cast<float>(m_player->playbackRate());
   }
@@ -153,66 +157,65 @@ float BitPerfectAudioAdapter::getPlaybackRate() const {
 }
 
 #if __has_include(<QAudioBufferOutput>)
-void BitPerfectAudioAdapter::handleAudioBuffer(const QAudioBuffer &buffer) {
+void BitPerfectAudioEngine::handleAudioBuffer(const QAudioBuffer &buffer) {
   if (!buffer.isValid() || buffer.frameCount() <= 0) {
     return;
   }
 
   const int frameCount = static_cast<int>(buffer.frameCount());
   const auto format = buffer.format();
-  const int channelCount = std::max(1, format.channelCount());
+  const int inChannels = std::clamp(format.channelCount(), 1, 8);
   uint32_t sampleRate = static_cast<uint32_t>(format.sampleRate());
   if (sampleRate == 0) {
     sampleRate = 44100;
   }
 
-  std::vector<float> monoSamples(frameCount, 0.0f);
+  std::vector<float> inInterleaved(frameCount * inChannels, 0.0f);
 
   if (format.sampleFormat() == QAudioFormat::Float) {
     const float *data = buffer.constData<float>();
     if (data) {
-      for (int i = 0; i < frameCount; ++i) {
-        float sum = 0.0f;
-        for (int c = 0; c < channelCount; ++c) {
-          sum += data[i * channelCount + c];
-        }
-        monoSamples[i] = sum / static_cast<float>(channelCount);
+      for (int i = 0; i < frameCount * inChannels; ++i) {
+        inInterleaved[i] = data[i];
       }
     }
   } else if (format.sampleFormat() == QAudioFormat::Int16) {
     const int16_t *data = buffer.constData<int16_t>();
     if (data) {
-      for (int i = 0; i < frameCount; ++i) {
-        float sum = 0.0f;
-        for (int c = 0; c < channelCount; ++c) {
-          sum += static_cast<float>(data[i * channelCount + c]) / 32768.0f;
-        }
-        monoSamples[i] = sum / static_cast<float>(channelCount);
+      for (int i = 0; i < frameCount * inChannels; ++i) {
+        inInterleaved[i] = static_cast<float>(data[i]) / 32768.0f;
       }
     }
   } else if (format.sampleFormat() == QAudioFormat::Int32) {
     const int32_t *data = buffer.constData<int32_t>();
     if (data) {
-      for (int i = 0; i < frameCount; ++i) {
-        float sum = 0.0f;
-        for (int c = 0; c < channelCount; ++c) {
-          sum += static_cast<float>(data[i * channelCount + c]) / 2147483648.0f;
-        }
-        monoSamples[i] = sum / static_cast<float>(channelCount);
+      for (int i = 0; i < frameCount * inChannels; ++i) {
+        inInterleaved[i] = static_cast<float>(data[i]) / 2147483648.0f;
       }
     }
   } else if (format.sampleFormat() == QAudioFormat::UInt8) {
     const uint8_t *data = buffer.constData<uint8_t>();
     if (data) {
-      for (int i = 0; i < frameCount; ++i) {
-        float sum = 0.0f;
-        for (int c = 0; c < channelCount; ++c) {
-          sum += (static_cast<float>(data[i * channelCount + c]) - 128.0f) /
-                 128.0f;
-        }
-        monoSamples[i] = sum / static_cast<float>(channelCount);
+      for (int i = 0; i < frameCount * inChannels; ++i) {
+        inInterleaved[i] = (static_cast<float>(data[i]) - 128.0f) / 128.0f;
       }
     }
+  }
+
+  // Multi-channel matrix processing (Mono to 7.1)
+  const uint8_t outChannels = m_outputChannels;
+  std::vector<float> outInterleaved(frameCount * outChannels, 0.0f);
+  m_matrixProcessor.process(inInterleaved.data(), outInterleaved.data(),
+                            frameCount);
+
+  // Compute composite downmix for FFT bands and waveform visualizer
+  std::vector<float> monoSamples(frameCount, 0.0f);
+  for (int i = 0; i < frameCount; ++i) {
+    float sum = 0.0f;
+    for (int c = 0; c < outChannels; ++c) {
+      sum += outInterleaved[i * outChannels + c];
+    }
+    monoSamples[i] = sum / static_cast<float>(outChannels);
   }
 
   // Calculate audio level (RMS and peak)
@@ -245,8 +248,8 @@ void BitPerfectAudioAdapter::handleAudioBuffer(const QAudioBuffer &buffer) {
   {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_audioBufferCallback) {
-      m_audioBufferCallback(monoSamples.data(), monoSamples.size(), sampleRate,
-                            1);
+      m_audioBufferCallback(outInterleaved.data(), frameCount, sampleRate,
+                            outChannels);
     }
   }
 }
@@ -281,8 +284,8 @@ static void fftRadix2(std::vector<std::complex<float>> &a) {
   }
 }
 
-void BitPerfectAudioAdapter::updateFftBands(const std::vector<float> &samples,
-                                            uint32_t sampleRate) {
+void BitPerfectAudioEngine::updateFftBands(const std::vector<float> &samples,
+                                           uint32_t sampleRate) {
   (void)samples;
   constexpr size_t N = 512;
   std::vector<std::complex<float>> fftInput(N, {0.0f, 0.0f});
@@ -362,7 +365,7 @@ void BitPerfectAudioAdapter::updateFftBands(const std::vector<float> &samples,
 }
 
 std::vector<float>
-BitPerfectAudioAdapter::getFrequencyBands(size_t bandCount) const {
+BitPerfectAudioEngine::getFrequencyBands(size_t bandCount) const {
   std::lock_guard<std::mutex> lock(m_visMutex);
   if (!isPlaying()) {
     for (auto &b : m_currentBands) {
@@ -385,7 +388,7 @@ BitPerfectAudioAdapter::getFrequencyBands(size_t bandCount) const {
 }
 
 std::vector<float>
-BitPerfectAudioAdapter::getWaveformSamples(size_t sampleCount) const {
+BitPerfectAudioEngine::getWaveformSamples(size_t sampleCount) const {
   std::lock_guard<std::mutex> lock(m_visMutex);
   if (!isPlaying()) {
     for (auto &w : m_currentWaveform) {
@@ -406,12 +409,121 @@ BitPerfectAudioAdapter::getWaveformSamples(size_t sampleCount) const {
   return result;
 }
 
-float BitPerfectAudioAdapter::getAudioLevel() const {
+float BitPerfectAudioEngine::getAudioLevel() const {
   std::lock_guard<std::mutex> lock(m_visMutex);
   if (!isPlaying()) {
     m_audioLevel *= 0.7f;
   }
   return m_audioLevel;
+}
+
+void BitPerfectAudioEngine::setAudioBackend(const std::string &backend) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_audioBackend = backend;
+}
+
+std::string BitPerfectAudioEngine::getAudioBackend() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return m_audioBackend;
+}
+
+void BitPerfectAudioEngine::setAudioDevice(const std::string &deviceId) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_audioDevice = deviceId;
+}
+
+std::string BitPerfectAudioEngine::getAudioDevice() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return m_audioDevice;
+}
+
+void BitPerfectAudioEngine::setBufferLatencyMs(uint32_t ms) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_bufferLatencyMs = std::clamp(ms, 10u, 500u);
+}
+
+uint32_t BitPerfectAudioEngine::getBufferLatencyMs() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return m_bufferLatencyMs;
+}
+
+void BitPerfectAudioEngine::setBitPerfectExclusive(bool exclusive) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_bitPerfectExclusive = exclusive;
+}
+
+bool BitPerfectAudioEngine::isBitPerfectExclusive() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return m_bitPerfectExclusive;
+}
+
+uint64_t BitPerfectAudioEngine::getXrunCount() const { return 0; }
+
+std::vector<core::IAudioEnginePort::DeviceInfo>
+BitPerfectAudioEngine::getAvailableDevices(const std::string &backend) const {
+  std::string activeBackend = backend.empty() ? m_audioBackend : backend;
+  std::vector<core::IAudioEnginePort::DeviceInfo> result;
+
+  if (activeBackend.find("ALSA") != std::string::npos) {
+    AlsaAudioSink alsa;
+    auto alsaDevs = alsa.enumerateDevices();
+    for (const auto &d : alsaDevs) {
+      result.push_back({d.id, d.name, d.description, d.isDefault});
+    }
+  } else if (activeBackend.find("PipeWire") != std::string::npos) {
+    PipeWireAudioSink pw;
+    auto pwDevs = pw.enumerateDevices();
+    for (const auto &d : pwDevs) {
+      result.push_back({d.id, d.name, d.description, d.isDefault});
+    }
+  }
+
+  return result;
+}
+
+void BitPerfectAudioEngine::setChannelMatrixCoefficient(size_t outCh,
+                                                        size_t inCh,
+                                                        float gain) {
+  m_matrixProcessor.setCoefficient(outCh, inCh, gain);
+}
+
+float BitPerfectAudioEngine::getChannelMatrixCoefficient(size_t outCh,
+                                                         size_t inCh) const {
+  return m_matrixProcessor.getCoefficient(outCh, inCh);
+}
+
+void BitPerfectAudioEngine::setChannelMatrixPreset(int preset) {
+  m_matrixProcessor.loadPreset(static_cast<MatrixPreset>(preset));
+}
+
+int BitPerfectAudioEngine::getChannelMatrixPreset() const {
+  return static_cast<int>(m_matrixProcessor.getActivePreset());
+}
+
+void BitPerfectAudioEngine::normalizeChannelMatrix() {
+  m_matrixProcessor.normalize();
+}
+
+std::vector<float> BitPerfectAudioEngine::getChannelLevels() const {
+  return m_matrixProcessor.getOutputLevels();
+}
+
+void BitPerfectAudioEngine::setOutputChannelCount(uint8_t channels) {
+  m_outputChannels = std::clamp<uint8_t>(channels, 1, 8);
+  m_matrixProcessor.setOutputChannels(m_outputChannels);
+}
+
+uint8_t BitPerfectAudioEngine::getOutputChannelCount() const {
+  return m_outputChannels;
+}
+
+std::string BitPerfectAudioEngine::getSerializedChannelMatrix() const {
+  return m_matrixProcessor.serialize();
+}
+
+bool BitPerfectAudioEngine::setSerializedChannelMatrix(
+    const std::string &json) {
+  return m_matrixProcessor.deserialize(json);
 }
 
 } // namespace adapters

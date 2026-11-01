@@ -87,9 +87,106 @@ public:
   }
 
   /**
+   * @brief Hardware audio device information descriptor.
+   */
+  struct DeviceInfo {
+    std::string id;
+    std::string name;
+    std::string description;
+    bool isDefault{false};
+  };
+
+  /**
+   * @brief Sets the active hardware audio backend.
+   */
+  virtual void setAudioBackend(const std::string &backend) { (void)backend; }
+  virtual std::string getAudioBackend() const { return ""; }
+
+  /**
+   * @brief Sets target hardware audio output device.
+   */
+  virtual void setAudioDevice(const std::string &deviceId) { (void)deviceId; }
+  virtual std::string getAudioDevice() const { return ""; }
+
+  /**
+   * @brief Sets target hardware buffer latency in milliseconds.
+   */
+  virtual void setBufferLatencyMs(uint32_t ms) { (void)ms; }
+  virtual uint32_t getBufferLatencyMs() const { return 50; }
+
+  /**
+   * @brief Enables or disables bit-perfect exclusive hardware access.
+   */
+  virtual void setBitPerfectExclusive(bool exclusive) { (void)exclusive; }
+  virtual bool isBitPerfectExclusive() const { return true; }
+
+  /**
+   * @brief Number of buffer underruns / xruns recorded during playback.
+   */
+  virtual uint64_t getXrunCount() const { return 0; }
+
+  /**
+   * @brief Queries available devices for a given backend.
+   */
+  virtual std::vector<DeviceInfo>
+  getAvailableDevices(const std::string &backend = "") const {
+    (void)backend;
+    return {};
+  }
+
+  /**
    * @brief Gets current RMS audio level / amplitude in [0.0f, 1.0f].
    */
   virtual float getAudioLevel() const { return 0.0f; }
+
+  /**
+   * @brief Sets matrix gain coefficient from inCh to outCh.
+   */
+  virtual void setChannelMatrixCoefficient(size_t outCh, size_t inCh,
+                                           float gain) {
+    (void)outCh;
+    (void)inCh;
+    (void)gain;
+  }
+
+  virtual float getChannelMatrixCoefficient(size_t outCh, size_t inCh) const {
+    (void)outCh;
+    (void)inCh;
+    return (outCh == inCh) ? 1.0f : 0.0f;
+  }
+
+  /**
+   * @brief Sets channel matrix preset (0: Passthrough, 1: DownmixToStereo, 2:
+   * DownmixToMono, 3: UpmixTo51, 4: UpmixTo71, 5: Custom).
+   */
+  virtual void setChannelMatrixPreset(int preset) { (void)preset; }
+  virtual int getChannelMatrixPreset() const { return 0; }
+
+  /**
+   * @brief Normalizes matrix coefficients to prevent clipping.
+   */
+  virtual void normalizeChannelMatrix() {}
+
+  /**
+   * @brief Gets real-time RMS levels for all 8 surround channels [FL, FR, FC,
+   * LFE, RL, RR, SL, SR].
+   */
+  virtual std::vector<float> getChannelLevels() const { return {}; }
+
+  /**
+   * @brief Sets target hardware / output channel count (1 to 8).
+   */
+  virtual void setOutputChannelCount(uint8_t channels) { (void)channels; }
+  virtual uint8_t getOutputChannelCount() const { return 2; }
+
+  /**
+   * @brief Serializes matrix configuration to JSON.
+   */
+  virtual std::string getSerializedChannelMatrix() const { return ""; }
+  virtual bool setSerializedChannelMatrix(const std::string &json) {
+    (void)json;
+    return false;
+  }
 };
 
 } // namespace core

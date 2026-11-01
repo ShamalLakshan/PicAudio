@@ -296,6 +296,12 @@ class QtBridge : public QObject {
                  audioSettingsChanged)
   Q_PROPERTY(QString channelProcessing READ channelProcessing WRITE
                  setChannelProcessing NOTIFY audioSettingsChanged)
+  Q_PROPERTY(int outputChannels READ outputChannels WRITE setOutputChannels
+                 NOTIFY channelProcessingChanged)
+  Q_PROPERTY(
+      QVariantList channelMatrix READ channelMatrix NOTIFY channelMatrixChanged)
+  Q_PROPERTY(
+      QVariantList channelLevels READ channelLevels NOTIFY channelLevelsChanged)
 
   // Settings (Hotkeys & Accelerators)
   Q_PROPERTY(bool globalMediaKeysEnabled READ globalMediaKeysEnabled WRITE
@@ -545,6 +551,23 @@ public:
   [[nodiscard]] QString channelProcessing() const {
     return m_channelProcessing;
   }
+  [[nodiscard]] int outputChannels() const;
+  void setOutputChannels(int channels);
+  [[nodiscard]] QVariantList channelMatrix() const;
+  [[nodiscard]] QVariantList channelLevels() const;
+
+  Q_INVOKABLE void setChannelMatrixCell(int outChannel, int inChannel,
+                                        double gain);
+  Q_INVOKABLE double getChannelMatrixCell(int outChannel, int inChannel) const;
+  Q_INVOKABLE void setChannelMatrixPreset(int preset);
+  Q_INVOKABLE int getChannelMatrixPreset() const;
+  Q_INVOKABLE void normalizeChannelMatrix();
+  Q_INVOKABLE void resetChannelMatrixToIdentity();
+  Q_INVOKABLE QString serializeChannelMatrix() const;
+  Q_INVOKABLE bool loadSerializedChannelMatrix(const QString &json);
+  Q_INVOKABLE QString channelName(int index) const;
+  Q_INVOKABLE QString channelFullName(int index) const;
+  Q_INVOKABLE void openChannelMatrix();
 
   // Hotkeys Settings Getters
   [[nodiscard]] bool globalMediaKeysEnabled() const {
@@ -1117,6 +1140,10 @@ signals:
   void metadataSettingsChanged();
   void diagnosticsSettingsChanged();
   void audioDiagnosticsRequested();
+  void channelProcessingChanged();
+  void channelMatrixChanged();
+  void channelLevelsChanged();
+  void openChannelMatrixRequested();
   void undoRedoChanged();
   void playbackRateChanged();
   void loopPointsChanged();

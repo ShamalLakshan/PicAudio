@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/ports/IAudioEnginePort.hpp"
+#include "dsp/ChannelMatrixProcessor.hpp"
 #include <QAudioOutput>
 #include <QMediaPlayer>
 #include <QObject>
@@ -18,15 +19,15 @@
 namespace adapters {
 
 /**
- * @brief Bit-perfect audio engine adapter powered by Qt 6 Multimedia & FFmpeg
- * backend.
+ * @brief Bit-perfect audio engine powered by low-latency hardware sinks,
+ * multi-channel matrix processor, and Qt Multimedia backend.
  */
-class BitPerfectAudioAdapter : public QObject, public core::IAudioEnginePort {
+class BitPerfectAudioEngine : public QObject, public core::IAudioEnginePort {
   Q_OBJECT
 
 public:
-  explicit BitPerfectAudioAdapter(QObject *parent = nullptr);
-  ~BitPerfectAudioAdapter() override;
+  explicit BitPerfectAudioEngine(QObject *parent = nullptr);
+  ~BitPerfectAudioEngine() override;
 
   bool initialize(uint32_t sampleRate = 44100, uint8_t channels = 2) override;
   bool load(const std::string &filePath) override;
@@ -51,6 +52,30 @@ public:
   std::vector<float> getWaveformSamples(size_t sampleCount = 64) const override;
   float getAudioLevel() const override;
 
+  void setAudioBackend(const std::string &backend) override;
+  std::string getAudioBackend() const override;
+  void setAudioDevice(const std::string &deviceId) override;
+  std::string getAudioDevice() const override;
+  void setBufferLatencyMs(uint32_t ms) override;
+  uint32_t getBufferLatencyMs() const override;
+  void setBitPerfectExclusive(bool exclusive) override;
+  bool isBitPerfectExclusive() const override;
+  uint64_t getXrunCount() const override;
+  std::vector<core::IAudioEnginePort::DeviceInfo>
+  getAvailableDevices(const std::string &backend = "") const override;
+
+  void setChannelMatrixCoefficient(size_t outCh, size_t inCh,
+                                   float gain) override;
+  float getChannelMatrixCoefficient(size_t outCh, size_t inCh) const override;
+  void setChannelMatrixPreset(int preset) override;
+  int getChannelMatrixPreset() const override;
+  void normalizeChannelMatrix() override;
+  std::vector<float> getChannelLevels() const override;
+  void setOutputChannelCount(uint8_t channels) override;
+  uint8_t getOutputChannelCount() const override;
+  std::string getSerializedChannelMatrix() const override;
+  bool setSerializedChannelMatrix(const std::string &json) override;
+
 signals:
   void playbackFinished();
 
@@ -69,11 +94,21 @@ private:
   core::IAudioEnginePort::AudioBufferCallback m_audioBufferCallback;
   std::string m_currentFilePath;
 
+  std::string m_audioBackend{"Linux PipeWire Lock-Free Client"};
+  std::string m_audioDevice{"default"};
+  uint32_t m_bufferLatencyMs{50};
+  bool m_bitPerfectExclusive{true};
+
+  ChannelMatrixProcessor m_matrixProcessor;
+  uint8_t m_outputChannels{2};
+
   mutable std::mutex m_visMutex;
   std::vector<float> m_pcmRingBuffer;
   mutable std::vector<float> m_currentBands;
   mutable std::vector<float> m_currentWaveform;
   mutable float m_audioLevel{0.0f};
 };
+
+using BitPerfectAudioAdapter = BitPerfectAudioEngine;
 
 } // namespace adapters
