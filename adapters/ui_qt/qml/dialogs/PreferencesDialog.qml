@@ -11,9 +11,29 @@ Dialog {
     width: Math.min(840, Overlay.overlay ? Overlay.overlay.width - 32 : 840)
     height: Math.min(620, Overlay.overlay ? Overlay.overlay.height - 32 : 620)
     modal: true
-    anchors.centerIn: Overlay.overlay
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 840)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 620)) - height) / 2)
 
     property int activeCategory: 1 // default to Themes & Appearance
+    property var discoveredPluginsList: []
+    property var selectedPluginDetail: null
+
+    function refreshPlugins() {
+        if (typeof bridge !== "undefined" && bridge) {
+            discoveredPluginsList = bridge.getDiscoveredPlugins()
+        }
+    }
+
+    onOpened: {
+        refreshPlugins()
+    }
+
+    Connections {
+        target: (typeof bridge !== "undefined") ? bridge : null
+        function onPluginsChanged() {
+            root.refreshPlugins()
+        }
+    }
 
     component StyledComboBox: ComboBox {
         id: cbRoot
@@ -27,15 +47,22 @@ Dialog {
             border.width: 1
             radius: Theme.cornerRadiusSmall
         }
-        contentItem: Text {
+        contentItem: TextInput {
             leftPadding: Theme.spacingMedium
-            rightPadding: cbRoot.indicator.width + Theme.spacingMedium
+            rightPadding: (cbRoot.indicator ? cbRoot.indicator.width : 10) + Theme.spacingMedium
             text: cbRoot.displayText
             font.pixelSize: Theme.fontSizeSmall
             font.family: Theme.fontFamily
             color: Theme.textPrimary
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
+            verticalAlignment: TextInput.AlignVCenter
+            readOnly: true
+            selectByMouse: false
+            cursorVisible: false
+            clip: true
+
+            function positionToRectangle(pos) {
+                return Qt.rect(0, 0, width, height)
+            }
         }
         indicator: VectorIcon {
             x: cbRoot.width - width - Theme.spacingMedium
@@ -50,6 +77,7 @@ Dialog {
             width: cbRoot.width
             implicitHeight: Math.min(220, contentItem.implicitHeight + 8)
             padding: 4
+            modal: false
             contentItem: ListView {
                 clip: true
                 implicitHeight: contentHeight
@@ -79,6 +107,11 @@ Dialog {
             background: Rectangle {
                 color: highlighted ? Theme.selection : "transparent"
                 radius: Theme.cornerRadiusSmall
+            }
+            onClicked: {
+                cbRoot.currentIndex = index
+                cbRoot.activated(index)
+                cbRoot.popup.close()
             }
         }
     }
@@ -227,16 +260,37 @@ Dialog {
 
     Dialog {
         id: confirmClearDbDialog
-        title: "Clear Entire Music Library"
         modal: true
-        anchors.centerIn: Overlay.overlay
+        x: Math.round(((Overlay.overlay ? Overlay.overlay.width : 800) - width) / 2)
+        y: Math.round(((Overlay.overlay ? Overlay.overlay.height : 600) - height) / 2)
         width: Math.min(420, Overlay.overlay ? Overlay.overlay.width - 32 : 420)
         standardButtons: Dialog.Ok | Dialog.Cancel
+        header: Rectangle {
+            height: 36
+            color: Theme.surfaceElevated
+            border.color: Theme.panelBorder
+            border.width: 1
+            MovableHeaderArea { target: confirmClearDbDialog }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Clear Entire Music Library"
+                font.bold: true
+                font.pixelSize: Theme.fontSizeBase
+                color: Theme.textPrimary
+            }
+        }
         background: Rectangle {
             color: Theme.surface
             border.color: Theme.panelBorder
             border.width: 1
             radius: Theme.cornerRadiusMedium
+            ResizeGrip {
+                target: confirmClearDbDialog
+                minWidth: 360
+                minHeight: 180
+            }
         }
         contentItem: ColumnLayout {
             spacing: 12
@@ -261,16 +315,37 @@ Dialog {
 
     Dialog {
         id: resetFactoryDefaultsDialog
-        title: "Reset All Preferences to Defaults"
         modal: true
-        anchors.centerIn: Overlay.overlay
+        x: Math.round(((Overlay.overlay ? Overlay.overlay.width : 800) - width) / 2)
+        y: Math.round(((Overlay.overlay ? Overlay.overlay.height : 600) - height) / 2)
         width: Math.min(420, Overlay.overlay ? Overlay.overlay.width - 32 : 420)
         standardButtons: Dialog.Ok | Dialog.Cancel
+        header: Rectangle {
+            height: 36
+            color: Theme.surfaceElevated
+            border.color: Theme.panelBorder
+            border.width: 1
+            MovableHeaderArea { target: resetFactoryDefaultsDialog }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Reset All Preferences to Defaults"
+                font.bold: true
+                font.pixelSize: Theme.fontSizeBase
+                color: Theme.textPrimary
+            }
+        }
         background: Rectangle {
             color: Theme.surface
             border.color: Theme.panelBorder
             border.width: 1
             radius: Theme.cornerRadiusMedium
+            ResizeGrip {
+                target: resetFactoryDefaultsDialog
+                minWidth: 360
+                minHeight: 180
+            }
         }
         contentItem: ColumnLayout {
             spacing: 12
@@ -327,17 +402,144 @@ Dialog {
     property string dbIntegrityStatus: ""
 
     Dialog {
-        id: rebindHotkeyDialog
-        title: "Rebind Shortcut"
+        id: pluginConfigDialog
         modal: true
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(440, Overlay.overlay ? Overlay.overlay.width - 32 : 440)
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        x: Math.round(((Overlay.overlay ? Overlay.overlay.width : 800) - width) / 2)
+        y: Math.round(((Overlay.overlay ? Overlay.overlay.height : 600) - height) / 2)
+        width: Math.min(540, Overlay.overlay ? Overlay.overlay.width - 32 : 540)
+        standardButtons: Dialog.Close
+        header: Rectangle {
+            height: 36
+            color: Theme.surfaceElevated
+            border.color: Theme.panelBorder
+            border.width: 1
+            MovableHeaderArea { target: pluginConfigDialog }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Plugin Configuration & Details"
+                font.bold: true
+                font.pixelSize: Theme.fontSizeBase
+                color: Theme.textPrimary
+            }
+        }
         background: Rectangle {
             color: Theme.surface
             border.color: Theme.panelBorder
             border.width: 1
             radius: Theme.cornerRadiusMedium
+            ResizeGrip {
+                target: pluginConfigDialog
+                minWidth: 440
+                minHeight: 320
+            }
+        }
+        contentItem: ColumnLayout {
+            spacing: 12
+            clip: true
+
+            Text {
+                text: root.selectedPluginDetail ? root.selectedPluginDetail.name : "Plugin Details"
+                font.pixelSize: Theme.fontSizeLarge
+                font.bold: true
+                color: Theme.textPrimary
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+
+            GridLayout {
+                columns: 2
+                rowSpacing: 8
+                columnSpacing: 12
+                Layout.fillWidth: true
+
+                Text { text: "Plugin ID:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                Text { text: root.selectedPluginDetail ? root.selectedPluginDetail.id : ""; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideRight; Layout.fillWidth: true }
+
+                Text { text: "Version:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                Text { text: root.selectedPluginDetail ? ("v" + root.selectedPluginDetail.version) : ""; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeSmall }
+
+                Text { text: "Author:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                Text { text: root.selectedPluginDetail ? root.selectedPluginDetail.author : ""; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeSmall }
+
+                Text { text: "Target API:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                Text { text: root.selectedPluginDetail ? ("v" + root.selectedPluginDetail.targetApiVersion) : ""; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeSmall }
+
+                Text { text: "Description:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; Layout.alignment: Qt.AlignTop }
+                Text { text: root.selectedPluginDetail ? root.selectedPluginDetail.description : ""; color: Theme.textPrimary; font.pixelSize: Theme.fontSizeSmall; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+
+                Text { text: "Directory:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; Layout.alignment: Qt.AlignTop }
+                Text { text: root.selectedPluginDetail ? root.selectedPluginDetail.directory : ""; color: Theme.textMuted; font.pixelSize: Theme.fontSizeSmall; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
+
+                Text { text: "Library:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall; Layout.alignment: Qt.AlignTop }
+                Text { text: root.selectedPluginDetail ? root.selectedPluginDetail.libraryPath : ""; color: Theme.textMuted; font.pixelSize: Theme.fontSizeSmall; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
+
+                Text { text: "Status:"; font.bold: true; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                Text {
+                    text: root.selectedPluginDetail ? (root.selectedPluginDetail.loaded ? "Loaded & Active" : (root.selectedPluginDetail.loadError.length > 0 ? root.selectedPluginDetail.loadError : "Disabled")) : ""
+                    color: root.selectedPluginDetail && root.selectedPluginDetail.loaded ? Theme.accent : (root.selectedPluginDetail && root.selectedPluginDetail.loadError.length > 0 ? "#ff6b6b" : Theme.textMuted)
+                    font.bold: true
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
+            }
+
+            RowLayout {
+                visible: root.selectedPluginDetail && root.selectedPluginDetail.customActions && root.selectedPluginDetail.customActions.length > 0
+                Layout.alignment: Qt.AlignRight
+                spacing: 8
+
+                Repeater {
+                    model: root.selectedPluginDetail ? root.selectedPluginDetail.customActions : []
+                    delegate: StyledButton {
+                        required property var modelData
+                        text: modelData.label
+                        ToolTip.visible: (hovered || activeFocus) && modelData.tooltip && modelData.tooltip.length > 0
+                        ToolTip.text: modelData.tooltip ? modelData.tooltip : ""
+                        onClicked: {
+                            bridge.triggerPluginAction(root.selectedPluginDetail.id, modelData.id)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: rebindHotkeyDialog
+        modal: true
+        x: Math.round(((Overlay.overlay ? Overlay.overlay.width : 800) - width) / 2)
+        y: Math.round(((Overlay.overlay ? Overlay.overlay.height : 600) - height) / 2)
+        width: Math.min(440, Overlay.overlay ? Overlay.overlay.width - 32 : 440)
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        header: Rectangle {
+            height: 36
+            color: Theme.surfaceElevated
+            border.color: Theme.panelBorder
+            border.width: 1
+            MovableHeaderArea { target: rebindHotkeyDialog }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Rebind Shortcut"
+                font.bold: true
+                font.pixelSize: Theme.fontSizeBase
+                color: Theme.textPrimary
+            }
+        }
+        background: Rectangle {
+            color: Theme.surface
+            border.color: Theme.panelBorder
+            border.width: 1
+            radius: Theme.cornerRadiusMedium
+            ResizeGrip {
+                target: rebindHotkeyDialog
+                minWidth: 380
+                minHeight: 240
+            }
         }
         contentItem: ColumnLayout {
             spacing: 12
@@ -461,6 +663,10 @@ Dialog {
         border.color: Theme.panelBorder
         border.width: 1
 
+        MovableHeaderArea {
+            target: root
+        }
+
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 16
@@ -499,8 +705,12 @@ Dialog {
         }
     }
 
-    contentItem: RowLayout {
-        spacing: 0
+    contentItem: Item {
+        clip: true
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: 0
 
         // Categories
         Rectangle {
@@ -3185,7 +3395,7 @@ Dialog {
                 }
             }
 
-            // Plugins & Extensions
+            // Plugins & Extensions (Issue #33)
             ScrollView {
                 anchors.fill: parent
                 anchors.margins: 20
@@ -3197,35 +3407,199 @@ Dialog {
                     width: parent.width - 24
                     spacing: 16
 
-                    Text {
-                        text: "Plugins & Extensions (PicAudio SDK)"
-                        font.pixelSize: Theme.fontSizeLarge
-                        font.bold: true
-                        color: Theme.textPrimary
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Text {
+                                text: "Plugins & Extensions (PicAudio SDK)"
+                                font.pixelSize: Theme.fontSizeLarge
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+                            Text {
+                                text: "Public C-ABI dynamic extensions for spectrum visualization, lyrics, scrobbling, and DSP effects."
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.textMuted
+                            }
+                        }
+
+                        StyledButton {
+                            text: "Open Plugins Directory"
+                            onClicked: bridge.openPluginsDirectory()
+                        }
+
+                        StyledButton {
+                            text: "Rescan Plugins"
+                            onClicked: bridge.scanPlugins()
+                        }
                     }
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
 
-                    Text {
-                        text: "Capability ports active: IPlayerPlugin, ILibraryPlugin, IVisualizerPlugin"
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: Theme.textMuted
-                    }
-
+                    // Empty state placeholder
                     Rectangle {
+                        visible: root.discoveredPluginsList.length === 0
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 60
+                        implicitHeight: 120
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
                         radius: Theme.cornerRadiusSmall
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            VectorIcon { name: "equalizer"; width: 20; height: 20; color: Theme.accent }
-                            ColumnLayout {
-                                Text { text: "Spectrum Visualizer"; font.bold: true; color: Theme.textPrimary }
-                                Text { text: "FFT Audio Spectrum Analyzer using IVisualizerPlugin"; font.pixelSize: Theme.fontSizeSmall; color: Theme.textMuted }
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 8
+                            VectorIcon {
+                                Layout.alignment: Qt.AlignHCenter
+                                name: "settings"
+                                width: 28
+                                height: 28
+                                color: Theme.textMuted
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "No plugins discovered in plugin search paths."
+                                font.bold: true
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontSizeBase
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "Place plugin folders containing plugin.json and shared libraries into the plugins directory."
+                                color: Theme.textMuted
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
+                        }
+                    }
+
+                    // Discovered plugins list
+                    Repeater {
+                        model: root.discoveredPluginsList
+                        delegate: Rectangle {
+                            id: pluginCard
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: cardContent.implicitHeight + 24
+                            color: Theme.background
+                            border.color: Theme.panelBorder
+                            border.width: 1
+                            radius: Theme.cornerRadiusSmall
+
+                            RowLayout {
+                                id: cardContent
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 14
+
+                                VectorIcon {
+                                    name: (modelData.capabilities.indexOf("visualizer") >= 0) ? "equalizer" :
+                                          ((modelData.capabilities.indexOf("lyrics") >= 0) ? "document" : "settings")
+                                    width: 24
+                                    height: 24
+                                    color: modelData.enabled ? Theme.accent : Theme.textMuted
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        Text {
+                                            text: modelData.name
+                                            font.bold: true
+                                            font.pixelSize: Theme.fontSizeBase
+                                            color: Theme.textPrimary
+                                        }
+
+                                        Text {
+                                            text: "v" + modelData.version
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: Theme.textMuted
+                                        }
+
+                                        Text {
+                                            text: "by " + modelData.author
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: Theme.textSecondary
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        Badge {
+                                            text: modelData.isCompatible ? "API v" + modelData.targetApiVersion : "Incompatible"
+                                            badgeColor: modelData.isCompatible ? Theme.selection : "#3d1414"
+                                            textColor: modelData.isCompatible ? Theme.accentHover : "#ff6b6b"
+                                            badgeBorderColor: modelData.isCompatible ? Theme.accent : "#ff4444"
+                                        }
+
+                                        Repeater {
+                                            model: modelData.capabilities
+                                            delegate: Badge {
+                                                required property string modelData
+                                                text: modelData
+                                                badgeColor: Theme.surfaceElevated
+                                                textColor: Theme.textPrimary
+                                                badgeBorderColor: Theme.panelBorder
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        text: modelData.description
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        color: Theme.textMuted
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Text {
+                                        visible: modelData.loadError && modelData.loadError.length > 0
+                                        text: "Load Status: " + modelData.loadError
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        color: "#ff6b6b"
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                RowLayout {
+                                    spacing: 8
+
+                                    // Dynamic custom actions registered via SDK / manifest
+                                    Repeater {
+                                        model: modelData.customActions ? modelData.customActions : []
+                                        delegate: StyledButton {
+                                            required property var modelData
+                                            text: modelData.label
+                                            ToolTip.visible: (hovered || activeFocus) && modelData.tooltip && modelData.tooltip.length > 0
+                                            ToolTip.text: modelData.tooltip ? modelData.tooltip : ""
+                                            onClicked: {
+                                                bridge.triggerPluginAction(pluginCard.modelData.id, modelData.id)
+                                            }
+                                        }
+                                    }
+
+                                    StyledButton {
+                                        text: "Configure..."
+                                        onClicked: {
+                                            root.selectedPluginDetail = modelData
+                                            pluginConfigDialog.open()
+                                        }
+                                    }
+
+                                    StyledCheckBox {
+                                        text: modelData.enabled ? "Enabled" : "Disabled"
+                                        checked: modelData.enabled
+                                        onToggled: {
+                                            bridge.setPluginEnabled(modelData.id, checked)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -3233,4 +3607,11 @@ Dialog {
             }
         }
     }
+
+    ResizeGrip {
+        target: root
+        minWidth: 720
+        minHeight: 520
+    }
+}
 }

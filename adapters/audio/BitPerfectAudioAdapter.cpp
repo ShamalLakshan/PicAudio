@@ -133,6 +133,12 @@ void BitPerfectAudioAdapter::setEndOfTrackCallback(
   m_endOfTrackCallback = std::move(callback);
 }
 
+void BitPerfectAudioAdapter::setAudioBufferCallback(
+    core::IAudioEnginePort::AudioBufferCallback callback) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_audioBufferCallback = std::move(callback);
+}
+
 void BitPerfectAudioAdapter::setPlaybackRate(float rate) {
   if (m_player) {
     m_player->setPlaybackRate(static_cast<qreal>(rate));
@@ -235,6 +241,14 @@ void BitPerfectAudioAdapter::handleAudioBuffer(const QAudioBuffer &buffer) {
   }
 
   updateFftBands(monoSamples, sampleRate);
+
+  {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_audioBufferCallback) {
+      m_audioBufferCallback(monoSamples.data(), monoSamples.size(), sampleRate,
+                            1);
+    }
+  }
 }
 #endif
 

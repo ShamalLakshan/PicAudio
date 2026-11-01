@@ -91,7 +91,7 @@ ApplicationWindow {
     }
 
     onVisibilityChanged: {
-        if (visibility === Window.Minimized && typeof desktopIntegration !== "undefined") {
+        if (root.visibility === Window.Minimized && typeof desktopIntegration !== "undefined") {
             desktopIntegration.handleWindowMinimizeRequest();
         }
     }
@@ -1156,6 +1156,8 @@ ApplicationWindow {
 
         // Transport controls
         PlayerDeck {
+            showEqualizer: root.showEqualizer
+            onRequestToggleEqualizer: root.showEqualizer = !root.showEqualizer
             onRequestSwitchToNowPlaying: root.switchToNowPlaying()
             onRequestToggleFullscreen: root.toggleFullscreen()
             onRequestSeekBarContextMenu: seekBarContextMenu.popup()
@@ -1175,6 +1177,12 @@ ApplicationWindow {
         anchors.fill: parent
         visible: isMiniPlayer
         onRequestRestore: root.toggleMiniPlayer()
+        onRequestMove: root.startSystemMove()
+        onRequestResize: (edge) => {
+            if (typeof root.startSystemResize === "function") {
+                root.startSystemResize(edge);
+            }
+        }
         onRequestContextMenu: {
             miniPlayerContextMenu.stayOnTop = root.stayOnTop;
             miniPlayerContextMenu.currentOpacity = root.opacity;
@@ -1185,7 +1193,6 @@ ApplicationWindow {
     // Equalizer Overlay
     EqualizerOverlay {
         id: equalizerOverlay
-        anchors.centerIn: parent
         visible: showEqualizer && !isMiniPlayer
         z: 100
         onClosed: showEqualizer = false

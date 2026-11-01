@@ -1,0 +1,57 @@
+name: Portable Build - Windows Portable
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-portable:
+    name: Windows Portable (x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.6.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtmultimedia'
+
+      - name: Install vcpkg dependencies (TagLib, SQLite3)
+        run: |
+          vcpkg install sqlite3:x64-windows taglib:x64-windows
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          cmake -B build -S . `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DBUILD_TESTING=OFF
+
+      - name: Build PicAudio (Release)
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Package Windows portable bundle
+        shell: pwsh
+        run: |
+          deploy/windows/package-portable.ps1 -BuildDir "build" -OutputDir "dist" -Arch "x64"
+
+      - name: Upload Windows Portable Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicAudio-Windows-x64-Portable
+          path: dist/PicAudio-windows-x64-portable.*
+          if-no-files-found: error

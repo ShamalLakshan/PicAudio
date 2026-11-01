@@ -20,6 +20,10 @@
 #include "models/TrackListModel.hpp"
 #include "theming/ThemeLoader.hpp"
 
+namespace adapters {
+class PluginManager;
+}
+
 /**
  * @brief Hotkey configuration entry mapping an action to key sequence.
  */
@@ -1074,6 +1078,25 @@ public:
   Q_INVOKABLE void checkForUpdates();
   Q_INVOKABLE void refreshAudioDevices();
 
+  // Dynamic Plugins & SDK Management
+  void setPluginManager(adapters::PluginManager *manager);
+  [[nodiscard]] adapters::PluginManager *pluginManager() const {
+    return m_pluginManager;
+  }
+
+  [[nodiscard]] Q_INVOKABLE QVariantList getDiscoveredPlugins() const;
+  Q_INVOKABLE bool setPluginEnabled(const QString &pluginId, bool enabled);
+  Q_INVOKABLE void openPluginsDirectory();
+  Q_INVOKABLE void scanPlugins();
+  [[nodiscard]] Q_INVOKABLE QVariantMap
+  getPluginDetails(const QString &pluginId) const;
+  Q_INVOKABLE bool triggerPluginAction(const QString &pluginId,
+                                       const QString &actionId);
+  Q_INVOKABLE bool showPluginWindow(const QString &pluginId);
+  Q_INVOKABLE bool hidePluginWindow(const QString &pluginId);
+  [[nodiscard]] Q_INVOKABLE bool
+  isPluginWindowVisible(const QString &pluginId) const;
+
 signals:
   void playbackChanged();
   void positionChanged();
@@ -1108,6 +1131,7 @@ signals:
   void activeLyricIndexChanged();
   void visualizerDataChanged();
   void toastRequested(const QString &message, const QString &type);
+  void pluginsChanged();
 
 private:
   struct LyricLine {
@@ -1330,5 +1354,6 @@ private:
 
   class QQmlApplicationEngine *m_qmlEngine{nullptr};
   class QTranslator *m_translator{nullptr};
+  adapters::PluginManager *m_pluginManager{nullptr};
   void applyLanguage(const QString &lang);
 };

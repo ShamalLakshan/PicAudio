@@ -49,10 +49,10 @@ bool DesktopTrayAdapter::initialize() {
     pm.fill(Qt::transparent);
     QPainter p(&pm);
     p.setRenderHint(QPainter::Antialiasing);
-    p.setBrush(QColor(QStringLiteral("#3a82f7")));
+    p.setBrush(QColor(QStringLiteral("#ffffff")));
     p.setPen(Qt::NoPen);
     p.drawRoundedRect(2, 2, 28, 28, 6, 6);
-    p.setBrush(Qt::white);
+    p.setBrush(Qt::black);
     QPolygon triangle;
     triangle << QPoint(12, 8) << QPoint(24, 16) << QPoint(12, 24);
     p.drawPolygon(triangle);
@@ -206,7 +206,7 @@ void DesktopTrayAdapter::refreshIcon() {
     p.setRenderHint(QPainter::Antialiasing);
     p.setBrush(
         QColor(QStringLiteral("#28c840"))); // Vibrant active playback dot
-    p.setPen(QPen(QColor(QStringLiteral("#141416")), 1.5));
+    p.setPen(QPen(QColor(QStringLiteral("#000000")), 1.5));
     p.drawEllipse(QPointF(24, 24), 5, 5);
     p.end();
     m_trayIcon->setIcon(QIcon(pm));

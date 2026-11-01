@@ -1,0 +1,94 @@
+name: Portable Build - Linux AppImage
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux-appimage:
+    name: Linux AppImage (x86_64)
+    runs-on: ubuntu-22.04
+
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: 1
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libsqlite3-dev \
+            libtag1-dev \
+            libgtest-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libxkbcommon-dev \
+            libvulkan-dev \
+            libfuse2 \
+            patchelf \
+            libgstreamer1.0-0 \
+            libgstreamer-plugins-base1.0-0 \
+            libgstreamer-plugins-bad1.0-0 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly \
+            gstreamer1.0-pulseaudio \
+            gstreamer1.0-pipewire \
+            gstreamer1.0-alsa \
+            gstreamer1.0-tools \
+            gstreamer1.0-libav \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            qt6-declarative-dev \
+            qt6-multimedia-dev \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            qt6-wayland \
+            qt6-wayland-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qt-labs-platform \
+            qml6-module-qtcore \
+            libpulse-dev \
+            libasound2-dev \
+            file \
+            curl \
+            zlib1g-dev
+
+      - name: Compile and install GoogleTest
+        run: |
+          sudo cmake -B /tmp/gtest-build -S /usr/src/googletest
+          sudo cmake --build /tmp/gtest-build --parallel
+          sudo cmake --install /tmp/gtest-build
+
+      - name: Build unit tests and run verification
+        run: |
+          cmake -B build-test -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build-test --parallel
+          ctest --test-dir build-test --output-on-failure
+
+      - name: Package AppImage
+        run: |
+          chmod +x deploy/linux/build-appimage.sh
+          ./deploy/linux/build-appimage.sh
+          sha256sum dist/PicAudio-x86_64.AppImage > dist/PicAudio-x86_64.AppImage.sha256
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicAudio-Linux-x86_64-AppImage
+          path: |
+            dist/PicAudio-x86_64.AppImage
+            dist/PicAudio-x86_64.AppImage.sha256
+          if-no-files-found: error

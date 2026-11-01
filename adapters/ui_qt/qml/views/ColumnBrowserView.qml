@@ -51,7 +51,7 @@ Rectangle {
                     model: ["All (" + bridge.totalTracks + ")"].concat(bridge.genresList)
 
                     delegate: Rectangle {
-                        width: parent.width
+                        width: parent ? parent.width : (ListView.view ? ListView.view.width : 0)
                         height: 20
                         clip: true
                         color: (root.selectedGenreFilter === modelData || (modelData.indexOf("All") === 0 && root.selectedGenreFilter === "All")) ? Theme.selection : (gMouse.containsMouse ? Theme.surfaceElevated : "transparent")
@@ -114,7 +114,7 @@ Rectangle {
                     model: ["All (" + bridge.artistsList.length + ")"].concat(bridge.artistsList)
 
                     delegate: Rectangle {
-                        width: parent.width
+                        width: parent ? parent.width : (ListView.view ? ListView.view.width : 0)
                         height: 20
                         clip: true
                         color: (root.selectedArtistFilter === modelData || (modelData.indexOf("All") === 0 && root.selectedArtistFilter === "All")) ? Theme.selection : (aMouse.containsMouse ? Theme.surfaceElevated : "transparent")
@@ -177,7 +177,7 @@ Rectangle {
                     model: bridge.albumModel
 
                     delegate: Rectangle {
-                        width: parent.width
+                        width: parent ? parent.width : (ListView.view ? ListView.view.width : 0)
                         height: 20
                         color: albColMouse.containsMouse ? Theme.surfaceElevated : "transparent"
 

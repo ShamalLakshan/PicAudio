@@ -169,7 +169,7 @@ TEST_F(ThemeLoaderTest, BuiltInThemesSwitching) {
 
   loader.setThemeId("dark-studio");
   EXPECT_EQ(loader.themeId(), "dark-studio");
-  EXPECT_EQ(loader.background(), "#141416");
+  EXPECT_EQ(loader.background(), "#000000");
 }
 
 TEST_F(ThemeLoaderTest, DynamicDiscoveryAndAvailableThemes) {
@@ -185,8 +185,8 @@ TEST_F(ThemeLoaderTest, DynamicDiscoveryAndAvailableThemes) {
       EXPECT_EQ(map["name"].toString(), "Dark Studio");
       EXPECT_TRUE(map.contains("colors"));
       QVariantMap colors = map["colors"].toMap();
-      EXPECT_EQ(colors["background"].toString(), "#141416");
-      EXPECT_EQ(colors["accent"].toString(), "#3a82f7");
+      EXPECT_EQ(colors["background"].toString(), "#000000");
+      EXPECT_EQ(colors["accent"].toString(), "#ffffff");
     }
   }
   EXPECT_TRUE(foundDarkStudio);

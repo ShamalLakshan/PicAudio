@@ -8,13 +8,23 @@ Dialog {
     id: root
     modal: true
     focus: true
-    anchors.centerIn: Overlay.overlay
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 450)) - height) / 2)
     width: Math.min(440, Overlay.overlay ? Overlay.overlay.width - 32 : 440)
     height: Math.min(380, Overlay.overlay ? Overlay.overlay.height - 32 : 380)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     property int customMinutes: 30
+
+    onAboutToShow: {
+        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500);
+        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 450);
+        if (x <= 0 || y <= 0 || x > ovW - 60 || y > ovH - 60) {
+            x = Math.max(16, Math.round((ovW - width) / 2));
+            y = Math.max(16, Math.round((ovH - height) / 2));
+        }
+    }
 
     function formatRemaining(totalSec) {
         if (totalSec <= 0) return "00:00";
@@ -36,19 +46,26 @@ Dialog {
         radius: Theme.cornerRadiusMedium
     }
 
-    contentItem: ColumnLayout {
-        spacing: 0
+    contentItem: Item {
         clip: true
 
-        // Header
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 44
-            color: Theme.surfaceElevated
-            border.color: Theme.panelBorder
-            border.width: 1
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
 
-            RowLayout {
+            // Header
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 44
+                color: Theme.surfaceElevated
+                border.color: Theme.panelBorder
+                border.width: 1
+
+                MovableHeaderArea {
+                    target: root
+                }
+
+                RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
                 anchors.rightMargin: Theme.panelPadding
@@ -310,4 +327,11 @@ Dialog {
             }
         }
     }
+
+    ResizeGrip {
+        target: root
+        minWidth: 380
+        minHeight: 320
+    }
+}
 }

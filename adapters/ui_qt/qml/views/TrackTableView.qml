@@ -55,7 +55,7 @@ Item {
             Text {
                 text: "Drop audio files or folders to play immediately"
                 color: Theme.accent
-                font.pixelSize: Theme.fontSizeMedium
+                font.pixelSize: Theme.fontSizeBase
                 font.family: Theme.fontFamily
                 font.bold: true
             }

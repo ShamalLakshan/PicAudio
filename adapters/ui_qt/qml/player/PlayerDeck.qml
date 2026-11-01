@@ -8,9 +8,12 @@ Rectangle {
 
     signal requestSwitchToNowPlaying()
     signal requestToggleFullscreen()
+    signal requestToggleEqualizer()
     signal requestSeekBarContextMenu()
     signal requestCodecContextMenu()
     signal requestVolumeContextMenu()
+
+    property bool showEqualizer: false
 
     Layout.fillWidth: true
     Layout.preferredHeight: 74
@@ -627,6 +630,42 @@ Rectangle {
             }
 
             Rectangle { width: 1; height: 16; color: Theme.panelBorder }
+
+            // Parametric DSP Equalizer Toggle
+            Rectangle {
+                id: eqBtn
+                width: 24
+                height: 24
+                radius: 2
+                color: (root.showEqualizer || eqMouse.containsMouse) ? Theme.surfaceElevated : "transparent"
+                border.color: eqBtn.activeFocus ? Theme.accent : "transparent"
+                border.width: eqBtn.activeFocus ? 2 : 0
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: "Toggle Parametric Equalizer"
+
+                VectorIcon {
+                    anchors.centerIn: parent
+                    name: "equalizer"
+                    width: 14
+                    height: 14
+                    color: (root.showEqualizer || eqBtn.activeFocus) ? Theme.accent : Theme.textSecondary
+                }
+
+                MouseArea {
+                    id: eqMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        eqBtn.forceActiveFocus();
+                        root.requestToggleEqualizer();
+                    }
+                }
+
+                ToolTip.visible: eqMouse.containsMouse || eqBtn.activeFocus
+                ToolTip.text: (root.showEqualizer ? "Hide" : "Show") + " Parametric Equalizer (Ctrl+5 / Ctrl+Shift+E)"
+            }
 
             // Fullscreen Toggle
             Rectangle {

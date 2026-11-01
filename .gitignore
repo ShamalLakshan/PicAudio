@@ -4,7 +4,8 @@ build-*/
 bin/
 lib/
 dist/
-docs/
+docs/html/
+docs/latex/
 out/
 CMakeFiles/
 CMakeCache.txt

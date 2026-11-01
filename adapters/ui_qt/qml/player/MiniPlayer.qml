@@ -7,6 +7,8 @@ Rectangle {
     id: root
 
     signal requestRestore()
+    signal requestMove()
+    signal requestResize(int edge)
     signal requestContextMenu()
 
     color: Theme.background
@@ -14,10 +16,12 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        onClicked: (mouse) => {
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onPressed: (mouse) => {
             if (mouse.button === Qt.RightButton) {
                 root.requestContextMenu();
+            } else if (mouse.button === Qt.LeftButton) {
+                root.requestMove();
             }
         }
     }
@@ -29,8 +33,8 @@ Rectangle {
 
         // Mini Album Art
         Rectangle {
-            Layout.preferredWidth: 84
-            Layout.preferredHeight: 84
+            Layout.preferredWidth: Math.max(64, Math.min(120, root.height - 20))
+            Layout.preferredHeight: Layout.preferredWidth
             Layout.alignment: Qt.AlignVCenter
             color: Theme.surface
             border.color: Theme.panelBorder
@@ -225,6 +229,65 @@ Rectangle {
                     onMoved: bridge.setVolume(value)
                 }
             }
+        }
+    }
+
+    Item {
+        id: miniResizeGrip
+        width: 18
+        height: 18
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        z: 999
+
+        Canvas {
+            id: miniGripCanvas
+            anchors.fill: parent
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.reset();
+                ctx.clearRect(0, 0, width, height);
+                ctx.strokeStyle = miniGripMouse.containsMouse ? Theme.accentHover : Theme.textMuted;
+                ctx.lineWidth = 1.5;
+                ctx.lineCap = "round";
+                var offsets = [4, 8, 12];
+                for (var i = 0; i < offsets.length; ++i) {
+                    var off = offsets[i];
+                    ctx.beginPath();
+                    ctx.moveTo(width - 3, height - off);
+                    ctx.lineTo(width - off, height - 3);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        MouseArea {
+            id: miniGripMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.SizeFDiagCursor
+            property point lastGlobalPos: "0,0"
+
+            onPressed: (mouse) => {
+                lastGlobalPos = mapToGlobal(mouse.x, mouse.y);
+                root.requestResize(Qt.BottomEdge | Qt.RightEdge);
+            }
+
+            onPositionChanged: (mouse) => {
+                if (pressed && Window.window) {
+                    var cur = mapToGlobal(mouse.x, mouse.y);
+                    var dx = cur.x - lastGlobalPos.x;
+                    var dy = cur.y - lastGlobalPos.y;
+                    lastGlobalPos = cur;
+                    var newW = Window.window.width + dx;
+                    var newH = Window.window.height + dy;
+                    Window.window.width = Math.max(Window.window.minimumWidth, newW);
+                    Window.window.height = Math.max(Window.window.minimumHeight, newH);
+                }
+            }
+
+            onEntered: miniGripCanvas.requestPaint()
+            onExited: miniGripCanvas.requestPaint()
         }
     }
 }

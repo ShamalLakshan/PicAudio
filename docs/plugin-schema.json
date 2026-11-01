@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PicAudioPluginManifest",
+  "description": "Formal manifest specification for PicAudio / Parakeet dynamic C-ABI plugins.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "author",
+    "description",
+    "targetApiVersion",
+    "capabilities"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.-]+$",
+      "description": "Unique reverse-domain identifier for the plugin."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable display name."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?$",
+      "description": "Semver version string of the plugin."
+    },
+    "author": {
+      "type": "string",
+      "description": "Plugin author or developer team."
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief description of the plugin and its features."
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Project homepage or repository URL."
+    },
+    "targetApiVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "SDK API version targeted by the compiled binary."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "visualizer",
+          "lyrics",
+          "scrobbler",
+          "dsp",
+          "library",
+          "theme",
+          "ui"
+        ]
+      },
+      "uniqueItems": true,
+      "description": "List of capability extensions implemented by the plugin."
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "tooltip": { "type": "string" },
+          "iconName": { "type": "string" },
+          "isPrimary": { "type": "boolean" }
+        }
+      },
+      "description": "Optional list of custom action buttons displayed on the plugin card."
+    },
+    "entryPoint": {
+      "type": "string",
+      "description": "Optional custom shared library file name (e.g. libspectrum.so, spectrum.dll)."
+    },
+    "minHostVersion": {
+      "type": "string",
+      "description": "Optional minimum PicAudio host version requirement."
+    }
+  },
+  "additionalProperties": true
+}
