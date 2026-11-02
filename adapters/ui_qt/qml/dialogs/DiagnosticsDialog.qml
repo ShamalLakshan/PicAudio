@@ -9,18 +9,18 @@ Dialog {
     id: root
     modal: true
     focus: true
-    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 700)) - width) / 2)
-    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 550)) - height) / 2)
-    width: Math.min(640, Overlay.overlay ? Overlay.overlay.width - 32 : 640)
-    height: Math.min(520, Overlay.overlay ? Overlay.overlay.height - 32 : 520)
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 740)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 580)) - height) / 2)
+    width: Math.min(740, Overlay.overlay ? Math.max(600, Overlay.overlay.width - 48) : 740)
+    height: Math.min(580, Overlay.overlay ? Math.max(480, Overlay.overlay.height - 48) : 580)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     property var diag: bridge.audioPipelineDiagnostics
 
     onAboutToShow: {
-        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 700);
-        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 550);
+        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 740);
+        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 580);
         if (x <= 0 || y <= 0 || x > ovW - 60 || y > ovH - 60) {
             x = Math.max(16, Math.round((ovW - width) / 2));
             y = Math.max(16, Math.round((ovH - height) / 2));
@@ -186,10 +186,12 @@ Dialog {
             Layout.fillHeight: true
             Layout.margins: Theme.panelPadding
             clip: true
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
+            contentWidth: availableWidth
 
             GridLayout {
-                width: diagScrollView.availableWidth - 8
+                width: diagScrollView.availableWidth
                 columns: root.width < 500 ? 1 : 2
                 columnSpacing: Theme.spacingMedium
                 rowSpacing: Theme.spacingSmall
@@ -308,12 +310,12 @@ Dialog {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                anchors.rightMargin: 36
                 spacing: Theme.spacingMedium
 
                 Button {
                     text: "Export Report..."
-                    implicitHeight: 28
+                    implicitHeight: 30
                     onClicked: exportReportDialog.open()
                     contentItem: Text {
                         text: parent.text
@@ -335,7 +337,7 @@ Dialog {
 
                 Button {
                     text: "Close"
-                    implicitHeight: 28
+                    implicitHeight: 30
                     implicitWidth: 80
                     onClicked: root.close()
                     contentItem: Text {

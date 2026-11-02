@@ -8,10 +8,10 @@ Dialog {
     id: root
     modal: true
     focus: true
-    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 600)) - width) / 2)
-    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 500)) - height) / 2)
-    width: Math.min(520, Overlay.overlay ? Overlay.overlay.width - 32 : 520)
-    height: Math.min(480, Overlay.overlay ? Overlay.overlay.height - 32 : 480)
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 620)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 540)) - height) / 2)
+    width: Math.min(620, Overlay.overlay ? Math.max(520, Overlay.overlay.width - 48) : 620)
+    height: Math.min(540, Overlay.overlay ? Math.max(460, Overlay.overlay.height - 48) : 540)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -29,8 +29,8 @@ Dialog {
     }
 
     onAboutToShow: {
-        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 600);
-        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 500);
+        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 620);
+        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 540);
         if (x <= 0 || y <= 0 || x > ovW - 60 || y > ovH - 60) {
             x = Math.max(16, Math.round((ovW - width) / 2));
             y = Math.max(16, Math.round((ovH - height) / 2));
@@ -73,10 +73,10 @@ Dialog {
                 }
 
                 RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
-                spacing: Theme.spacingMedium
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.panelPadding
+                    anchors.rightMargin: Theme.panelPadding
+                    spacing: Theme.spacingMedium
 
                 VectorIcon {
                     name: "music"
@@ -368,7 +368,7 @@ Dialog {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                anchors.rightMargin: 36
                 spacing: Theme.spacingMedium
 
                 Item { Layout.fillWidth: true }

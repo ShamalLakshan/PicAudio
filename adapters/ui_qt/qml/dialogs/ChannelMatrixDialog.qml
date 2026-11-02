@@ -8,10 +8,10 @@ Dialog {
     id: root
     modal: true
     focus: true
-    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 780)) - width) / 2)
-    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 600)) - height) / 2)
-    width: Math.min(760, Overlay.overlay ? Overlay.overlay.width - 32 : 760)
-    height: Math.min(620, Overlay.overlay ? Overlay.overlay.height - 32 : 620)
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 880)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 680)) - height) / 2)
+    width: Math.min(880, Overlay.overlay ? Math.max(760, Overlay.overlay.width - 48) : 880)
+    height: Math.min(680, Overlay.overlay ? Math.max(540, Overlay.overlay.height - 48) : 680)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -21,8 +21,8 @@ Dialog {
     property int selectedInCh: -1
 
     onAboutToShow: {
-        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 780);
-        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 600);
+        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 880);
+        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 680);
         if (x <= 0 || y <= 0 || x > ovW - 60 || y > ovH - 60) {
             x = Math.max(16, Math.round((ovW - width) / 2));
             y = Math.max(16, Math.round((ovH - height) / 2));
@@ -159,7 +159,9 @@ Dialog {
 
                     ComboBox {
                         id: presetCombo
-                        Layout.preferredWidth: 200
+                        Layout.preferredWidth: 220
+                        Layout.preferredHeight: 30
+                        hoverEnabled: true
                         model: [
                             "Stereo Passthrough",
                             "Downmix Surround to Stereo",
@@ -175,6 +177,74 @@ Dialog {
                         onActivated: function(index) {
                             bridge.setChannelProcessing(model[index]);
                         }
+                        background: Rectangle {
+                            implicitWidth: 220
+                            implicitHeight: 30
+                            color: presetCombo.hovered ? Theme.surfaceElevated : Theme.background
+                            border.color: presetCombo.activeFocus ? Theme.accent : (presetCombo.hovered ? Theme.accentHover : Theme.panelBorder)
+                            border.width: 1
+                            radius: Theme.cornerRadiusSmall
+                        }
+                        contentItem: Text {
+                            leftPadding: Theme.spacingMedium + 2
+                            rightPadding: 24
+                            text: presetCombo.displayText
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.family: Theme.fontFamily
+                            color: Theme.textPrimary
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                        }
+                        indicator: VectorIcon {
+                            x: presetCombo.width - width - Theme.spacingMedium - 2
+                            y: Math.round((presetCombo.height - height) / 2)
+                            width: 10
+                            height: 10
+                            name: "arrow_down"
+                            color: presetCombo.hovered ? Theme.accentHover : Theme.textSecondary
+                        }
+                        popup: Popup {
+                            y: presetCombo.height + 2
+                            width: Math.max(presetCombo.width, 220)
+                            implicitHeight: Math.min(260, Math.max(60, (contentItem.contentHeight || 0) + topPadding + bottomPadding + 8))
+                            padding: 4
+                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent | Popup.CloseOnPressOutside
+                            contentItem: ListView {
+                                clip: true
+                                implicitHeight: contentHeight
+                                model: presetCombo.delegateModel
+                                currentIndex: presetCombo.highlightedIndex
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                            }
+                            background: Rectangle {
+                                color: Theme.surfaceElevated
+                                border.color: Theme.panelBorder
+                                border.width: 1
+                                radius: Theme.cornerRadiusSmall
+                            }
+                        }
+                        delegate: ItemDelegate {
+                            width: ListView.view ? ListView.view.width : presetCombo.width
+                            implicitHeight: 30
+                            highlighted: presetCombo.highlightedIndex === index
+                            contentItem: Text {
+                                text: modelData
+                                color: highlighted ? Theme.accentHover : Theme.textPrimary
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.family: Theme.fontFamily
+                                elide: Text.ElideRight
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                color: highlighted ? Theme.selection : "transparent"
+                                radius: Theme.cornerRadiusSmall
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.NoButton
+                        }
                     }
 
                     Text {
@@ -187,7 +257,9 @@ Dialog {
 
                     ComboBox {
                         id: channelsCombo
-                        Layout.preferredWidth: 150
+                        Layout.preferredWidth: 160
+                        Layout.preferredHeight: 30
+                        hoverEnabled: true
                         model: ["1 (Mono)", "2 (Stereo)", "6 (5.1 Surround)", "8 (7.1 Surround)"]
                         currentIndex: {
                             var ch = bridge.outputChannels;
@@ -201,22 +273,132 @@ Dialog {
                             var map = [1, 2, 6, 8];
                             bridge.setOutputChannels(map[index]);
                         }
+                        background: Rectangle {
+                            implicitWidth: 160
+                            implicitHeight: 30
+                            color: channelsCombo.hovered ? Theme.surfaceElevated : Theme.background
+                            border.color: channelsCombo.activeFocus ? Theme.accent : (channelsCombo.hovered ? Theme.accentHover : Theme.panelBorder)
+                            border.width: 1
+                            radius: Theme.cornerRadiusSmall
+                        }
+                        contentItem: Text {
+                            leftPadding: Theme.spacingMedium + 2
+                            rightPadding: 24
+                            text: channelsCombo.displayText
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.family: Theme.fontFamily
+                            color: Theme.textPrimary
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                        }
+                        indicator: VectorIcon {
+                            x: channelsCombo.width - width - Theme.spacingMedium - 2
+                            y: Math.round((channelsCombo.height - height) / 2)
+                            width: 10
+                            height: 10
+                            name: "arrow_down"
+                            color: channelsCombo.hovered ? Theme.accentHover : Theme.textSecondary
+                        }
+                        popup: Popup {
+                            y: channelsCombo.height + 2
+                            width: Math.max(channelsCombo.width, 160)
+                            implicitHeight: Math.min(260, Math.max(60, (contentItem.contentHeight || 0) + topPadding + bottomPadding + 8))
+                            padding: 4
+                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent | Popup.CloseOnPressOutside
+                            contentItem: ListView {
+                                clip: true
+                                implicitHeight: contentHeight
+                                model: channelsCombo.delegateModel
+                                currentIndex: channelsCombo.highlightedIndex
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                            }
+                            background: Rectangle {
+                                color: Theme.surfaceElevated
+                                border.color: Theme.panelBorder
+                                border.width: 1
+                                radius: Theme.cornerRadiusSmall
+                            }
+                        }
+                        delegate: ItemDelegate {
+                            width: ListView.view ? ListView.view.width : channelsCombo.width
+                            implicitHeight: 30
+                            highlighted: channelsCombo.highlightedIndex === index
+                            contentItem: Text {
+                                text: modelData
+                                color: highlighted ? Theme.accentHover : Theme.textPrimary
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.family: Theme.fontFamily
+                                elide: Text.ElideRight
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                color: highlighted ? Theme.selection : "transparent"
+                                radius: Theme.cornerRadiusSmall
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.NoButton
+                        }
                     }
 
                     Item { Layout.fillWidth: true }
 
                     Button {
                         text: "Normalize"
+                        implicitHeight: 30
+                        implicitWidth: 84
                         ToolTip.visible: hovered
                         ToolTip.text: "Scales coefficients to prevent clipping"
                         onClicked: bridge.normalizeChannelMatrix()
+                        contentItem: Text {
+                            text: parent.text
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.family: Theme.fontFamily
+                            color: Theme.textPrimary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: parent.hovered ? Theme.surfaceElevated : Theme.background
+                            border.color: parent.hovered ? Theme.accentHover : Theme.panelBorder
+                            border.width: 1
+                            radius: Theme.cornerRadiusSmall
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.NoButton
+                        }
                     }
 
                     Button {
                         text: "Reset"
+                        implicitHeight: 30
+                        implicitWidth: 84
                         ToolTip.visible: hovered
                         ToolTip.text: "Reset matrix to direct 1:1 identity"
                         onClicked: bridge.resetChannelMatrixToIdentity()
+                        contentItem: Text {
+                            text: parent.text
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.family: Theme.fontFamily
+                            color: Theme.textPrimary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: parent.hovered ? Theme.surfaceElevated : Theme.background
+                            border.color: parent.hovered ? Theme.accentHover : Theme.panelBorder
+                            border.width: 1
+                            radius: Theme.cornerRadiusSmall
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.NoButton
+                        }
                     }
                 }
             }
@@ -443,13 +625,17 @@ Dialog {
             // Footer note
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
+                Layout.preferredHeight: 52
                 color: Theme.background
+                border.color: Theme.panelBorder
+                border.width: 1
 
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 16
-                    anchors.rightMargin: 16
+                    anchors.rightMargin: 36
+                    anchors.topMargin: 8
+                    anchors.bottomMargin: 8
                     spacing: 12
 
                     VectorIcon {
@@ -469,7 +655,28 @@ Dialog {
 
                     Button {
                         text: "Done"
+                        implicitHeight: 32
+                        implicitWidth: 84
                         onClicked: root.close()
+                        contentItem: Text {
+                            text: parent.text
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.family: Theme.fontFamily
+                            color: Theme.textPrimary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: parent.hovered ? Theme.surfaceElevated : Theme.selection
+                            border.color: parent.hovered ? Theme.accentHover : Theme.accent
+                            border.width: 1
+                            radius: Theme.cornerRadiusSmall
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.NoButton
+                        }
                     }
                 }
             }
@@ -569,8 +776,8 @@ Dialog {
 
         ResizeGrip {
             target: root
-            minWidth: 640
-            minHeight: 480
+            minWidth: 720
+            minHeight: 500
         }
     }
 }

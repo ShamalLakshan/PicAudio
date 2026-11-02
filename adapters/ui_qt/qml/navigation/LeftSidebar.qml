@@ -51,7 +51,7 @@ Rectangle {
                 anchors.rightMargin: 10
                 Text {
                     text: "LIBRARY EXPLORER"
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeSmall - 1
                     font.bold: true
                     font.letterSpacing: 1.2
                     color: Theme.textMuted
@@ -59,7 +59,7 @@ Rectangle {
                 Item { Layout.fillWidth: true }
                 Text {
                     text: bridge.totalTracks + " items"
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeSmall - 1
                     color: Theme.textMuted
                 }
             }
@@ -71,7 +71,9 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
+            contentWidth: availableWidth
 
             ColumnLayout {
                 width: sidebarScrollView.availableWidth
@@ -81,7 +83,7 @@ Rectangle {
                 Item { height: 6; width: 1 }
                 Text {
                     text: "  LIBRARY"
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.fontSizeSmall - 2
                     font.bold: true
                     font.letterSpacing: 1.0
                     color: Theme.textMuted
@@ -116,7 +118,7 @@ Rectangle {
 
                             Text {
                                 text: modelData.title
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeSmall
                                 color: root.activeNavSection === modelData.nav ? Theme.textPrimary : Theme.textSecondary
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
@@ -124,7 +126,7 @@ Rectangle {
 
                             Text {
                                 text: "" + modelData.count
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fontSizeSmall - 1
                                 color: root.activeNavSection === modelData.nav ? Theme.textPrimary : Theme.textMuted
                             }
                         }
@@ -151,7 +153,7 @@ Rectangle {
                 Item { height: 10; width: 1 }
                 Text {
                     text: "  PLAYLISTS & QUEUE"
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.fontSizeSmall - 2
                     font.bold: true
                     font.letterSpacing: 1.0
                     color: Theme.textMuted
@@ -169,7 +171,7 @@ Rectangle {
                         anchors.rightMargin: 10
                         spacing: 8
                         VectorIcon { name: "disc"; width: 11; height: 11; color: (root.activeNavSection === 4 && root.mainViewMode === 4) ? Theme.accent : Theme.textMuted }
-                        Text { text: "Now Playing"; font.pixelSize: 11; color: (root.activeNavSection === 4 && root.mainViewMode === 4) ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true }
+                        Text { text: "Now Playing"; font.pixelSize: Theme.fontSizeSmall; color: (root.activeNavSection === 4 && root.mainViewMode === 4) ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true }
                     }
                     MouseArea {
                         id: npMouse
@@ -219,7 +221,7 @@ Rectangle {
                             }
                             Text {
                                 text: modelData
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeSmall
                                 color: (root.activeNavSection === 5 && root.activePlaylistName === modelData) ? Theme.textPrimary : Theme.textSecondary
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
@@ -275,7 +277,7 @@ Rectangle {
                         VectorIcon { name: "plus"; width: 10; height: 10; color: Theme.accent }
                         Text {
                             text: "Drop to create playlist"
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontSizeSmall - 1
                             color: Theme.accent
                         }
                     }
@@ -285,7 +287,7 @@ Rectangle {
                 Item { height: 10; width: 1 }
                 Text {
                     text: "  SOURCES"
-                    font.pixelSize: 9
+                    font.pixelSize: Theme.fontSizeSmall - 2
                     font.bold: true
                     font.letterSpacing: 1.0
                     color: Theme.textMuted
@@ -320,7 +322,7 @@ Rectangle {
                         anchors.rightMargin: 10
                         spacing: 8
                         VectorIcon { name: "folder"; width: 11; height: 11; color: Theme.accent }
-                        Text { text: "Add Music Folder..."; font.pixelSize: 11; color: Theme.accentHover; Layout.fillWidth: true }
+                        Text { text: "Add Music Folder..."; font.pixelSize: Theme.fontSizeSmall; color: Theme.accentHover; Layout.fillWidth: true }
                     }
                     MouseArea {
                         id: scanMouse2
@@ -356,7 +358,7 @@ Rectangle {
                                     var parts = modelData.split("/");
                                     return (parts.length > 0 && parts[parts.length - 1].length > 0) ? parts[parts.length - 1] : modelData;
                                 }
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSizeSmall
                                 color: Theme.textSecondary
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true

@@ -8,10 +8,10 @@ Dialog {
     id: root
     modal: true
     focus: true
-    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 700)) - width) / 2)
-    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 550)) - height) / 2)
-    width: Math.min(680, Overlay.overlay ? Overlay.overlay.width - 32 : 680)
-    height: Math.min(520, Overlay.overlay ? Overlay.overlay.height - 32 : 520)
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 760)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 580)) - height) / 2)
+    width: Math.min(760, Overlay.overlay ? Math.max(640, Overlay.overlay.width - 48) : 760)
+    height: Math.min(580, Overlay.overlay ? Math.max(480, Overlay.overlay.height - 48) : 580)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -25,8 +25,8 @@ Dialog {
     }
 
     onAboutToShow: {
-        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 700);
-        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 550);
+        var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 760);
+        var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 580);
         if (x <= 0 || y <= 0 || x > ovW - 60 || y > ovH - 60) {
             x = Math.max(16, Math.round((ovW - width) / 2));
             y = Math.max(16, Math.round((ovH - height) / 2));
@@ -308,7 +308,7 @@ Dialog {
         // Footer
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 40
+            Layout.preferredHeight: 46
             color: Theme.surfaceElevated
             border.color: Theme.panelBorder
             border.width: 1
@@ -316,7 +316,7 @@ Dialog {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                anchors.rightMargin: 36
                 spacing: Theme.spacingMedium
 
                 Text {
@@ -329,7 +329,7 @@ Dialog {
 
                 Button {
                     text: "Close"
-                    implicitHeight: 26
+                    implicitHeight: 30
                     implicitWidth: 80
                     onClicked: root.close()
                     contentItem: Text {

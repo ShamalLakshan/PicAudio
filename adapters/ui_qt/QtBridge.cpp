@@ -183,10 +183,10 @@ void QtBridge::loadSettings() {
     QString savedTheme =
         s.value("appearance/themeId", "dark-studio").toString();
     m_themeLoader->setThemeId(savedTheme);
-    qreal savedScale = s.value("appearance/uiScale", 1.0).toReal();
+    qreal savedScale = s.value("appearance/uiScale", 1.15).toReal();
     m_themeLoader->setUiScale(savedScale);
     QString savedDensity =
-        s.value("appearance/densityPreset", "Standard").toString();
+        s.value("appearance/densityPreset", "Comfortable").toString();
     m_themeLoader->setDensityPreset(savedDensity);
   }
 
@@ -3765,8 +3765,8 @@ void QtBridge::resetAllSettingsToDefaults() {
 
   if (m_themeLoader) {
     m_themeLoader->setThemeId("dark-studio");
-    m_themeLoader->setUiScale(1.0);
-    m_themeLoader->setDensityPreset("Standard");
+    m_themeLoader->setUiScale(1.15);
+    m_themeLoader->setDensityPreset("Comfortable");
   }
 
   // Audio Output defaults

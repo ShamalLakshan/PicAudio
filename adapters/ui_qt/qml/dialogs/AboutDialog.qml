@@ -8,10 +8,10 @@ Dialog {
     id: root
     modal: true
     focus: true
-    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500)) - width) / 2)
-    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 450)) - height) / 2)
-    width: Math.min(480, Overlay.overlay ? Overlay.overlay.width - 32 : 480)
-    height: Math.min(420, Overlay.overlay ? Overlay.overlay.height - 32 : 420)
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 560)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 480)) - height) / 2)
+    width: Math.min(560, Overlay.overlay ? Math.max(480, Overlay.overlay.width - 48) : 560)
+    height: Math.min(480, Overlay.overlay ? Math.max(400, Overlay.overlay.height - 48) : 480)
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -51,9 +51,9 @@ Dialog {
                 }
 
                 RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.panelPadding
+                    anchors.rightMargin: Theme.panelPadding
                 spacing: Theme.spacingMedium
 
                 VectorIcon {
@@ -222,7 +222,7 @@ Dialog {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                anchors.rightMargin: 36
 
                 Item { Layout.fillWidth: true }
 

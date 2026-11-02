@@ -74,10 +74,10 @@ Dialog {
                 }
 
                 RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
-                spacing: Theme.spacingMedium
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.panelPadding
+                    anchors.rightMargin: Theme.panelPadding
+                    spacing: Theme.spacingMedium
 
                 VectorIcon {
                     name: root.isSmart ? "settings" : "queue"
@@ -244,7 +244,7 @@ Dialog {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                anchors.rightMargin: 36
                 spacing: Theme.spacingMedium
 
                 Item { Layout.fillWidth: true }
