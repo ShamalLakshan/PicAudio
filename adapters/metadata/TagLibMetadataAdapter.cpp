@@ -790,6 +790,66 @@ TagLibMetadataAdapter::extract(const std::string &filePath) {
       } catch (...) {
       }
     }
+
+    // ReplayGain 2.0 & EBU R128 loudness tags
+    auto parseGainValue = [](const std::string &str) -> float {
+      try {
+        std::string s = str;
+        size_t dbPos = s.find("dB");
+        if (dbPos == std::string::npos)
+          dbPos = s.find("db");
+        if (dbPos != std::string::npos)
+          s = s.substr(0, dbPos);
+        size_t lufsPos = s.find("LUFS");
+        if (lufsPos != std::string::npos)
+          s = s.substr(0, lufsPos);
+        return std::stof(s);
+      } catch (...) {
+        return 0.0f;
+      }
+    };
+
+    if (props.contains("REPLAYGAIN_TRACK_GAIN") &&
+        !props["REPLAYGAIN_TRACK_GAIN"].isEmpty()) {
+      track.replayGainTrackGain =
+          parseGainValue(props["REPLAYGAIN_TRACK_GAIN"].front().to8Bit(true));
+      track.hasReplayGain = true;
+    } else if (props.contains("R128_TRACK_GAIN") &&
+               !props["R128_TRACK_GAIN"].isEmpty()) {
+      track.replayGainTrackGain =
+          parseGainValue(props["R128_TRACK_GAIN"].front().to8Bit(true));
+      track.hasReplayGain = true;
+    }
+
+    if (props.contains("REPLAYGAIN_TRACK_PEAK") &&
+        !props["REPLAYGAIN_TRACK_PEAK"].isEmpty()) {
+      try {
+        track.replayGainTrackPeak =
+            std::stof(props["REPLAYGAIN_TRACK_PEAK"].front().to8Bit(true));
+      } catch (...) {
+      }
+    }
+
+    if (props.contains("REPLAYGAIN_ALBUM_GAIN") &&
+        !props["REPLAYGAIN_ALBUM_GAIN"].isEmpty()) {
+      track.replayGainAlbumGain =
+          parseGainValue(props["REPLAYGAIN_ALBUM_GAIN"].front().to8Bit(true));
+      track.hasReplayGain = true;
+    } else if (props.contains("R128_ALBUM_GAIN") &&
+               !props["R128_ALBUM_GAIN"].isEmpty()) {
+      track.replayGainAlbumGain =
+          parseGainValue(props["R128_ALBUM_GAIN"].front().to8Bit(true));
+      track.hasReplayGain = true;
+    }
+
+    if (props.contains("REPLAYGAIN_ALBUM_PEAK") &&
+        !props["REPLAYGAIN_ALBUM_PEAK"].isEmpty()) {
+      try {
+        track.replayGainAlbumPeak =
+            std::stof(props["REPLAYGAIN_ALBUM_PEAK"].front().to8Bit(true));
+      } catch (...) {
+      }
+    }
   }
 
   // Fallback to container-specific album artist if PropertyMap did not have it

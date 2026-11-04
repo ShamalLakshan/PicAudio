@@ -102,7 +102,15 @@ bool SqliteDatabaseAdapter::createTables() {
             codec TEXT DEFAULT 'FLAC',
             art_hash TEXT,
             file_size INTEGER DEFAULT 0,
-            date_added INTEGER DEFAULT 0
+            date_added INTEGER DEFAULT 0,
+            replaygain_track_gain REAL DEFAULT 0.0,
+            replaygain_track_peak REAL DEFAULT 1.0,
+            replaygain_album_gain REAL DEFAULT 0.0,
+            replaygain_album_peak REAL DEFAULT 1.0,
+            has_replaygain INTEGER DEFAULT 0,
+            start_time_ms INTEGER DEFAULT 0,
+            end_time_ms INTEGER DEFAULT 0,
+            is_virtual_track INTEGER DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album, album_artist);
@@ -119,6 +127,36 @@ bool SqliteDatabaseAdapter::createTables() {
     sqlite3_free(errMsg);
     return false;
   }
+
+  // Gracefully alter existing tables if new columns are missing
+  sqlite3_exec(
+      m_db,
+      "ALTER TABLE tracks ADD COLUMN replaygain_track_gain REAL DEFAULT 0.0;",
+      nullptr, nullptr, nullptr);
+  sqlite3_exec(
+      m_db,
+      "ALTER TABLE tracks ADD COLUMN replaygain_track_peak REAL DEFAULT 1.0;",
+      nullptr, nullptr, nullptr);
+  sqlite3_exec(
+      m_db,
+      "ALTER TABLE tracks ADD COLUMN replaygain_album_gain REAL DEFAULT 0.0;",
+      nullptr, nullptr, nullptr);
+  sqlite3_exec(
+      m_db,
+      "ALTER TABLE tracks ADD COLUMN replaygain_album_peak REAL DEFAULT 1.0;",
+      nullptr, nullptr, nullptr);
+  sqlite3_exec(
+      m_db, "ALTER TABLE tracks ADD COLUMN has_replaygain INTEGER DEFAULT 0;",
+      nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db,
+               "ALTER TABLE tracks ADD COLUMN start_time_ms INTEGER DEFAULT 0;",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db,
+               "ALTER TABLE tracks ADD COLUMN end_time_ms INTEGER DEFAULT 0;",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(
+      m_db, "ALTER TABLE tracks ADD COLUMN is_virtual_track INTEGER DEFAULT 0;",
+      nullptr, nullptr, nullptr);
 
   return true;
 }
@@ -171,6 +209,18 @@ core::Track SqliteDatabaseAdapter::parseTrackRow(sqlite3_stmt *stmt) {
           : reinterpret_cast<const unsigned char *>(""));
   t.fileSizeBytes = static_cast<uint64_t>(sqlite3_column_int64(stmt, 17));
   t.dateAdded = static_cast<uint64_t>(sqlite3_column_int64(stmt, 18));
+
+  if (sqlite3_column_count(stmt) > 19) {
+    t.replayGainTrackGain = static_cast<float>(sqlite3_column_double(stmt, 19));
+    t.replayGainTrackPeak = static_cast<float>(sqlite3_column_double(stmt, 20));
+    t.replayGainAlbumGain = static_cast<float>(sqlite3_column_double(stmt, 21));
+    t.replayGainAlbumPeak = static_cast<float>(sqlite3_column_double(stmt, 22));
+    t.hasReplayGain = sqlite3_column_int(stmt, 23) != 0;
+    t.startTimeMs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 24));
+    t.endTimeMs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 25));
+    t.isVirtualTrack = sqlite3_column_int(stmt, 26) != 0;
+  }
+
   return t;
 }
 
@@ -192,8 +242,10 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
         INSERT INTO tracks (
             id, file_path, title, artist, album, album_artist, genre,
             year, track_number, disc_number, duration_ms, sample_rate,
-            bit_depth, channels, bitrate, codec, art_hash, file_size, date_added
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            bit_depth, channels, bitrate, codec, art_hash, file_size, date_added,
+            replaygain_track_gain, replaygain_track_peak, replaygain_album_gain,
+            replaygain_album_peak, has_replaygain, start_time_ms, end_time_ms, is_virtual_track
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_path) DO UPDATE SET
             title=excluded.title,
             artist=excluded.artist,
@@ -210,7 +262,15 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
             bitrate=excluded.bitrate,
             codec=excluded.codec,
             art_hash=excluded.art_hash,
-            file_size=excluded.file_size;
+            file_size=excluded.file_size,
+            replaygain_track_gain=excluded.replaygain_track_gain,
+            replaygain_track_peak=excluded.replaygain_track_peak,
+            replaygain_album_gain=excluded.replaygain_album_gain,
+            replaygain_album_peak=excluded.replaygain_album_peak,
+            has_replaygain=excluded.has_replaygain,
+            start_time_ms=excluded.start_time_ms,
+            end_time_ms=excluded.end_time_ms,
+            is_virtual_track=excluded.is_virtual_track;
     )";
 
   sqlite3_stmt *stmt = nullptr;
@@ -240,6 +300,14 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
     sqlite3_bind_text(stmt, 17, t.artHash.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int64(stmt, 18, static_cast<sqlite3_int64>(t.fileSizeBytes));
     sqlite3_bind_int64(stmt, 19, static_cast<sqlite3_int64>(t.dateAdded));
+    sqlite3_bind_double(stmt, 20, static_cast<double>(t.replayGainTrackGain));
+    sqlite3_bind_double(stmt, 21, static_cast<double>(t.replayGainTrackPeak));
+    sqlite3_bind_double(stmt, 22, static_cast<double>(t.replayGainAlbumGain));
+    sqlite3_bind_double(stmt, 23, static_cast<double>(t.replayGainAlbumPeak));
+    sqlite3_bind_int(stmt, 24, t.hasReplayGain ? 1 : 0);
+    sqlite3_bind_int64(stmt, 25, static_cast<sqlite3_int64>(t.startTimeMs));
+    sqlite3_bind_int64(stmt, 26, static_cast<sqlite3_int64>(t.endTimeMs));
+    sqlite3_bind_int(stmt, 27, t.isVirtualTrack ? 1 : 0);
 
     sqlite3_step(stmt);
   }

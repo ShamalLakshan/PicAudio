@@ -74,10 +74,10 @@ Dialog {
                 }
 
                 RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
-                spacing: Theme.spacingMedium
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.panelPadding
+                    anchors.rightMargin: Theme.panelPadding
+                    spacing: Theme.spacingMedium
 
                 VectorIcon {
                     name: root.isSmart ? "settings" : "queue"
@@ -244,15 +244,19 @@ Dialog {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                anchors.rightMargin: 36
                 spacing: Theme.spacingMedium
 
                 Item { Layout.fillWidth: true }
 
                 Button {
                     text: "Cancel"
-                    implicitHeight: 28
-                    implicitWidth: 80
+                    implicitHeight: 32
+                    implicitWidth: 88
+                    padding: Theme.spacingSmall
+                    leftPadding: Theme.spacingMedium
+                    rightPadding: Theme.spacingMedium
+                    hoverEnabled: true
                     onClicked: root.close()
                     contentItem: Text {
                         text: parent.text
@@ -261,6 +265,7 @@ Dialog {
                         color: Theme.textSecondary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
                     }
                     background: Rectangle {
                         color: parent.hovered ? Theme.surfaceElevated : Theme.background
@@ -268,12 +273,21 @@ Dialog {
                         border.width: 1
                         radius: Theme.cornerRadiusSmall
                     }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
+                    }
                 }
 
                 Button {
                     text: root.isSmart ? "Create Smart Playlist" : "Create Playlist"
                     enabled: playlistNameInput.text.trim().length > 0
-                    implicitHeight: 28
+                    implicitHeight: 32
+                    padding: Theme.spacingSmall
+                    leftPadding: Theme.spacingMedium + 4
+                    rightPadding: Theme.spacingMedium + 4
+                    hoverEnabled: true
                     onClicked: submit()
                     contentItem: Text {
                         text: parent.text
@@ -282,12 +296,18 @@ Dialog {
                         color: parent.enabled ? Theme.accentHover : Theme.textMuted
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
                     }
                     background: Rectangle {
-                        color: parent.enabled ? (parent.hovered ? Theme.selection : Theme.background) : Theme.background
+                        color: parent.hovered && parent.enabled ? Theme.selection : Theme.surface
                         border.color: parent.enabled ? Theme.accent : Theme.panelBorder
                         border.width: 1
                         radius: Theme.cornerRadiusSmall
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
                     }
                 }
             }

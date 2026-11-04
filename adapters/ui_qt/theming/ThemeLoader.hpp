@@ -237,8 +237,8 @@ private:
   [[nodiscard]] QStringList getThemeSearchPaths() const;
 
   ThemeTokens m_tokens;
-  qreal m_uiScale{1.0};
-  QString m_densityPreset{"Standard"};
+  qreal m_uiScale{1.15};
+  QString m_densityPreset{"Comfortable"};
   QString m_activeThemeFilePath;
   QVariantList m_availableThemes;
   QMap<QString, ThemeMetadata> m_themeRegistry;

@@ -32,11 +32,13 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
 
             Rectangle {
-                Layout.preferredWidth: 26
+                Layout.preferredWidth: 28
                 Layout.preferredHeight: 24
-                width: 26
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                width: 28
                 height: 24
-                radius: 2
+                radius: Theme.cornerRadiusSmall
                 color: root.mainViewMode === 1 ? Theme.selection : (vm1Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
                 border.color: root.mainViewMode === 1 ? Theme.accent : "transparent"
                 VectorIcon { anchors.centerIn: parent; name: "table"; width: 12; height: 12; color: root.mainViewMode === 1 ? Theme.accent : Theme.textMuted }
@@ -49,11 +51,13 @@ Rectangle {
             }
 
             Rectangle {
-                Layout.preferredWidth: 26
+                Layout.preferredWidth: 28
                 Layout.preferredHeight: 24
-                width: 26
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                width: 28
                 height: 24
-                radius: 2
+                radius: Theme.cornerRadiusSmall
                 color: root.mainViewMode === 0 ? Theme.selection : (vm0Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
                 border.color: root.mainViewMode === 0 ? Theme.accent : "transparent"
                 VectorIcon { anchors.centerIn: parent; name: "grid"; width: 12; height: 12; color: root.mainViewMode === 0 ? Theme.accent : Theme.textMuted }
@@ -66,11 +70,13 @@ Rectangle {
             }
 
             Rectangle {
-                Layout.preferredWidth: 26
+                Layout.preferredWidth: 28
                 Layout.preferredHeight: 24
-                width: 26
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                width: 28
                 height: 24
-                radius: 2
+                radius: Theme.cornerRadiusSmall
                 color: root.mainViewMode === 2 ? Theme.selection : (vm2Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
                 border.color: root.mainViewMode === 2 ? Theme.accent : "transparent"
                 VectorIcon { anchors.centerIn: parent; name: "album_tracks"; width: 12; height: 12; color: root.mainViewMode === 2 ? Theme.accent : Theme.textMuted }
@@ -83,11 +89,13 @@ Rectangle {
             }
 
             Rectangle {
-                Layout.preferredWidth: 26
+                Layout.preferredWidth: 28
                 Layout.preferredHeight: 24
-                width: 26
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                width: 28
                 height: 24
-                radius: 2
+                radius: Theme.cornerRadiusSmall
                 color: root.mainViewMode === 4 ? Theme.selection : (vm4Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
                 border.color: root.mainViewMode === 4 ? Theme.accent : "transparent"
                 VectorIcon { anchors.centerIn: parent; name: "disc"; width: 12; height: 12; color: root.mainViewMode === 4 ? Theme.accent : Theme.textMuted }
@@ -104,12 +112,14 @@ Rectangle {
 
         // Toggle Category Filters Button
         Rectangle {
-            Layout.preferredWidth: colBtnLayout.implicitWidth + 14
-            Layout.preferredHeight: 22
+            Layout.preferredWidth: colBtnLayout.implicitWidth + 18
+            Layout.preferredHeight: 24
             Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
             width: Layout.preferredWidth
-            height: 22
-            radius: 2
+            height: 24
+            radius: Theme.cornerRadiusSmall
             color: root.showColumnBrowser ? Theme.selection : (cbMouse.containsMouse ? Theme.surfaceElevated : "transparent")
             border.color: root.showColumnBrowser ? Theme.accent : Theme.panelBorder
 
@@ -160,17 +170,19 @@ Rectangle {
 
             RowLayout {
                 id: alphaRow
-                spacing: 1
+                spacing: 2
 
                 Repeater {
                     model: ["All", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
 
                     delegate: Rectangle {
-                        Layout.preferredWidth: alphaText.implicitWidth + 8
+                        Layout.preferredWidth: Math.max(22, alphaText.implicitWidth + 10)
                         Layout.preferredHeight: 20
+                        Layout.leftMargin: 1
+                        Layout.rightMargin: 1
                         width: Layout.preferredWidth
                         height: 20
-                        radius: 2
+                        radius: Theme.cornerRadiusSmall
                         color: root.activeLetterFilter === modelData ? Theme.accent : (alphaMouse.containsMouse ? Theme.surfaceElevated : "transparent")
 
                         Text {

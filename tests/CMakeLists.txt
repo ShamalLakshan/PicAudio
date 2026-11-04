@@ -22,6 +22,8 @@ add_executable(picaudio_tests
     test_metadata_art.cpp
     test_desktop_integration.cpp
     test_plugin_manager.cpp
+    test_audio_pipeline.cpp
+    test_qml_components.cpp
 )
 
 target_include_directories(picaudio_tests PRIVATE
@@ -49,3 +51,7 @@ target_link_libraries(picaudio_tests PRIVATE
 
 include(CTest)
 add_test(NAME PicAudioUnitTests COMMAND picaudio_tests)
+add_test(NAME PicAudioBinaryQmlValidation COMMAND PicAudio --check-qml)
+set_tests_properties(PicAudioBinaryQmlValidation PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

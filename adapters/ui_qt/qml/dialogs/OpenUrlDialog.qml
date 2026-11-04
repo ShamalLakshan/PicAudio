@@ -208,7 +208,7 @@ Dialog {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.panelPadding
-                anchors.rightMargin: Theme.panelPadding
+                anchors.rightMargin: 36
                 spacing: Theme.spacingMedium
 
                 Item { Layout.fillWidth: true }

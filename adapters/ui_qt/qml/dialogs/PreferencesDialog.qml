@@ -8,15 +8,37 @@ import "../components"
 Dialog {
     id: root
     title: "Preferences & Settings"
-    width: Math.min(840, Overlay.overlay ? Overlay.overlay.width - 32 : 840)
-    height: Math.min(620, Overlay.overlay ? Overlay.overlay.height - 32 : 620)
+    width: Math.min(960, Overlay.overlay ? Math.max(760, Overlay.overlay.width - 48) : 960)
+    height: Math.min(700, Overlay.overlay ? Math.max(560, Overlay.overlay.height - 48) : 700)
     modal: true
-    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 840)) - width) / 2)
-    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 620)) - height) / 2)
+    x: Math.round(((Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 960)) - width) / 2)
+    y: Math.round(((Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 700)) - height) / 2)
 
     property int activeCategory: 1 // default to Themes & Appearance
     property var discoveredPluginsList: []
     property var selectedPluginDetail: null
+    property string dspSearchQuery: ""
+
+    function getFilteredDspPlugins() {
+        var all = (typeof bridge !== "undefined" && bridge) ? bridge.discoveredDspPlugins : [];
+        if (!all || all.length === 0) return [];
+        var q = dspSearchQuery.trim().toLowerCase();
+        if (q === "") return all;
+        var res = [];
+        for (var i = 0; i < all.length; ++i) {
+            var item = all[i];
+            var name = (item.name || "").toLowerCase();
+            var vendor = (item.vendor || "").toLowerCase();
+            var desc = (item.description || "").toLowerCase();
+            var id = (item.id || "").toLowerCase();
+            var path = (item.libraryPath || "").toLowerCase();
+            if (name.indexOf(q) !== -1 || vendor.indexOf(q) !== -1 ||
+                desc.indexOf(q) !== -1 || id.indexOf(q) !== -1 || path.indexOf(q) !== -1) {
+                res.push(item);
+            }
+        }
+        return res;
+    }
 
     function refreshPlugins() {
         if (typeof bridge !== "undefined" && bridge) {
@@ -35,98 +57,18 @@ Dialog {
         }
     }
 
-    component StyledComboBox: ComboBox {
-        id: cbRoot
-        Layout.preferredWidth: 220
-        Layout.preferredHeight: 28
-        background: Rectangle {
-            implicitWidth: 220
-            implicitHeight: 28
-            color: Theme.surfaceElevated
-            border.color: cbRoot.activeFocus ? Theme.accent : Theme.panelBorder
-            border.width: 1
-            radius: Theme.cornerRadiusSmall
-        }
-        contentItem: TextInput {
-            leftPadding: Theme.spacingMedium
-            rightPadding: (cbRoot.indicator ? cbRoot.indicator.width : 10) + Theme.spacingMedium
-            text: cbRoot.displayText
-            font.pixelSize: Theme.fontSizeSmall
-            font.family: Theme.fontFamily
-            color: Theme.textPrimary
-            verticalAlignment: TextInput.AlignVCenter
-            readOnly: true
-            selectByMouse: false
-            cursorVisible: false
-            clip: true
-
-            function positionToRectangle(pos) {
-                return Qt.rect(0, 0, width, height)
-            }
-        }
-        indicator: VectorIcon {
-            x: cbRoot.width - width - Theme.spacingMedium
-            y: (cbRoot.height - height) / 2
-            width: 10
-            height: 10
-            name: "arrow_down"
-            color: Theme.textSecondary
-        }
-        popup: Popup {
-            y: cbRoot.height + 2
-            width: cbRoot.width
-            implicitHeight: Math.min(220, contentItem.implicitHeight + 8)
-            padding: 4
-            modal: false
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: cbRoot.popup.visible ? cbRoot.delegateModel : null
-                currentIndex: cbRoot.highlightedIndex
-                ScrollIndicator.vertical: ScrollIndicator { }
-            }
-            background: Rectangle {
-                color: Theme.surfaceElevated
-                border.color: Theme.panelBorder
-                border.width: 1
-                radius: Theme.cornerRadiusSmall
-            }
-        }
-        delegate: ItemDelegate {
-            width: cbRoot.width - 8
-            height: 26
-            highlighted: cbRoot.highlightedIndex === index
-            contentItem: Text {
-                text: modelData
-                color: highlighted ? Theme.accentHover : Theme.textPrimary
-                font.pixelSize: Theme.fontSizeSmall
-                font.family: Theme.fontFamily
-                elide: Text.ElideRight
-                verticalAlignment: Text.AlignVCenter
-            }
-            background: Rectangle {
-                color: highlighted ? Theme.selection : "transparent"
-                radius: Theme.cornerRadiusSmall
-            }
-            onClicked: {
-                cbRoot.currentIndex = index
-                cbRoot.activated(index)
-                cbRoot.popup.close()
-            }
-        }
-    }
-
     component StyledCheckBox: CheckBox {
         id: cbControl
-        implicitHeight: 28
+        implicitHeight: 30
+        hoverEnabled: true
         indicator: Rectangle {
             implicitWidth: 16
             implicitHeight: 16
             x: cbControl.leftPadding
-            y: parent.height / 2 - height / 2
+            y: Math.round(parent.height / 2 - height / 2)
             radius: Theme.cornerRadiusSmall
             color: cbControl.checked ? Theme.accent : Theme.surfaceElevated
-            border.color: cbControl.checked ? Theme.accent : Theme.panelBorder
+            border.color: cbControl.checked ? Theme.accent : (cbControl.hovered ? Theme.accentHover : Theme.panelBorder)
             border.width: 1
 
             VectorIcon {
@@ -145,16 +87,23 @@ Dialog {
             color: Theme.textPrimary
             verticalAlignment: Text.AlignVCenter
             leftPadding: cbControl.indicator.width + Theme.spacingMedium
-            elide: Text.ElideRight
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.NoButton
         }
     }
 
     component StyledSlider: Slider {
         id: sldControl
-        implicitHeight: 28
+        implicitHeight: 30
+        hoverEnabled: true
         background: Rectangle {
             x: sldControl.leftPadding
-            y: sldControl.topPadding + sldControl.availableHeight / 2 - 2
+            y: Math.round(sldControl.topPadding + sldControl.availableHeight / 2 - 2)
             implicitWidth: 160
             implicitHeight: 4
             width: sldControl.availableWidth
@@ -170,21 +119,30 @@ Dialog {
             }
         }
         handle: Rectangle {
-            x: sldControl.leftPadding + sldControl.visualPosition * (sldControl.availableWidth - width)
-            y: sldControl.topPadding + sldControl.availableHeight / 2 - height / 2
-            implicitWidth: 14
-            implicitHeight: 14
-            radius: 7
-            color: sldControl.pressed ? Theme.textPrimary : Theme.accentHover
+            x: Math.round(sldControl.leftPadding + sldControl.visualPosition * (sldControl.availableWidth - width))
+            y: Math.round(sldControl.topPadding + sldControl.availableHeight / 2 - height / 2)
+            implicitWidth: 16
+            implicitHeight: 16
+            radius: 8
+            color: sldControl.pressed ? Theme.textPrimary : (sldControl.hovered ? Theme.accentHover : Theme.accent)
             border.color: Theme.panelBorder
             border.width: 1
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.NoButton
         }
     }
 
     component StyledButton: Button {
         id: btnControl
-        implicitHeight: 28
-        padding: Theme.spacingMedium
+        implicitHeight: 32
+        leftPadding: Theme.spacingMedium + 4
+        rightPadding: Theme.spacingMedium + 4
+        topPadding: Theme.spacingSmall
+        bottomPadding: Theme.spacingSmall
+        hoverEnabled: true
         contentItem: Text {
             text: btnControl.text
             font.pixelSize: Theme.fontSizeSmall
@@ -197,15 +155,20 @@ Dialog {
         }
         background: Rectangle {
             color: btnControl.highlighted ? Theme.selection : (btnControl.hovered ? Theme.surfaceElevated : Theme.background)
-            border.color: btnControl.highlighted ? Theme.accent : Theme.panelBorder
+            border.color: btnControl.highlighted ? Theme.accent : (btnControl.hovered ? Theme.accentHover : Theme.panelBorder)
             border.width: 1
             radius: Theme.cornerRadiusSmall
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.NoButton
         }
     }
 
     component StyledTextField: TextField {
         id: tfControl
-        implicitHeight: 28
+        implicitHeight: 30
         leftPadding: Theme.spacingMedium
         rightPadding: Theme.spacingMedium
         font.pixelSize: Theme.fontSizeSmall
@@ -714,7 +677,7 @@ Dialog {
 
         // Categories
         Rectangle {
-            Layout.preferredWidth: 190
+            Layout.preferredWidth: 210
             Layout.fillHeight: true
             color: Theme.background
             border.color: Theme.panelBorder
@@ -792,14 +755,17 @@ Dialog {
 
             // General Settings
             ScrollView {
+                id: generalScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 0
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: generalScrollView.availableWidth
                     spacing: 16
 
                     Text {
@@ -1080,14 +1046,17 @@ Dialog {
 
             // Themes & Appearance
             ScrollView {
+                id: themesScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 1
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: themesScrollView.availableWidth
                     spacing: 16
 
                     RowLayout {
@@ -1531,14 +1500,17 @@ Dialog {
 
             // Audio Output & Hardware Pipeline
             ScrollView {
+                id: audioScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 2
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: audioScrollView.availableWidth
                     spacing: 16
 
                     Text {
@@ -1854,13 +1826,22 @@ Dialog {
                             }
                         }
 
-                        StyledComboBox {
-                            id: channelCombo
-                            Layout.preferredWidth: 260
-                            model: ["Stereo Passthrough", "Downmix Surround to Stereo", "Upmix Stereo to 5.1", "Mono Downmix"]
-                            currentIndex: Math.max(0, model.indexOf(bridge.channelProcessing))
-                            onActivated: function(index) {
-                                bridge.setChannelProcessing(model[index])
+                        RowLayout {
+                            spacing: 8
+
+                            StyledComboBox {
+                                id: channelCombo
+                                Layout.preferredWidth: 220
+                                model: ["Stereo Passthrough", "Downmix Surround to Stereo", "Mono Downmix", "Upmix Stereo to 5.1", "Cinema Surround Upmix (7.1)", "Custom Channel Matrix"]
+                                currentIndex: Math.max(0, model.indexOf(bridge.channelProcessing))
+                                onActivated: function(index) {
+                                    bridge.setChannelProcessing(model[index])
+                                }
+                            }
+
+                            StyledButton {
+                                text: "Matrix..."
+                                onClicked: bridge.openChannelMatrix()
                             }
                         }
                     }
@@ -1869,14 +1850,17 @@ Dialog {
 
             // Playback & DSP
             ScrollView {
+                id: playbackScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 3
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: playbackScrollView.availableWidth
                     spacing: 16
 
                     Text {
@@ -2240,19 +2224,370 @@ Dialog {
                         checked: bridge.stopAfterCurrentTrack
                         onToggled: bridge.setStopAfterCurrentTrack(checked)
                     }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+
+                    // Equalizer & External DSP Processing Chain
+                    Text {
+                        text: "Parametric Equalizer & DSP Pipeline"
+                        font.pixelSize: Theme.fontSizeBase
+                        font.bold: true
+                        color: Theme.textPrimary
+                    }
+
+                    Text {
+                        text: "Configure the real-time biquad equalizer and drop-in external CLAP audio DSP plugins (such as LSP Expanders or dynamics controllers)."
+                        font.pixelSize: Theme.fontSizeSmall - 1
+                        color: Theme.textMuted
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    StyledCheckBox {
+                        Layout.fillWidth: true
+                        text: "Enable Parametric Equalizer (" + (bridge ? bridge.eqBandCount : 10) + " Bands)"
+                        checked: bridge.eqEnabled
+                        onToggled: bridge.setEqEnabled(checked)
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "Equalizer Frequency Bands"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+                            Text {
+                                text: "Select the frequency resolution: 10 bands (1 octave), 15 bands (2/3 octave), or 31 bands (1/3 octave)."
+                                font.pixelSize: Theme.fontSizeSmall - 1
+                                color: Theme.textMuted
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        StyledComboBox {
+                            Layout.preferredWidth: 320
+                            model: ["10 Bands (ISO 1 Octave)", "15 Bands (ISO 2/3 Octave)", "31 Bands (ISO 1/3 Octave)"]
+                            currentIndex: {
+                                var bc = bridge ? bridge.eqBandCount : 10;
+                                if (bc === 31) return 2;
+                                if (bc === 15) return 1;
+                                return 0;
+                            }
+                            onActivated: function(index) {
+                                if (!bridge) return;
+                                if (index === 2) bridge.setEqBandCount(31);
+                                else if (index === 1) bridge.setEqBandCount(15);
+                                else bridge.setEqBandCount(10);
+                            }
+                        }
+                    }
+
+                    StyledCheckBox {
+                        Layout.fillWidth: true
+                        text: "Enable External DSP Plugins Chain (.clap)"
+                        checked: bridge.dspMasterEnabled
+                        onToggled: bridge.setDspMasterEnabled(checked)
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "DSP Pipeline Sequence Order"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+                            Text {
+                                text: "Determine whether the equalizer precedes or succeeds external dynamic processors."
+                                font.pixelSize: Theme.fontSizeSmall - 1
+                                color: Theme.textMuted
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        StyledComboBox {
+                            Layout.preferredWidth: 320
+                            model: [
+                                "Parametric Equalizer → External DSP Plugins",
+                                "External DSP Plugins → Parametric Equalizer"
+                            ]
+                            currentIndex: bridge.dspRoutingOrder
+                            onActivated: function(index) {
+                                bridge.setDspRoutingOrder(index)
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        StyledButton {
+                            text: "Select All"
+                            enabled: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
+                            onClicked: {
+                                if (!bridge) return;
+                                if (root.dspSearchQuery.trim() === "") {
+                                    bridge.setAllDspPluginsEnabled(true);
+                                } else {
+                                    var filtered = root.getFilteredDspPlugins();
+                                    for (var i = 0; i < filtered.length; ++i) {
+                                        bridge.setDspPluginEnabled(filtered[i].id, true);
+                                    }
+                                }
+                            }
+                        }
+
+                        StyledButton {
+                            text: "Unselect All"
+                            enabled: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
+                            onClicked: {
+                                if (!bridge) return;
+                                if (root.dspSearchQuery.trim() === "") {
+                                    bridge.setAllDspPluginsEnabled(false);
+                                } else {
+                                    var filtered = root.getFilteredDspPlugins();
+                                    for (var i = 0; i < filtered.length; ++i) {
+                                        bridge.setDspPluginEnabled(filtered[i].id, false);
+                                    }
+                                }
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        StyledButton {
+                            text: "Open DSP Plugins Directory"
+                            onClicked: bridge.openDspDirectory()
+                        }
+                        StyledButton {
+                            text: "Rescan DSP Plugins"
+                            onClicked: bridge.scanDspPlugins()
+                        }
+                    }
+
+                    // Search input bar
+                    Rectangle {
+                        visible: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 32
+                        radius: Theme.cornerRadiusSmall
+                        color: Theme.surfaceElevated
+                        border.color: dspSearchTf.activeFocus ? Theme.accent : Theme.panelBorder
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 6
+
+                            VectorIcon {
+                                name: "search"
+                                width: 14
+                                height: 14
+                                color: Theme.textMuted
+                            }
+
+                            TextInput {
+                                id: dspSearchTf
+                                Layout.fillWidth: true
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.textPrimary
+                                clip: true
+                                text: root.dspSearchQuery
+                                onTextChanged: root.dspSearchQuery = text
+
+                                Text {
+                                    anchors.fill: parent
+                                    text: "Search DSP plugins by name, vendor, description, or id..."
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textMuted
+                                    visible: !dspSearchTf.text && !dspSearchTf.activeFocus
+                                    verticalAlignment: Text.AlignVCenter
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            Rectangle {
+                                visible: dspSearchTf.text !== ""
+                                Layout.preferredWidth: 18
+                                Layout.preferredHeight: 18
+                                radius: 9
+                                color: clearPrefSearchMouse.containsMouse ? Theme.surface : "transparent"
+
+                                VectorIcon {
+                                    anchors.centerIn: parent
+                                    name: "clear"
+                                    width: 9
+                                    height: 9
+                                    color: Theme.textMuted
+                                }
+
+                                MouseArea {
+                                    id: clearPrefSearchMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        dspSearchTf.text = "";
+                                        root.dspSearchQuery = "";
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Status / Count indicator
+                    RowLayout {
+                        visible: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
+                        Layout.fillWidth: true
+                        Text {
+                            text: {
+                                var filtered = root.getFilteredDspPlugins();
+                                var total = bridge ? bridge.discoveredDspPlugins.length : 0;
+                                if (root.dspSearchQuery.trim() !== "") {
+                                    return "Showing " + filtered.length + " of " + total + " plugins";
+                                }
+                                return total + " plugins discovered in DSP search directories";
+                            }
+                            font.pixelSize: Theme.fontSizeSmall - 1
+                            color: Theme.textMuted
+                        }
+                    }
+
+                    // External DSP Plugins List
+                    Repeater {
+                        model: root.getFilteredDspPlugins()
+                        delegate: Rectangle {
+                            id: prefPluginCard
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: Math.max(62, prefCardRow.implicitHeight + 16)
+                            radius: Theme.cornerRadiusSmall
+                            color: modelData.enabled ? Theme.surfaceElevated : Theme.surface
+                            border.color: modelData.enabled ? Theme.accent : Theme.panelBorder
+                            border.width: 1
+                            clip: true
+
+                            RowLayout {
+                                id: prefCardRow
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                anchors.topMargin: 8
+                                anchors.bottomMargin: 8
+                                spacing: 12
+
+                                StyledCheckBox {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    checked: modelData.enabled
+                                    onToggled: bridge.setDspPluginEnabled(modelData.id, checked)
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.minimumWidth: 100
+                                    spacing: 2
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: modelData.name + (modelData.vendor ? " — " + modelData.vendor + " v" + modelData.version : "")
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
+                                        color: modelData.enabled ? Theme.accentHover : Theme.textPrimary
+                                        elide: Text.ElideRight
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: modelData.description ? modelData.description : modelData.libraryPath
+                                        font.pixelSize: Theme.fontSizeSmall - 1
+                                        color: Theme.textMuted
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                StyledButton {
+                                    visible: modelData.hasGui
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.preferredWidth: 140
+                                    Layout.preferredHeight: 30
+                                    text: (bridge && bridge.isDspPluginWindowVisible(modelData.id)) ? "Close Panel" : "Open Control Panel"
+                                    onClicked: {
+                                        if (!bridge) return;
+                                        if (bridge.isDspPluginWindowVisible(modelData.id)) {
+                                            bridge.hideDspPluginWindow(modelData.id);
+                                        } else {
+                                            bridge.showDspPluginWindow(modelData.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // No search results state
+                    Rectangle {
+                        visible: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0 && root.getFilteredDspPlugins().length === 0
+                        Layout.fillWidth: true
+                        implicitHeight: 64
+                        radius: Theme.cornerRadiusSmall
+                        color: Theme.background
+                        border.color: Theme.panelBorder
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 12
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "No DSP plugins match '" + root.dspSearchQuery + "'."
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.textMuted
+                            }
+
+                            StyledButton {
+                                text: "Clear Filter"
+                                onClicked: {
+                                    dspSearchTf.text = "";
+                                    root.dspSearchQuery = "";
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             // Queue Ergonomics
             ScrollView {
+                id: queueScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 4
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: queueScrollView.availableWidth
                     spacing: 16
 
                     Text {
@@ -2508,14 +2843,17 @@ Dialog {
 
             // Library & Folders
             ScrollView {
+                id: libraryScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 5
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: libraryScrollView.availableWidth
                     spacing: 16
 
                     RowLayout {
@@ -2804,14 +3142,17 @@ Dialog {
 
             // Metadata & Scrobbling
             ScrollView {
+                id: metadataScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 6
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: metadataScrollView.availableWidth
                     spacing: 16
 
                     Text {
@@ -2826,7 +3167,7 @@ Dialog {
                     // Last.fm
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: lastfmCol.implicitHeight + 24
+                        implicitHeight: lastfmCol.implicitHeight + 28
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
@@ -2835,7 +3176,7 @@ Dialog {
                         ColumnLayout {
                             id: lastfmCol
                             anchors.fill: parent
-                            anchors.margins: 12
+                            anchors.margins: 14
                             spacing: 10
 
                             StyledCheckBox {
@@ -2881,7 +3222,7 @@ Dialog {
                     // ListenBrainz
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: lbCol.implicitHeight + 24
+                        implicitHeight: lbCol.implicitHeight + 28
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
@@ -2890,7 +3231,7 @@ Dialog {
                         ColumnLayout {
                             id: lbCol
                             anchors.fill: parent
-                            anchors.margins: 12
+                            anchors.margins: 14
                             spacing: 10
 
                             StyledCheckBox {
@@ -2936,7 +3277,7 @@ Dialog {
                     // Scrobble Rules
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: rulesCol.implicitHeight + 24
+                        implicitHeight: rulesCol.implicitHeight + 28
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
@@ -2945,7 +3286,7 @@ Dialog {
                         ColumnLayout {
                             id: rulesCol
                             anchors.fill: parent
-                            anchors.margins: 12
+                            anchors.margins: 14
                             spacing: 12
 
                             Text {
@@ -2966,7 +3307,7 @@ Dialog {
                                     Layout.preferredWidth: 200
                                 }
 
-                                Slider {
+                                StyledSlider {
                                     Layout.fillWidth: true
                                     from: 50
                                     to: 100
@@ -2987,7 +3328,7 @@ Dialog {
                                     Layout.preferredWidth: 200
                                 }
 
-                                Slider {
+                                StyledSlider {
                                     Layout.fillWidth: true
                                     from: 30
                                     to: 300
@@ -3008,7 +3349,7 @@ Dialog {
                     // Lyrics & Extraction
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: lyricsCol.implicitHeight + 24
+                        implicitHeight: lyricsCol.implicitHeight + 28
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
@@ -3017,7 +3358,7 @@ Dialog {
                         ColumnLayout {
                             id: lyricsCol
                             anchors.fill: parent
-                            anchors.margins: 12
+                            anchors.margins: 14
                             spacing: 10
 
                             Text {
@@ -3037,6 +3378,7 @@ Dialog {
                                     Layout.fillWidth: true
                                 }
                                 StyledComboBox {
+                                    Layout.preferredWidth: 240
                                     model: [
                                         "Local .lrc sidecar first",
                                         "Embedded USLT/SYLT tags first",
@@ -3059,14 +3401,17 @@ Dialog {
 
             // Keyboard Shortcuts
             ScrollView {
+                id: shortcutsScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 7
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: shortcutsScrollView.availableWidth
                     spacing: 14
 
                     RowLayout {
@@ -3216,14 +3561,17 @@ Dialog {
 
             // Diagnostics & Advanced
             ScrollView {
+                id: diagnosticsScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 8
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: diagnosticsScrollView.availableWidth
                     spacing: 16
 
                     Text {
@@ -3238,7 +3586,7 @@ Dialog {
                     // Logging Card
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: logCol.implicitHeight + 24
+                        implicitHeight: logCol.implicitHeight + 28
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
@@ -3247,8 +3595,8 @@ Dialog {
                         ColumnLayout {
                             id: logCol
                             anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 10
+                            anchors.margins: 14
+                            spacing: 12
 
                             Text {
                                 text: "Logging & System Diagnostics"
@@ -3259,7 +3607,7 @@ Dialog {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 12
+                                spacing: 16
                                 Text {
                                     text: "Log Verbosity Level"
                                     font.pixelSize: Theme.fontSizeSmall
@@ -3267,6 +3615,7 @@ Dialog {
                                     Layout.fillWidth: true
                                 }
                                 StyledComboBox {
+                                    Layout.preferredWidth: 160
                                     model: ["Trace", "Debug", "Info", "Warning", "Error"]
                                     currentIndex: Math.max(0, model.indexOf(bridge.loggingVerbosity))
                                     onActivated: bridge.setLoggingVerbosity(currentText)
@@ -3275,7 +3624,7 @@ Dialog {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 10
+                                spacing: 12
 
                                 StyledButton {
                                     Layout.fillWidth: true
@@ -3295,7 +3644,7 @@ Dialog {
                     // Audio & Database Health Card
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: healthCol.implicitHeight + 24
+                        implicitHeight: healthCol.implicitHeight + 28
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
@@ -3304,8 +3653,8 @@ Dialog {
                         ColumnLayout {
                             id: healthCol
                             anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 10
+                            anchors.margins: 14
+                            spacing: 12
 
                             Text {
                                 text: "Database & Pipeline Health"
@@ -3316,7 +3665,7 @@ Dialog {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 10
+                                spacing: 12
 
                                 StyledButton {
                                     Layout.fillWidth: true
@@ -3328,7 +3677,9 @@ Dialog {
 
                                 StyledButton {
                                     Layout.fillWidth: true
-                                    text: "Audio Stream Diagnostics"
+                                    text: "Audio Pipeline Diagnostics"
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: "Open Audio Pipeline Diagnostics (Ctrl+J)"
                                     onClicked: bridge.openAudioDiagnostics()
                                 }
                             }
@@ -3358,7 +3709,7 @@ Dialog {
                     // Reset Settings Card
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: resetCol.implicitHeight + 24
+                        implicitHeight: resetCol.implicitHeight + 28
                         color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
@@ -3367,8 +3718,8 @@ Dialog {
                         ColumnLayout {
                             id: resetCol
                             anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 10
+                            anchors.margins: 14
+                            spacing: 12
 
                             Text {
                                 text: "Factory Defaults"
@@ -3397,14 +3748,17 @@ Dialog {
 
             // Plugins & Extensions (Issue #33)
             ScrollView {
+                id: pluginsScrollView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 24
                 visible: activeCategory === 9
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
                 clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                contentWidth: availableWidth
 
                 ColumnLayout {
-                    width: parent.width - 24
+                    width: pluginsScrollView.availableWidth
                     spacing: 16
 
                     RowLayout {
@@ -3481,96 +3835,103 @@ Dialog {
                             id: pluginCard
                             required property var modelData
                             Layout.fillWidth: true
-                            implicitHeight: cardContent.implicitHeight + 24
+                            implicitHeight: cardCol.implicitHeight + 28
                             color: Theme.background
                             border.color: Theme.panelBorder
                             border.width: 1
                             radius: Theme.cornerRadiusSmall
 
-                            RowLayout {
-                                id: cardContent
+                            ColumnLayout {
+                                id: cardCol
                                 anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 14
+                                anchors.margins: 14
+                                spacing: 10
 
-                                VectorIcon {
-                                    name: (modelData.capabilities.indexOf("visualizer") >= 0) ? "equalizer" :
-                                          ((modelData.capabilities.indexOf("lyrics") >= 0) ? "document" : "settings")
-                                    width: 24
-                                    height: 24
-                                    color: modelData.enabled ? Theme.accent : Theme.textMuted
-                                }
-
-                                ColumnLayout {
+                                // Top row: Icon, Name, Version, Author, Spacer, Status/Toggle
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 4
+                                    spacing: 12
 
-                                    RowLayout {
+                                    VectorIcon {
+                                        name: (modelData.capabilities.indexOf("visualizer") >= 0) ? "equalizer" :
+                                              ((modelData.capabilities.indexOf("lyrics") >= 0) ? "document" : "settings")
+                                        width: 22
+                                        height: 22
+                                        color: modelData.enabled ? Theme.accent : Theme.textMuted
+                                    }
+
+                                    ColumnLayout {
+                                        spacing: 2
                                         Layout.fillWidth: true
-                                        spacing: 8
 
-                                        Text {
-                                            text: modelData.name
-                                            font.bold: true
-                                            font.pixelSize: Theme.fontSizeBase
-                                            color: Theme.textPrimary
-                                        }
+                                        RowLayout {
+                                            spacing: 8
+                                            Text {
+                                                text: modelData.name
+                                                font.bold: true
+                                                font.pixelSize: Theme.fontSizeBase
+                                                color: Theme.textPrimary
+                                                elide: Text.ElideRight
+                                            }
 
-                                        Text {
-                                            text: "v" + modelData.version
-                                            font.pixelSize: Theme.fontSizeSmall
-                                            color: Theme.textMuted
-                                        }
+                                            Text {
+                                                text: "v" + modelData.version
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                color: Theme.textMuted
+                                            }
 
-                                        Text {
-                                            text: "by " + modelData.author
-                                            font.pixelSize: Theme.fontSizeSmall
-                                            color: Theme.textSecondary
-                                        }
-
-                                        Item { Layout.fillWidth: true }
-
-                                        Badge {
-                                            text: modelData.isCompatible ? "API v" + modelData.targetApiVersion : "Incompatible"
-                                            badgeColor: modelData.isCompatible ? Theme.selection : "#3d1414"
-                                            textColor: modelData.isCompatible ? Theme.accentHover : "#ff6b6b"
-                                            badgeBorderColor: modelData.isCompatible ? Theme.accent : "#ff4444"
-                                        }
-
-                                        Repeater {
-                                            model: modelData.capabilities
-                                            delegate: Badge {
-                                                required property string modelData
-                                                text: modelData
-                                                badgeColor: Theme.surfaceElevated
-                                                textColor: Theme.textPrimary
-                                                badgeBorderColor: Theme.panelBorder
+                                            Text {
+                                                text: "by " + modelData.author
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                color: Theme.textSecondary
+                                                elide: Text.ElideRight
                                             }
                                         }
                                     }
 
-                                    Text {
-                                        text: modelData.description
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        color: Theme.textMuted
-                                        wrapMode: Text.WordWrap
-                                        Layout.fillWidth: true
+                                    Item { Layout.fillWidth: true }
+
+                                    Badge {
+                                        visible: !modelData.isCompatible
+                                        text: "Incompatible API"
+                                        badgeColor: "#3d1414"
+                                        textColor: "#ff6b6b"
+                                        badgeBorderColor: "#ff4444"
                                     }
 
-                                    Text {
-                                        visible: modelData.loadError && modelData.loadError.length > 0
-                                        text: "Load Status: " + modelData.loadError
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        color: "#ff6b6b"
-                                        wrapMode: Text.WordWrap
-                                        Layout.fillWidth: true
+                                    StyledCheckBox {
+                                        text: modelData.enabled ? "Enabled" : "Disabled"
+                                        checked: modelData.enabled
+                                        onToggled: bridge.setPluginEnabled(modelData.id, checked)
                                     }
                                 }
 
+                                // Description
+                                Text {
+                                    text: modelData.description
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textMuted
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+
+                                // Error status if present
+                                Text {
+                                    visible: modelData.loadError && modelData.loadError.length > 0
+                                    text: "Load Error: " + modelData.loadError
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: "#ff6b6b"
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+
+                                // Action buttons row
                                 RowLayout {
+                                    Layout.fillWidth: true
                                     spacing: 8
 
-                                    // Dynamic custom actions registered via SDK / manifest
+                                    Item { Layout.fillWidth: true }
+
                                     Repeater {
                                         model: modelData.customActions ? modelData.customActions : []
                                         delegate: StyledButton {
@@ -3578,9 +3939,7 @@ Dialog {
                                             text: modelData.label
                                             ToolTip.visible: (hovered || activeFocus) && modelData.tooltip && modelData.tooltip.length > 0
                                             ToolTip.text: modelData.tooltip ? modelData.tooltip : ""
-                                            onClicked: {
-                                                bridge.triggerPluginAction(pluginCard.modelData.id, modelData.id)
-                                            }
+                                            onClicked: bridge.triggerPluginAction(pluginCard.modelData.id, modelData.id)
                                         }
                                     }
 
@@ -3589,14 +3948,6 @@ Dialog {
                                         onClicked: {
                                             root.selectedPluginDetail = modelData
                                             pluginConfigDialog.open()
-                                        }
-                                    }
-
-                                    StyledCheckBox {
-                                        text: modelData.enabled ? "Enabled" : "Disabled"
-                                        checked: modelData.enabled
-                                        onToggled: {
-                                            bridge.setPluginEnabled(modelData.id, checked)
                                         }
                                     }
                                 }
@@ -3610,7 +3961,7 @@ Dialog {
 
     ResizeGrip {
         target: root
-        minWidth: 720
+        minWidth: 760
         minHeight: 520
     }
 }

@@ -49,6 +49,21 @@ else()
     endif()
 endif()
 
+# ALSA and PipeWire discovery
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(ALSA QUIET alsa)
+    pkg_check_modules(PIPEWIRE QUIET libpipewire-0.3)
+endif()
+
+if(ALSA_FOUND)
+    add_compile_definitions(PICAUDIO_ENABLE_ALSA)
+endif()
+
+if(PIPEWIRE_FOUND)
+    add_compile_definitions(PICAUDIO_ENABLE_PIPEWIRE)
+endif()
+
 if(COMMAND qt_policy)
     if(QT_KNOWN_POLICY_QTP0001)
         qt_policy(SET QTP0001 NEW)
@@ -78,6 +93,43 @@ qt_add_library(ui_adapter STATIC
     metadata/TagLibMetadataAdapter.cpp
     storage/SqliteDatabaseAdapter.hpp
     storage/SqliteDatabaseAdapter.cpp
+    audio/LockFreeRingBuffer.hpp
+    audio/AudioThreadPriority.hpp
+    audio/AudioThreadPriority.cpp
+    audio/IAudioSink.hpp
+    audio/alsa/AlsaAudioSink.hpp
+    audio/alsa/AlsaAudioSink.cpp
+    audio/pipewire/PipeWireAudioSink.hpp
+    audio/pipewire/PipeWireAudioSink.cpp
+    audio/wasapi/WasapiAudioSink.hpp
+    audio/wasapi/WasapiAudioSink.cpp
+    audio/coreaudio/CoreAudioSink.hpp
+    audio/coreaudio/CoreAudioSink.cpp
+    audio/decoders/IAudioDecoder.hpp
+    audio/decoders/WavAudioDecoder.hpp
+    audio/decoders/WavAudioDecoder.cpp
+    audio/decoders/FlacAudioDecoder.hpp
+    audio/decoders/FlacAudioDecoder.cpp
+    audio/decoders/DsdAudioDecoder.hpp
+    audio/decoders/DsdAudioDecoder.cpp
+    audio/decoders/AudioDecoderFactory.hpp
+    audio/decoders/AudioDecoderFactory.cpp
+    audio/dsp/ChannelMatrixProcessor.hpp
+    audio/dsp/ChannelMatrixProcessor.cpp
+    audio/dsp/ParametricEqualizer.hpp
+    audio/dsp/ParametricEqualizer.cpp
+    audio/dsp/LoudnessAndDitherProcessor.hpp
+    audio/dsp/LoudnessAndDitherProcessor.cpp
+    audio/dsp/CrossfadeEngine.hpp
+    audio/dsp/CrossfadeEngine.cpp
+    audio/dsp/ClapPluginHost.hpp
+    audio/dsp/ClapPluginHost.cpp
+    audio/dsp/DspManager.hpp
+    audio/dsp/DspManager.cpp
+    audio/CueSheetParser.hpp
+    audio/CueSheetParser.cpp
+    audio/WaveformExtractor.hpp
+    audio/WaveformExtractor.cpp
     audio/BitPerfectAudioAdapter.hpp
     audio/BitPerfectAudioAdapter.cpp
     desktop/PlatformMediaControls.hpp
@@ -135,6 +187,7 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/components/EqualizerOverlay.qml
         ui_qt/qml/components/MovableHeaderArea.qml
         ui_qt/qml/components/ResizeGrip.qml
+        ui_qt/qml/components/StyledComboBox.qml
         ui_qt/qml/components/WaveVisualizer.qml
         ui_qt/qml/components/ToastBanner.qml
         ui_qt/qml/dialogs/PreferencesDialog.qml
@@ -142,6 +195,7 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/dialogs/OpenUrlDialog.qml
         ui_qt/qml/dialogs/ShortcutsDialog.qml
         ui_qt/qml/dialogs/DiagnosticsDialog.qml
+        ui_qt/qml/dialogs/ChannelMatrixDialog.qml
         ui_qt/qml/dialogs/AboutDialog.qml
         ui_qt/qml/dialogs/SleepTimerDialog.qml
         ui_qt/qml/dialogs/NewPlaylistDialog.qml
@@ -172,8 +226,11 @@ target_link_libraries(ui_adapter PUBLIC
     Qt6::Multimedia
     Qt6::Widgets
     $<$<BOOL:${Qt6DBus_FOUND}>:Qt6::DBus>
+    $<$<BOOL:${ALSA_FOUND}>:${ALSA_LIBRARIES}>
+    $<$<BOOL:${PIPEWIRE_FOUND}>:${PIPEWIRE_LIBRARIES}>
     ${SQLITE_LIBRARIES}
     ${TAGLIB_LIBRARIES}
+    ${CMAKE_DL_LIBS}
 )
 
 if(WIN32)
@@ -189,8 +246,17 @@ target_include_directories(ui_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/metadata
     ${CMAKE_CURRENT_SOURCE_DIR}/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/audio
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp/clap/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/wasapi
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/coreaudio
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/decoders
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/alsa
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/pipewire
     ${CMAKE_CURRENT_SOURCE_DIR}/desktop
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin
     ${SQLITE_INCLUDE_DIRS}
     ${TAGLIB_INCLUDE_DIRS}
+    ${ALSA_INCLUDE_DIRS}
+    ${PIPEWIRE_INCLUDE_DIRS}
 )

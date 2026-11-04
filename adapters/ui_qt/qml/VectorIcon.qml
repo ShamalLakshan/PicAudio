@@ -407,6 +407,71 @@ Canvas {
             ctx.stroke();
             ctx.fillRect(w * 0.45, h * 0.25, w * 0.1, w * 0.1);
             ctx.fillRect(w * 0.45, h * 0.42, w * 0.1, h * 0.3);
+        } else if (name === "seek_backward") {
+            ctx.beginPath();
+            ctx.moveTo(w * 0.48, h * 0.22);
+            ctx.lineTo(w * 0.14, h * 0.5);
+            ctx.lineTo(w * 0.48, h * 0.78);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.86, h * 0.22);
+            ctx.lineTo(w * 0.52, h * 0.5);
+            ctx.lineTo(w * 0.86, h * 0.78);
+            ctx.closePath();
+            ctx.fill();
+        } else if (name === "seek_forward") {
+            ctx.beginPath();
+            ctx.moveTo(w * 0.14, h * 0.22);
+            ctx.lineTo(w * 0.48, h * 0.5);
+            ctx.lineTo(w * 0.14, h * 0.78);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.52, h * 0.22);
+            ctx.lineTo(w * 0.86, h * 0.5);
+            ctx.lineTo(w * 0.52, h * 0.78);
+            ctx.closePath();
+            ctx.fill();
+        } else if (name === "timer") {
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.54, w * 0.35, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.42, h * 0.12);
+            ctx.lineTo(w * 0.58, h * 0.12);
+            ctx.moveTo(w * 0.5, h * 0.12);
+            ctx.lineTo(w * 0.5, h * 0.20);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.5, h * 0.34);
+            ctx.lineTo(w * 0.5, h * 0.54);
+            ctx.lineTo(w * 0.68, h * 0.54);
+            ctx.stroke();
+        } else if (name === "stop_after") {
+            ctx.fillRect(w * 0.14, h * 0.24, w * 0.46, h * 0.46);
+            ctx.beginPath();
+            ctx.moveTo(w * 0.72, h * 0.34);
+            ctx.lineTo(w * 0.82, h * 0.26);
+            ctx.lineTo(w * 0.82, h * 0.70);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.74, h * 0.70);
+            ctx.lineTo(w * 0.90, h * 0.70);
+            ctx.stroke();
+        } else if (name === "diagnostics") {
+            ctx.strokeRect(w * 0.25, h * 0.25, w * 0.5, h * 0.5);
+            ctx.fillRect(w * 0.38, h * 0.38, w * 0.24, h * 0.24);
+            ctx.beginPath();
+            ctx.moveTo(w * 0.36, h * 0.12); ctx.lineTo(w * 0.36, h * 0.25);
+            ctx.moveTo(w * 0.64, h * 0.12); ctx.lineTo(w * 0.64, h * 0.25);
+            ctx.moveTo(w * 0.36, h * 0.75); ctx.lineTo(w * 0.36, h * 0.88);
+            ctx.moveTo(w * 0.64, h * 0.75); ctx.lineTo(w * 0.64, h * 0.88);
+            ctx.moveTo(w * 0.12, h * 0.36); ctx.lineTo(w * 0.25, h * 0.36);
+            ctx.moveTo(w * 0.12, h * 0.64); ctx.lineTo(w * 0.25, h * 0.64);
+            ctx.moveTo(w * 0.75, h * 0.36); ctx.lineTo(w * 0.88, h * 0.36);
+            ctx.moveTo(w * 0.75, h * 0.64); ctx.lineTo(w * 0.88, h * 0.64);
+            ctx.stroke();
         }
     }
 }

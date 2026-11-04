@@ -10,6 +10,9 @@ target_compile_definitions(spectrum_visualizer PRIVATE PICAUDIO_PLUGIN_BUILD)
 target_link_libraries(spectrum_visualizer PRIVATE picaudio_sdk)
 
 set_target_properties(spectrum_visualizer PROPERTIES
+    AUTOMOC OFF
+    AUTOUIC OFF
+    AUTORCC OFF
     PREFIX ""
     OUTPUT_NAME "spectrum_visualizer"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins/spectrum_visualizer"

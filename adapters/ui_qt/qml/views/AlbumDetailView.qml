@@ -247,9 +247,12 @@ Item {
                             spacing: 8
 
                             Rectangle {
-                                width: albPlayBtnText.implicitWidth + 20
-                                height: 24
-                                radius: 2
+                                Layout.preferredWidth: albPlayBtnText.implicitWidth + 24
+                                Layout.preferredHeight: 28
+                                Layout.alignment: Qt.AlignVCenter
+                                width: Layout.preferredWidth
+                                height: 28
+                                radius: Theme.cornerRadiusSmall
                                 color: albPlayMouse.containsMouse ? Theme.accentHover : Theme.accent
 
                                 RowLayout {
@@ -269,9 +272,12 @@ Item {
                             }
 
                             Rectangle {
-                                width: albQueueBtnText.implicitWidth + 18
-                                height: 24
-                                radius: 2
+                                Layout.preferredWidth: albQueueBtnText.implicitWidth + 22
+                                Layout.preferredHeight: 28
+                                Layout.alignment: Qt.AlignVCenter
+                                width: Layout.preferredWidth
+                                height: 28
+                                radius: Theme.cornerRadiusSmall
                                 color: albQueueMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
                                 border.color: Theme.panelBorder
 
@@ -292,9 +298,12 @@ Item {
                             }
 
                             Rectangle {
-                                width: viewInTableText.implicitWidth + 18
-                                height: 24
-                                radius: 2
+                                Layout.preferredWidth: viewInTableText.implicitWidth + 22
+                                Layout.preferredHeight: 28
+                                Layout.alignment: Qt.AlignVCenter
+                                width: Layout.preferredWidth
+                                height: 28
+                                radius: Theme.cornerRadiusSmall
                                 color: viewInTableMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
                                 border.color: Theme.panelBorder
 
@@ -320,9 +329,12 @@ Item {
                             }
 
                             Rectangle {
-                                width: backToGridText.implicitWidth + 16
-                                height: 24
-                                radius: 2
+                                Layout.preferredWidth: backToGridText.implicitWidth + 20
+                                Layout.preferredHeight: 28
+                                Layout.alignment: Qt.AlignVCenter
+                                width: Layout.preferredWidth
+                                height: 28
+                                radius: Theme.cornerRadiusSmall
                                 color: backGridMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
                                 border.color: Theme.panelBorder
 

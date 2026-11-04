@@ -36,6 +36,7 @@ ThemeLoader::ThemeLoader(QObject *parent)
 
   // Load Dark Studio as initial default
   setThemeId("dark-studio");
+  setDensityPreset("Comfortable");
 }
 
 QString ThemeLoader::getUserThemesDir() const {

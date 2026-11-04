@@ -93,8 +93,8 @@ TEST(QueueServiceTest, ReversibleHistoryStackNavigatesBackwards) {
   auto t3 = makeTrack("3", "Song 3", "Artist", "Album");
 
   queue.playNow(t1, {t1, t2, t3}, 0);
-  queue.next(); // plays t2
-  queue.next(); // plays t3
+  EXPECT_EQ(queue.next()->id, "2"); // plays t2
+  EXPECT_EQ(queue.next()->id, "3"); // plays t3
 
   EXPECT_EQ(queue.getCurrentTrack()->id, "3");
 
@@ -124,15 +124,15 @@ TEST(QueueServiceTest, RepeatModes) {
 
   // Repeat All
   queue.setRepeatMode(core::RepeatMode::All);
-  queue.next();                  // plays t2
-  auto loopFirst = queue.next(); // loops back to t1
+  EXPECT_EQ(queue.next()->id, "2"); // plays t2
+  auto loopFirst = queue.next();    // loops back to t1
   ASSERT_TRUE(loopFirst.has_value());
   EXPECT_EQ(loopFirst->id, "1");
 
   // Repeat Off
   queue.setRepeatMode(core::RepeatMode::Off);
-  queue.next();                  // plays t2
-  auto shouldEnd = queue.next(); // ends
+  EXPECT_EQ(queue.next()->id, "2"); // plays t2
+  auto shouldEnd = queue.next();    // ends
   EXPECT_FALSE(shouldEnd.has_value());
 }
 

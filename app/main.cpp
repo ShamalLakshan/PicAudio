@@ -29,23 +29,28 @@ int main(int argc, char *argv[]) {
 
   if (app.arguments().contains(QStringLiteral("--help")) ||
       app.arguments().contains(QStringLiteral("-h"))) {
-    std::cout << "PicAudio - Lightweight high-fidelity music player\n\n"
-              << "Usage: picaudio [OPTIONS] [FILES/FOLDERS...]\n\n"
-              << "Options:\n"
-              << "  --play             Resume or start playback\n"
-              << "  --pause            Pause active playback\n"
-              << "  --toggle           Toggle between play and pause\n"
-              << "  --stop             Stop playback\n"
-              << "  --next             Skip to next track in queue\n"
-              << "  --prev, --previous Return to previous track\n"
-              << "  --volume <0-100>   Set playback volume percentage\n"
-              << "  --enqueue, -e      Append files or folders to queue "
-                 "without interrupting playback\n"
-              << "  --raise, --show    Bring primary window to the foreground\n"
-              << "  --portable         Run in portable data mode\n"
-              << "  --help, -h         Show this help message\n";
+    std::cout
+        << "PicAudio - Lightweight high-fidelity music player\n\n"
+        << "Usage: picaudio [OPTIONS] [FILES/FOLDERS...]\n\n"
+        << "Options:\n"
+        << "  --play             Resume or start playback\n"
+        << "  --pause            Pause active playback\n"
+        << "  --toggle           Toggle between play and pause\n"
+        << "  --stop             Stop playback\n"
+        << "  --next             Skip to next track in queue\n"
+        << "  --prev, --previous Return to previous track\n"
+        << "  --volume <0-100>   Set playback volume percentage\n"
+        << "  --enqueue, -e      Append files or folders to queue "
+           "without interrupting playback\n"
+        << "  --raise, --show    Bring primary window to the foreground\n"
+        << "  --check-qml        Validate QML components headless and exit\n"
+        << "  --portable         Run in portable data mode\n"
+        << "  --help, -h         Show this help message\n";
     return 0;
   }
+
+  const bool checkQmlOnly =
+      app.arguments().contains(QStringLiteral("--check-qml"));
 
   // Determine application data directory
   QString appDataDir;
@@ -106,7 +111,13 @@ int main(int argc, char *argv[]) {
   // Bridge connecting core to QML
   QtBridge bridge(playerService, libraryService, themeLoader.get());
 
-  // Dynamic Plugin Manager (Phase 2)
+  // Dynamic Plugin Manager (Phase 2) & External DSP Manager (Phase 3)
+  bridge.setDspManager(&audioEngine->dspManager());
+  audioEngine->dspManager().initialize(
+      {(appDataDir + "/dsp").toStdString(),
+       (QCoreApplication::applicationDirPath() + "/dsp").toStdString(),
+       (QCoreApplication::applicationDirPath() + "/../dsp").toStdString()});
+
   adapters::PluginManager pluginManager;
   pluginManager.setThemeLoader(themeLoader.get());
   pluginManager.setNavigateCallback([&bridge](int view) {
@@ -142,7 +153,8 @@ int main(int argc, char *argv[]) {
 
   // Desktop integration (Single-instance IPC, MPRIS, Tray, Notifications)
   adapters::DesktopIntegrationManager desktop(&bridge);
-  if (!desktop.initialize(app.arguments(), QDir::currentPath())) {
+  if (!checkQmlOnly &&
+      !desktop.initialize(app.arguments(), QDir::currentPath())) {
     // Secondary instance forwarded arguments to primary instance; exit cleanly
     return 0;
   }
@@ -153,7 +165,9 @@ int main(int argc, char *argv[]) {
   });
 
   // Restore playback session according to startup action preferences
-  bridge.restorePlaybackSession();
+  if (!checkQmlOnly) {
+    bridge.restorePlaybackSession();
+  }
 
   // QML engine and album art provider
   QString coversDir = appDataDir + "/covers";
@@ -185,9 +199,16 @@ int main(int argc, char *argv[]) {
   }
   QObject::connect(
       &engine, &QQmlApplicationEngine::objectCreated, &app,
-      [&desktop, url](QObject *obj, const QUrl &objUrl) {
+      [&desktop, url, checkQmlOnly](QObject *obj, const QUrl &objUrl) {
         if (!obj && url == objUrl) {
-          QCoreApplication::exit(-1);
+          std::cerr << "PicAudio: Failed to load QML root component: "
+                    << url.toString().toStdString() << std::endl;
+          QCoreApplication::exit(1);
+          return;
+        }
+        if (checkQmlOnly && url == objUrl) {
+          std::cout << "PicAudio: QML validation succeeded." << std::endl;
+          QCoreApplication::exit(0);
           return;
         }
         if (auto *win = qobject_cast<QQuickWindow *>(obj)) {

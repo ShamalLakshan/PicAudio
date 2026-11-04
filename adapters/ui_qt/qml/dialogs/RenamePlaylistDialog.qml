@@ -139,6 +139,7 @@ Dialog {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: Theme.spacingSmall
+                Layout.rightMargin: 28
                 spacing: Theme.spacingMedium
 
                 Item { Layout.fillWidth: true }

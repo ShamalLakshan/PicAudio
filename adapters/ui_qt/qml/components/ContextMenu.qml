@@ -1032,7 +1032,7 @@ Menu {
     // --- Bottom Transport Deck: Codec Badge (Issue #13) ---
 
     ContextMenuItem {
-        text: "Audio Diagnostics... (Ctrl+J)"
+        text: "Audio Pipeline Diagnostics... (Ctrl+J)"
         visible: root.menuType === "codec"
         onTriggered: root.showAudioDiagnosticsRequested()
     }
