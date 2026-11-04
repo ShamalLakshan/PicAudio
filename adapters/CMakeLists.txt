@@ -101,8 +101,35 @@ qt_add_library(ui_adapter STATIC
     audio/alsa/AlsaAudioSink.cpp
     audio/pipewire/PipeWireAudioSink.hpp
     audio/pipewire/PipeWireAudioSink.cpp
+    audio/wasapi/WasapiAudioSink.hpp
+    audio/wasapi/WasapiAudioSink.cpp
+    audio/coreaudio/CoreAudioSink.hpp
+    audio/coreaudio/CoreAudioSink.cpp
+    audio/decoders/IAudioDecoder.hpp
+    audio/decoders/WavAudioDecoder.hpp
+    audio/decoders/WavAudioDecoder.cpp
+    audio/decoders/FlacAudioDecoder.hpp
+    audio/decoders/FlacAudioDecoder.cpp
+    audio/decoders/DsdAudioDecoder.hpp
+    audio/decoders/DsdAudioDecoder.cpp
+    audio/decoders/AudioDecoderFactory.hpp
+    audio/decoders/AudioDecoderFactory.cpp
     audio/dsp/ChannelMatrixProcessor.hpp
     audio/dsp/ChannelMatrixProcessor.cpp
+    audio/dsp/ParametricEqualizer.hpp
+    audio/dsp/ParametricEqualizer.cpp
+    audio/dsp/LoudnessAndDitherProcessor.hpp
+    audio/dsp/LoudnessAndDitherProcessor.cpp
+    audio/dsp/CrossfadeEngine.hpp
+    audio/dsp/CrossfadeEngine.cpp
+    audio/dsp/ClapPluginHost.hpp
+    audio/dsp/ClapPluginHost.cpp
+    audio/dsp/DspManager.hpp
+    audio/dsp/DspManager.cpp
+    audio/CueSheetParser.hpp
+    audio/CueSheetParser.cpp
+    audio/WaveformExtractor.hpp
+    audio/WaveformExtractor.cpp
     audio/BitPerfectAudioAdapter.hpp
     audio/BitPerfectAudioAdapter.cpp
     desktop/PlatformMediaControls.hpp
@@ -160,6 +187,7 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/components/EqualizerOverlay.qml
         ui_qt/qml/components/MovableHeaderArea.qml
         ui_qt/qml/components/ResizeGrip.qml
+        ui_qt/qml/components/StyledComboBox.qml
         ui_qt/qml/components/WaveVisualizer.qml
         ui_qt/qml/components/ToastBanner.qml
         ui_qt/qml/dialogs/PreferencesDialog.qml
@@ -202,6 +230,7 @@ target_link_libraries(ui_adapter PUBLIC
     $<$<BOOL:${PIPEWIRE_FOUND}>:${PIPEWIRE_LIBRARIES}>
     ${SQLITE_LIBRARIES}
     ${TAGLIB_LIBRARIES}
+    ${CMAKE_DL_LIBS}
 )
 
 if(WIN32)
@@ -218,6 +247,10 @@ target_include_directories(ui_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/audio
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp/clap/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/wasapi
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/coreaudio
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/decoders
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/alsa
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/pipewire
     ${CMAKE_CURRENT_SOURCE_DIR}/desktop

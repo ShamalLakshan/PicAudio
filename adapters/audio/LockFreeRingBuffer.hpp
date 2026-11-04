@@ -72,7 +72,14 @@ public:
 
     const size_t currentWrite = m_writeIndex.load(std::memory_order_relaxed);
     const size_t currentRead = m_readIndex.load(std::memory_order_acquire);
-    const size_t freeSpace = (m_capacity - 1) - (currentWrite - currentRead);
+    if (currentWrite < currentRead) {
+      return 0;
+    }
+    const size_t used = currentWrite - currentRead;
+    if (used >= m_capacity - 1) {
+      return 0;
+    }
+    const size_t freeSpace = (m_capacity - 1) - used;
     const size_t toWrite = std::min(count, freeSpace);
 
     if (toWrite == 0) {
@@ -114,8 +121,11 @@ public:
 
     const size_t currentRead = m_readIndex.load(std::memory_order_relaxed);
     const size_t currentWrite = m_writeIndex.load(std::memory_order_acquire);
+    if (currentWrite <= currentRead) {
+      return 0;
+    }
     const size_t available = currentWrite - currentRead;
-    const size_t toRead = std::min(count, available);
+    const size_t toRead = std::min({count, available, m_capacity - 1});
 
     if (toRead == 0) {
       return 0;
@@ -150,7 +160,10 @@ public:
   [[nodiscard]] size_t availableRead() const {
     const size_t currentRead = m_readIndex.load(std::memory_order_relaxed);
     const size_t currentWrite = m_writeIndex.load(std::memory_order_acquire);
-    return currentWrite - currentRead;
+    if (currentWrite <= currentRead) {
+      return 0;
+    }
+    return std::min(currentWrite - currentRead, m_capacity - 1);
   }
 
   /**
@@ -159,7 +172,14 @@ public:
   [[nodiscard]] size_t availableWrite() const {
     const size_t currentWrite = m_writeIndex.load(std::memory_order_relaxed);
     const size_t currentRead = m_readIndex.load(std::memory_order_acquire);
-    return (m_capacity - 1) - (currentWrite - currentRead);
+    if (currentWrite < currentRead) {
+      return 0;
+    }
+    const size_t used = currentWrite - currentRead;
+    if (used >= m_capacity - 1) {
+      return 0;
+    }
+    return (m_capacity - 1) - used;
   }
 
   /**
@@ -180,11 +200,16 @@ public:
   }
 
   /**
-   * @brief Resets read and write pointers to empty state.
+   * @brief Discards all unread elements in the ring buffer.
+   *
+   * Advances the read pointer to the current write pointer. This is safe
+   * to call concurrently with producer and consumer threads because indices
+   * monotonically advance and will never cause readIndex > writeIndex
+   * underflow.
    */
   void reset() {
-    m_writeIndex.store(0, std::memory_order_relaxed);
-    m_readIndex.store(0, std::memory_order_relaxed);
+    const size_t writePos = m_writeIndex.load(std::memory_order_relaxed);
+    m_readIndex.store(writePos, std::memory_order_release);
   }
 
 private:

@@ -17,6 +17,45 @@ Dialog {
 
     property int customMinutes: 30
 
+    component StyledCheckBox: CheckBox {
+        id: cbControl
+        implicitHeight: 28
+        hoverEnabled: true
+        indicator: Rectangle {
+            implicitWidth: 16
+            implicitHeight: 16
+            x: cbControl.leftPadding
+            y: parent.height / 2 - height / 2
+            radius: Theme.cornerRadiusSmall
+            color: cbControl.checked ? Theme.accent : "transparent"
+            border.color: cbControl.checked ? Theme.accent : Theme.panelBorder
+            border.width: 1
+
+            Rectangle {
+                width: 8
+                height: 8
+                anchors.centerIn: parent
+                radius: 1
+                color: Theme.textPrimary
+                visible: cbControl.checked
+            }
+        }
+        contentItem: Text {
+            text: cbControl.text
+            font.pixelSize: Theme.fontSizeSmall
+            font.family: Theme.fontFamily
+            color: cbControl.hovered ? Theme.textPrimary : Theme.textSecondary
+            verticalAlignment: Text.AlignVCenter
+            leftPadding: cbControl.indicator.width + cbControl.spacing
+            elide: Text.ElideRight
+        }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.NoButton
+        }
+    }
+
     onAboutToShow: {
         var ovW = Overlay.overlay ? Overlay.overlay.width : (parent ? parent.width : 500);
         var ovH = Overlay.overlay ? Overlay.overlay.height : (parent ? parent.height : 450);
@@ -171,6 +210,9 @@ Dialog {
                     delegate: Button {
                         Layout.fillWidth: true
                         implicitHeight: 32
+                        leftPadding: Theme.spacingMedium
+                        rightPadding: Theme.spacingMedium
+                        hoverEnabled: true
                         text: modelData + " mins"
                         onClicked: {
                             root.customMinutes = modelData;
@@ -189,6 +231,11 @@ Dialog {
                             border.color: (bridge.isSleepTimerActive && root.customMinutes === modelData) ? Theme.accent : Theme.panelBorder
                             border.width: 1
                             radius: Theme.cornerRadiusSmall
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.NoButton
                         }
                     }
                 }
@@ -243,7 +290,10 @@ Dialog {
                 Button {
                     text: "Start"
                     implicitHeight: 32
-                    implicitWidth: 80
+                    implicitWidth: 84
+                    leftPadding: Theme.spacingMedium
+                    rightPadding: Theme.spacingMedium
+                    hoverEnabled: true
                     onClicked: {
                         bridge.startSleepTimer(root.customMinutes);
                     }
@@ -261,7 +311,29 @@ Dialog {
                         border.width: 1
                         radius: Theme.cornerRadiusSmall
                     }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
+                    }
                 }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+
+            // Sleep Timer Options
+            StyledCheckBox {
+                Layout.fillWidth: true
+                text: "Stop playback after currently playing track ends"
+                checked: bridge.sleepStopAfterTrack
+                onToggled: bridge.setSleepStopAfterTrack(checked)
+            }
+
+            StyledCheckBox {
+                Layout.fillWidth: true
+                text: "Smooth 30-second volume fade-out before stopping"
+                checked: bridge.sleepSmoothFadeOut
+                onToggled: bridge.setSleepSmoothFadeOut(checked)
             }
 
             Item { Layout.fillHeight: true }
@@ -284,7 +356,11 @@ Dialog {
                 Button {
                     text: "Cancel Sleep Timer"
                     enabled: bridge.isSleepTimerActive
-                    implicitHeight: 28
+                    implicitHeight: 32
+                    implicitWidth: 140
+                    leftPadding: Theme.spacingMedium
+                    rightPadding: Theme.spacingMedium
+                    hoverEnabled: true
                     onClicked: bridge.cancelSleepTimer()
                     contentItem: Text {
                         text: parent.text
@@ -300,28 +376,42 @@ Dialog {
                         border.width: 1
                         radius: Theme.cornerRadiusSmall
                     }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
+                    }
                 }
 
                 Item { Layout.fillWidth: true }
 
                 Button {
                     text: "Close"
-                    implicitHeight: 28
-                    implicitWidth: 80
+                    implicitHeight: 32
+                    implicitWidth: 88
+                    leftPadding: Theme.spacingMedium
+                    rightPadding: Theme.spacingMedium
+                    hoverEnabled: true
                     onClicked: root.close()
                     contentItem: Text {
                         text: parent.text
                         font.pixelSize: Theme.fontSizeSmall
                         font.family: Theme.fontFamily
-                        color: Theme.textPrimary
+                        color: parent.hovered ? Theme.accentHover : Theme.textPrimary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
                     }
                     background: Rectangle {
                         color: parent.hovered ? Theme.surfaceElevated : Theme.background
-                        border.color: Theme.panelBorder
+                        border.color: parent.hovered ? Theme.accent : Theme.panelBorder
                         border.width: 1
                         radius: Theme.cornerRadiusSmall
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
                     }
                 }
             }

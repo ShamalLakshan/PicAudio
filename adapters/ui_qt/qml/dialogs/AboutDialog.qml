@@ -228,22 +228,32 @@ Dialog {
 
                 Button {
                     text: "Close"
-                    implicitHeight: 28
-                    implicitWidth: 80
+                    implicitHeight: 32
+                    implicitWidth: 88
+                    padding: Theme.spacingSmall
+                    leftPadding: Theme.spacingMedium
+                    rightPadding: Theme.spacingMedium
+                    hoverEnabled: true
                     onClicked: root.close()
                     contentItem: Text {
                         text: parent.text
                         font.pixelSize: Theme.fontSizeSmall
                         font.family: Theme.fontFamily
-                        color: Theme.textPrimary
+                        color: parent.hovered ? Theme.accentHover : Theme.textPrimary
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
                     }
                     background: Rectangle {
                         color: parent.hovered ? Theme.surfaceElevated : Theme.background
-                        border.color: Theme.panelBorder
+                        border.color: parent.hovered ? Theme.accent : Theme.panelBorder
                         border.width: 1
                         radius: Theme.cornerRadiusSmall
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
                     }
                 }
             }

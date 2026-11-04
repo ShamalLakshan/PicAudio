@@ -28,6 +28,7 @@ RowLayout {
     signal requestToggleMiniPlayer()
     signal requestHideWindow()
     signal requestSwitchViewMode(int mode)
+    signal requestToggleEqualizer()
 
     // Two-way UI state properties
     property bool showLeftPanel: true
@@ -259,7 +260,7 @@ RowLayout {
             }
             MenuItem {
                 text: (root.showEqualizer ? "Hide" : "Show") + " Parametric Equalizer (Ctrl+5)"
-                onTriggered: root.showEqualizer = !root.showEqualizer
+                onTriggered: root.requestToggleEqualizer()
             }
             MenuItem {
                 text: (root.showStatusBar ? "Hide" : "Show") + " Bottom Status Bar"
@@ -664,7 +665,7 @@ RowLayout {
             }
             MenuItem {
                 text: (root.showEqualizer ? "Hide" : "Show") + " Parametric Equalizer & DSP (Ctrl+Shift+E)"
-                onTriggered: root.showEqualizer = !root.showEqualizer
+                onTriggered: root.requestToggleEqualizer()
             }
             MenuItem {
                 text: "Playback Sleep Timer..."
@@ -730,7 +731,7 @@ RowLayout {
                 onTriggered: root.requestShortcuts()
             }
             MenuItem {
-                text: "Audio Pipeline Diagnostics..."
+                text: "Audio Pipeline Diagnostics... (Ctrl+J)"
                 onTriggered: root.requestDiagnostics()
             }
             MenuItem {

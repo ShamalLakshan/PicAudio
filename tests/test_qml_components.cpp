@@ -1,9 +1,11 @@
 #include <QApplication>
 #include <QDir>
 #include <QFile>
+#include <QMouseEvent>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
 #include <gtest/gtest.h>
@@ -67,6 +69,19 @@ protected:
   }
 
   void TearDown() override {
+    if (m_bridge) {
+      m_bridge->stop();
+    }
+    if (m_engine) {
+      const auto rootObjs = m_engine->rootObjects();
+      for (auto *obj : rootObjs) {
+        if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
+          win->close();
+        }
+      }
+    }
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QCoreApplication::processEvents();
     m_engine.reset();
     m_bridge.reset();
     m_themeLoader.reset();
@@ -136,19 +151,13 @@ TEST_F(QmlComponentValidationTest, DialogComponentsInstantiateWithoutError) {
 
 TEST_F(QmlComponentValidationTest, ViewsAndComponentsInstantiateWithoutError) {
   const std::vector<QString> componentPaths = {
-      "components/EqualizerOverlay.qml",
-      "components/ToastBanner.qml",
-      "components/MovableHeaderArea.qml",
-      "components/ResizeGrip.qml",
-      "player/MiniPlayer.qml",
-      "player/PlayerDeck.qml",
-      "navigation/LeftSidebar.qml",
-      "views/NowPlayingView.qml",
-      "views/QueueView.qml",
-      "views/TrackTableView.qml",
-      "views/AlbumGridView.qml",
-      "views/AlbumDetailView.qml",
-      "views/HistoryView.qml"};
+      "components/EqualizerOverlay.qml", "components/StyledComboBox.qml",
+      "components/ToastBanner.qml",      "components/MovableHeaderArea.qml",
+      "components/ResizeGrip.qml",       "player/MiniPlayer.qml",
+      "player/PlayerDeck.qml",           "navigation/LeftSidebar.qml",
+      "views/NowPlayingView.qml",        "views/QueueView.qml",
+      "views/TrackTableView.qml",        "views/AlbumGridView.qml",
+      "views/AlbumDetailView.qml",       "views/HistoryView.qml"};
 
   for (const auto &relPath : componentPaths) {
     QString qrcPath = "qrc:/PlayerUI/ui_qt/qml/" + relPath;
@@ -169,6 +178,139 @@ TEST_F(QmlComponentValidationTest, ViewsAndComponentsInstantiateWithoutError) {
     EXPECT_NE(instance, nullptr)
         << "Failed to instantiate QML component: " << relPath.toStdString();
   }
+}
+
+TEST_F(QmlComponentValidationTest, EqualizerOverlayComboBoxHoverTest) {
+  QUrl url(QStringLiteral("qrc:/PlayerUI/ui_qt/qml/Main.qml"));
+  if (!QFile::exists(QStringLiteral(":/PlayerUI/ui_qt/qml/Main.qml")) &&
+      QFile::exists(QStringLiteral(":/qt/qml/PlayerUI/ui_qt/qml/Main.qml"))) {
+    url = QUrl(QStringLiteral("qrc:/qt/qml/PlayerUI/ui_qt/qml/Main.qml"));
+  }
+
+  m_engine->load(url);
+  const auto rootObjects = m_engine->rootObjects();
+  ASSERT_FALSE(rootObjects.isEmpty());
+  QQuickWindow *rootWindow = qobject_cast<QQuickWindow *>(rootObjects.first());
+  ASSERT_NE(rootWindow, nullptr);
+
+  QObject *eqOverlay = nullptr;
+  const auto children = rootWindow->findChildren<QObject *>();
+  for (QObject *c : children) {
+    if (QString(c->metaObject()->className()).contains("EqualizerOverlay")) {
+      eqOverlay = c;
+      break;
+    }
+  }
+  ASSERT_NE(eqOverlay, nullptr);
+
+  // Find presetCombo
+  QObject *presetCombo = nullptr;
+  for (QObject *c : eqOverlay->findChildren<QObject *>()) {
+    if (c->property("model").isValid() &&
+        c->property("model").toStringList().contains("Rock")) {
+      presetCombo = c;
+      break;
+    }
+  }
+  ASSERT_NE(presetCombo, nullptr);
+
+  QObject *popup = presetCombo->property("popup").value<QObject *>();
+  ASSERT_NE(popup, nullptr);
+  QMetaObject::invokeMethod(popup, "open");
+  QCoreApplication::processEvents();
+
+  QObject *listView = popup->property("contentItem").value<QObject *>();
+  ASSERT_NE(listView, nullptr);
+  EXPECT_GT(listView->property("count").toInt(), 0);
+
+  // Activate index 1 ("Rock")
+  QMetaObject::invokeMethod(presetCombo, "activated", Q_ARG(int, 1));
+  EXPECT_EQ(m_playerService->getEqPreset(), "Rock");
+
+  // Close popup and overlay cleanly
+  QMetaObject::invokeMethod(popup, "close");
+  QMetaObject::invokeMethod(eqOverlay, "close");
+  QCoreApplication::processEvents();
+}
+
+TEST_F(QmlComponentValidationTest, PlayerDeckPlaybackControlsValidationTest) {
+  QString qrcPath = "qrc:/PlayerUI/ui_qt/qml/player/PlayerDeck.qml";
+  if (!QFile::exists(":/" + qrcPath.mid(5)) &&
+      QFile::exists(":/qt/qml/PlayerUI/ui_qt/qml/player/PlayerDeck.qml")) {
+    qrcPath = "qrc:/qt/qml/PlayerUI/ui_qt/qml/player/PlayerDeck.qml";
+  }
+
+  QQmlComponent component(m_engine.get(), QUrl(qrcPath));
+  ASSERT_FALSE(component.isError()) << component.errorString().toStdString();
+  std::unique_ptr<QObject> playerDeck(component.create());
+  ASSERT_NE(playerDeck, nullptr);
+
+  // Verify Playback Speed Cycling & Resetting
+  EXPECT_DOUBLE_EQ(m_bridge->playbackRate(), 1.0);
+  m_bridge->cyclePlaybackRate();
+  EXPECT_DOUBLE_EQ(m_bridge->playbackRate(), 1.25);
+  m_bridge->cyclePlaybackRate();
+  EXPECT_DOUBLE_EQ(m_bridge->playbackRate(), 1.5);
+  m_bridge->resetPlaybackRate();
+  EXPECT_DOUBLE_EQ(m_bridge->playbackRate(), 1.0);
+
+  // Verify Seeking operations
+  m_bridge->seek(10000);
+  EXPECT_EQ(m_bridge->positionMs(), 10000);
+  m_bridge->seekRelative(5000);
+  EXPECT_EQ(m_bridge->positionMs(), 15000);
+  m_bridge->seekRelative(-7000);
+  EXPECT_EQ(m_bridge->positionMs(), 8000);
+
+  // Verify A-B Looping controls
+  EXPECT_FALSE(m_bridge->isLoopActive());
+  m_bridge->seek(5000);
+  m_bridge->setLoopPointA();
+  EXPECT_EQ(m_bridge->loopPointA(), 5000);
+  m_bridge->seek(12000);
+  m_bridge->setLoopPointB();
+  EXPECT_EQ(m_bridge->loopPointB(), 12000);
+  EXPECT_TRUE(m_bridge->isLoopActive());
+  m_bridge->clearLoop();
+  EXPECT_FALSE(m_bridge->isLoopActive());
+  EXPECT_EQ(m_bridge->loopPointA(), -1);
+  EXPECT_EQ(m_bridge->loopPointB(), -1);
+
+  // Verify Stop After Current Track toggle
+  EXPECT_FALSE(m_bridge->stopAfterCurrentTrack());
+  m_bridge->toggleStopAfterCurrentTrack();
+  EXPECT_TRUE(m_bridge->stopAfterCurrentTrack());
+  m_bridge->toggleStopAfterCurrentTrack();
+  EXPECT_FALSE(m_bridge->stopAfterCurrentTrack());
+
+  // Verify Sleep Timer start & cancel
+  EXPECT_FALSE(m_bridge->isSleepTimerActive());
+  m_bridge->startSleepTimer(30);
+  EXPECT_TRUE(m_bridge->isSleepTimerActive());
+  EXPECT_GT(m_bridge->sleepTimerRemainingSec(), 0);
+  m_bridge->cancelSleepTimer();
+  EXPECT_FALSE(m_bridge->isSleepTimerActive());
+
+  // Verify Shuffle and Repeat mode cycling
+  m_bridge->setShuffleMode(0);
+  m_bridge->cycleShuffleMode();
+  EXPECT_EQ(m_bridge->shuffleMode(), 1);
+  m_bridge->cycleShuffleMode();
+  EXPECT_EQ(m_bridge->shuffleMode(), 2);
+  m_bridge->cycleShuffleMode();
+  EXPECT_EQ(m_bridge->shuffleMode(), 0);
+
+  m_bridge->setRepeatMode(0);
+  m_bridge->cycleRepeatMode();
+  EXPECT_EQ(m_bridge->repeatMode(), 1);
+  m_bridge->cycleRepeatMode();
+  EXPECT_EQ(m_bridge->repeatMode(), 2);
+  m_bridge->cycleRepeatMode();
+  EXPECT_EQ(m_bridge->repeatMode(), 0);
+
+  playerDeck.reset();
+  m_bridge->stop();
+  QCoreApplication::processEvents();
 }
 
 } // namespace

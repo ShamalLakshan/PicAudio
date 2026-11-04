@@ -92,6 +92,9 @@ Rectangle {
 
                 // Restore Normal Window Button
                 Rectangle {
+                    Layout.preferredWidth: 24
+                    Layout.preferredHeight: 24
+                    Layout.alignment: Qt.AlignVCenter
                     width: 24
                     height: 24
                     radius: Theme.cornerRadiusSmall
@@ -128,11 +131,14 @@ Rectangle {
                     text: bridge.positionStr
                     font.pixelSize: 9
                     color: Theme.textMuted
+                    Layout.preferredWidth: 36
+                    Layout.alignment: Qt.AlignVCenter
                 }
 
                 Slider {
                     id: miniSeekSlider
                     Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
                     from: 0
                     to: Math.max(1, bridge.durationMs)
                     value: bridge.positionMs
@@ -143,6 +149,9 @@ Rectangle {
                     text: bridge.durationStr
                     font.pixelSize: 9
                     color: Theme.textMuted
+                    Layout.preferredWidth: 36
+                    Layout.alignment: Qt.AlignVCenter
+                    horizontalAlignment: Text.AlignRight
                 }
             }
 
@@ -153,9 +162,12 @@ Rectangle {
 
                 // Previous Track Button
                 Rectangle {
-                    width: 26
-                    height: 26
-                    radius: 13
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 28
+                    height: 28
+                    radius: 14
                     color: miniPrevMouse.containsMouse ? Theme.surfaceElevated : "transparent"
                     VectorIcon { anchors.centerIn: parent; name: "previous"; width: 11; height: 11; color: Theme.textPrimary }
                     MouseArea {
@@ -169,9 +181,12 @@ Rectangle {
 
                 // Play / Pause Button
                 Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 32
+                    height: 32
+                    radius: 16
                     color: miniPlayMouse.containsMouse ? Theme.accentHover : Theme.accent
                     VectorIcon {
                         anchors.centerIn: parent
@@ -191,9 +206,12 @@ Rectangle {
 
                 // Next Track Button
                 Rectangle {
-                    width: 26
-                    height: 26
-                    radius: 13
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 28
+                    height: 28
+                    radius: 14
                     color: miniNextMouse.containsMouse ? Theme.surfaceElevated : "transparent"
                     VectorIcon { anchors.centerIn: parent; name: "next"; width: 11; height: 11; color: Theme.textPrimary }
                     MouseArea {

@@ -22,7 +22,9 @@
 
 namespace adapters {
 class PluginManager;
-}
+class DspManager;
+class WaveformExtractor;
+} // namespace adapters
 
 /**
  * @brief Hotkey configuration entry mapping an action to key sequence.
@@ -211,6 +213,12 @@ class QtBridge : public QObject {
       bool isSleepTimerActive READ isSleepTimerActive NOTIFY sleepTimerChanged)
   Q_PROPERTY(int sleepTimerRemainingSec READ sleepTimerRemainingSec NOTIFY
                  sleepTimerChanged)
+  Q_PROPERTY(bool sleepStopAfterTrack READ sleepStopAfterTrack WRITE
+                 setSleepStopAfterTrack NOTIFY sleepTimerChanged)
+  Q_PROPERTY(bool sleepSmoothFadeOut READ sleepSmoothFadeOut WRITE
+                 setSleepSmoothFadeOut NOTIFY sleepTimerChanged)
+  Q_PROPERTY(
+      QVariantList waveformPeaks READ waveformPeaks NOTIFY waveformPeaksChanged)
   Q_PROPERTY(QVariantMap audioPipelineDiagnostics READ audioPipelineDiagnostics
                  NOTIFY audioSettingsChanged)
 
@@ -302,6 +310,27 @@ class QtBridge : public QObject {
       QVariantList channelMatrix READ channelMatrix NOTIFY channelMatrixChanged)
   Q_PROPERTY(
       QVariantList channelLevels READ channelLevels NOTIFY channelLevelsChanged)
+
+  // Settings (Equalizer & External DSP Plugins)
+  Q_PROPERTY(bool eqEnabled READ isEqEnabled WRITE setEqEnabled NOTIFY
+                 eqEnabledChanged)
+  Q_PROPERTY(qreal eqPreampDb READ eqPreampDb WRITE setEqPreampDb NOTIFY
+                 eqPreampDbChanged)
+  Q_PROPERTY(
+      QVariantList eqBandGains READ eqBandGains NOTIFY eqBandGainsChanged)
+  Q_PROPERTY(
+      QString eqPreset READ eqPreset WRITE setEqPreset NOTIFY eqPresetChanged)
+  Q_PROPERTY(int eqBandCount READ eqBandCount WRITE setEqBandCount NOTIFY
+                 eqBandCountChanged)
+  Q_PROPERTY(
+      QVariantList eqBandLabels READ eqBandLabels NOTIFY eqBandCountChanged)
+  Q_PROPERTY(bool dspMasterEnabled READ isDspMasterEnabled WRITE
+                 setDspMasterEnabled NOTIFY dspMasterEnabledChanged)
+  Q_PROPERTY(int dspRoutingOrder READ dspRoutingOrder WRITE setDspRoutingOrder
+                 NOTIFY dspRoutingOrderChanged)
+  Q_PROPERTY(QVariantList discoveredDspPlugins READ discoveredDspPlugins NOTIFY
+                 dspPluginsChanged)
+  Q_PROPERTY(QString primaryDspDirectory READ primaryDspDirectory CONSTANT)
 
   // Settings (Hotkeys & Accelerators)
   Q_PROPERTY(bool globalMediaKeysEnabled READ globalMediaKeysEnabled WRITE
@@ -709,6 +738,7 @@ public:
   Q_INVOKABLE void nextTrack();
   Q_INVOKABLE void previousTrack();
   Q_INVOKABLE void seek(qint64 posMs);
+  Q_INVOKABLE void seekRelative(qint64 offsetMs);
   Q_INVOKABLE void setVolume(float volume);
   Q_INVOKABLE void toggleMute();
   Q_INVOKABLE void playAll();
@@ -774,6 +804,8 @@ public:
   }
   Q_INVOKABLE void setPlaybackRate(qreal rate);
   [[nodiscard]] qreal playbackRate() const { return m_playbackRate; }
+  Q_INVOKABLE void cyclePlaybackRate();
+  Q_INVOKABLE void resetPlaybackRate() { setPlaybackRate(1.0); }
   Q_INVOKABLE void setLoopPointA();
   Q_INVOKABLE void setLoopPointB();
   Q_INVOKABLE void clearLoop();
@@ -788,6 +820,15 @@ public:
   [[nodiscard]] int sleepTimerRemainingSec() const {
     return m_sleepTimerRemainingSec;
   }
+  [[nodiscard]] bool sleepStopAfterTrack() const {
+    return m_sleepStopAfterTrack;
+  }
+  Q_INVOKABLE void setSleepStopAfterTrack(bool enable);
+  [[nodiscard]] bool sleepSmoothFadeOut() const { return m_sleepSmoothFadeOut; }
+  Q_INVOKABLE void setSleepSmoothFadeOut(bool enable);
+
+  [[nodiscard]] QVariantList waveformPeaks() const { return m_waveformPeaks; }
+  Q_INVOKABLE void loadWaveform(const QString &filePath);
 
   // Queue Settings
   Q_INVOKABLE void setDoubleClickAction(const QString &action);
@@ -1120,6 +1161,44 @@ public:
   [[nodiscard]] Q_INVOKABLE bool
   isPluginWindowVisible(const QString &pluginId) const;
 
+  // External DSP Plugins (.clap) & Built-in EQ Management
+  void setDspManager(adapters::DspManager *manager);
+  [[nodiscard]] adapters::DspManager *dspManager() const {
+    return m_dspManager;
+  }
+
+  [[nodiscard]] bool isEqEnabled() const;
+  Q_INVOKABLE void setEqEnabled(bool enabled);
+  [[nodiscard]] qreal eqPreampDb() const;
+  Q_INVOKABLE void setEqPreampDb(qreal gainDb);
+  [[nodiscard]] QVariantList eqBandGains() const;
+  Q_INVOKABLE void setEqBandGain(int bandIndex, qreal gainDb);
+  [[nodiscard]] QString eqPreset() const;
+  Q_INVOKABLE void setEqPreset(const QString &preset);
+  Q_INVOKABLE void resetEq();
+  [[nodiscard]] int eqBandCount() const;
+  Q_INVOKABLE void setEqBandCount(int count);
+  [[nodiscard]] QVariantList eqBandLabels() const;
+
+  [[nodiscard]] bool isDspMasterEnabled() const;
+  Q_INVOKABLE void setDspMasterEnabled(bool enabled);
+  [[nodiscard]] int dspRoutingOrder() const;
+  Q_INVOKABLE void setDspRoutingOrder(int order);
+  [[nodiscard]] QVariantList discoveredDspPlugins() const;
+  [[nodiscard]] QString primaryDspDirectory() const;
+  Q_INVOKABLE void openDspDirectory();
+  Q_INVOKABLE void scanDspPlugins();
+  Q_INVOKABLE bool setDspPluginEnabled(const QString &pluginId, bool enabled);
+  Q_INVOKABLE void setAllDspPluginsEnabled(bool enabled);
+  Q_INVOKABLE bool showDspPluginWindow(const QString &pluginId);
+  Q_INVOKABLE bool hideDspPluginWindow(const QString &pluginId);
+  [[nodiscard]] Q_INVOKABLE bool
+  isDspPluginWindowVisible(const QString &pluginId) const;
+  [[nodiscard]] Q_INVOKABLE bool
+  isDspPluginWindowOpen(const QString &pluginId) const {
+    return isDspPluginWindowVisible(pluginId);
+  }
+
 signals:
   void playbackChanged();
   void positionChanged();
@@ -1159,6 +1238,15 @@ signals:
   void visualizerDataChanged();
   void toastRequested(const QString &message, const QString &type);
   void pluginsChanged();
+  void eqEnabledChanged();
+  void eqPreampDbChanged();
+  void eqBandGainsChanged();
+  void eqPresetChanged();
+  void eqBandCountChanged();
+  void dspMasterEnabledChanged();
+  void dspRoutingOrderChanged();
+  void dspPluginsChanged();
+  void waveformPeaksChanged();
 
 private:
   struct LyricLine {
@@ -1272,7 +1360,12 @@ private:
   qint64 m_loopPointB{-1};
   bool m_sleepTimerActive{false};
   int m_sleepTimerRemainingSec{0};
+  bool m_sleepStopAfterTrack{false};
+  bool m_sleepSmoothFadeOut{false};
+  float m_preFadeVolume{0.8f};
   QTimer *m_sleepTimer{nullptr};
+  std::unique_ptr<adapters::WaveformExtractor> m_waveformExtractor;
+  QVariantList m_waveformPeaks;
 
   // Queue Ergonomics Settings
   QString m_doubleClickAction{"Play Now"};
@@ -1355,6 +1448,11 @@ private:
 
   void loadViewLayoutSettings();
   void saveViewLayoutSettings();
+  void loadDspAndEqSettings();
+  void saveDspAndEqSettings();
+  void scheduleDspAndEqSettingsSave();
+  void flushDspAndEqSettings();
+  QTimer *m_dspSettingsSaveTimer{nullptr};
 
   struct ColumnMeta {
     QString key;
@@ -1382,5 +1480,6 @@ private:
   class QQmlApplicationEngine *m_qmlEngine{nullptr};
   class QTranslator *m_translator{nullptr};
   adapters::PluginManager *m_pluginManager{nullptr};
+  adapters::DspManager *m_dspManager{nullptr};
   void applyLanguage(const QString &lang);
 };

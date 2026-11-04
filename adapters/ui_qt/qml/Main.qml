@@ -50,6 +50,24 @@ ApplicationWindow {
     onActiveNavSectionChanged: bridge.activeNavSection = activeNavSection
     onActivePlaylistNameChanged: bridge.activePlaylistName = activePlaylistName
 
+    onShowEqualizerChanged: {
+        if (showEqualizer && !isMiniPlayer) {
+            if (!equalizerOverlay.visible) {
+                equalizerOverlay.open();
+            }
+        } else {
+            if (equalizerOverlay.visible) {
+                equalizerOverlay.close();
+            }
+        }
+    }
+
+    onIsMiniPlayerChanged: {
+        if (isMiniPlayer && showEqualizer) {
+            showEqualizer = false;
+        }
+    }
+
     Component.onCompleted: {
         var geom = bridge.loadWindowGeometry(root.width, root.height);
         if (geom && geom.valid) {
@@ -97,8 +115,9 @@ ApplicationWindow {
     }
 
     // Focus isolation state
-    readonly property bool isAnyDialogOpen: preferencesDialog.visible || tagEditorDialog.visible || openUrlDialog.visible || shortcutsDialog.visible || diagnosticsDialog.visible || channelMatrixDialog.visible || aboutDialog.visible || sleepTimerDialog.visible || newPlaylistDialog.visible || renamePlaylistDialog.visible || deleteConfirmDialog.visible
-    readonly property bool isInputActive: topToolbar.isSearchActiveFocus || isAnyDialogOpen
+    readonly property bool isAnyDialogOpen: preferencesDialog.visible || tagEditorDialog.visible || openUrlDialog.visible || shortcutsDialog.visible || diagnosticsDialog.visible || channelMatrixDialog.visible || aboutDialog.visible || sleepTimerDialog.visible || newPlaylistDialog.visible || renamePlaylistDialog.visible || deleteConfirmDialog.visible || (equalizerOverlay && equalizerOverlay.visible)
+    readonly property bool isTextInputFocused: (root.activeFocusItem !== null) && ((root.activeFocusItem.echoMode !== undefined) || (root.activeFocusItem.cursorPosition !== undefined) || (root.activeFocusItem.text !== undefined && root.activeFocusItem.readOnly !== undefined && !root.activeFocusItem.readOnly))
+    readonly property bool isInputActive: topToolbar.isSearchActiveFocus || isAnyDialogOpen || isTextInputFocused
 
     function playSelectedNow() {
         var selIds = bridge.trackModel.getSelectedTrackIds();
@@ -659,7 +678,9 @@ ApplicationWindow {
     Shortcut {
         sequence: "Escape"
         onActivated: {
-            if (bridge.trackModel.selectedCount > 0) {
+            if (showEqualizer) {
+                showEqualizer = false;
+            } else if (bridge.trackModel.selectedCount > 0) {
                 bridge.trackModel.clearSelection();
             } else if (topToolbar.searchText.length > 0) {
                 topToolbar.clearSearch();
@@ -794,7 +815,7 @@ ApplicationWindow {
                     onShowColumnBrowserChanged: root.showColumnBrowser = showColumnBrowser
                     onShowRightPanelChanged: root.showRightPanel = showRightPanel
                     onRightPanelTabChanged: root.rightPanelTab = rightPanelTab
-                    onShowEqualizerChanged: root.showEqualizer = showEqualizer
+                    onRequestToggleEqualizer: root.showEqualizer = !root.showEqualizer
                     onShowStatusBarChanged: root.showStatusBar = showStatusBar
 
                     onRequestOpenAudioFile: openAudioFileDialog.open()
@@ -1174,6 +1195,8 @@ ApplicationWindow {
             onRequestSeekBarContextMenu: seekBarContextMenu.popup()
             onRequestCodecContextMenu: codecContextMenu.popup()
             onRequestVolumeContextMenu: volumeContextMenu.popup()
+            onRequestSleepTimer: sleepTimerDialog.open()
+            onRequestDiagnostics: diagnosticsDialog.open()
         }
 
         // Status bar
@@ -1201,12 +1224,13 @@ ApplicationWindow {
         }
     }
 
-    // Equalizer Overlay
+    // Equalizer Overlay Dialog
     EqualizerOverlay {
         id: equalizerOverlay
-        visible: showEqualizer && !isMiniPlayer
         z: 100
-        onClosed: showEqualizer = false
+        onClosed: {
+            root.showEqualizer = false;
+        }
     }
 
     // In-app non-blocking Toast Banner

@@ -93,7 +93,9 @@ Item {
 
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter
-                width: browseBtnRow.implicitWidth + 24
+                Layout.preferredWidth: browseBtnRow.implicitWidth + 28
+                Layout.preferredHeight: 34
+                width: Layout.preferredWidth
                 height: 34
                 radius: Theme.cornerRadiusMedium
                 color: browseMouse.containsMouse ? Theme.accentHover : Theme.accent
@@ -144,8 +146,11 @@ Item {
 
                 // Back breadcrumb
                 Rectangle {
-                    width: backText.implicitWidth + 18
-                    height: 26
+                    Layout.preferredWidth: backText.implicitWidth + 24
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
+                    width: Layout.preferredWidth
+                    height: 28
                     radius: Theme.cornerRadiusSmall
                     color: backMouse.containsMouse ? Theme.selection : "transparent"
                     border.color: Theme.panelBorder
@@ -209,8 +214,11 @@ Item {
                     spacing: 4
 
                     Rectangle {
-                        width: narrowTrackTxt.implicitWidth + 14
-                        height: 26
+                        Layout.preferredWidth: narrowTrackTxt.implicitWidth + 20
+                        Layout.preferredHeight: 28
+                        Layout.alignment: Qt.AlignVCenter
+                        width: Layout.preferredWidth
+                        height: 28
                         radius: Theme.cornerRadiusSmall
                         color: root.compactTab === 0 ? Theme.selection : "transparent"
                         border.color: root.compactTab === 0 ? Theme.accent : Theme.panelBorder
@@ -230,8 +238,11 @@ Item {
                     }
 
                     Rectangle {
-                        width: narrowLrcTxt.implicitWidth + 14
-                        height: 26
+                        Layout.preferredWidth: narrowLrcTxt.implicitWidth + 20
+                        Layout.preferredHeight: 28
+                        Layout.alignment: Qt.AlignVCenter
+                        width: Layout.preferredWidth
+                        height: 28
                         radius: Theme.cornerRadiusSmall
                         color: root.compactTab === 1 ? Theme.selection : "transparent"
                         border.color: root.compactTab === 1 ? Theme.accent : Theme.panelBorder
@@ -253,9 +264,14 @@ Item {
 
                 // Optional Lyrics Toggle Button
                 Rectangle {
-                    width: lyricsPillRow.implicitWidth + 18
-                    height: 26
+                    Layout.preferredWidth: lyricsPillRow.implicitWidth + 22
+                    Layout.preferredHeight: 28
+                    Layout.minimumWidth: 84
+                    Layout.alignment: Qt.AlignVCenter
+                    width: Layout.preferredWidth
+                    height: 28
                     radius: Theme.cornerRadiusSmall
+                    clip: true
                     color: root.showLyrics ? Theme.selection : (lyricsMouse.containsMouse ? Theme.surfaceElevated : "transparent")
                     border.color: root.showLyrics ? Theme.accent : Theme.panelBorder
                     border.width: 1
@@ -308,9 +324,13 @@ Item {
 
                 // Visualizer Style Switcher Pill
                 Rectangle {
-                    width: vizPillRow.implicitWidth + 16
-                    height: 26
+                    Layout.preferredWidth: vizPillRow.implicitWidth + 22
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
+                    width: Layout.preferredWidth
+                    height: 28
                     radius: Theme.cornerRadiusSmall
+                    clip: true
                     color: vizMouse.containsMouse ? Theme.surfaceElevated : "transparent"
                     border.color: Theme.panelBorder
                     border.width: 1
@@ -761,17 +781,21 @@ Item {
                                     spacing: 10
 
                                     Text {
+                                        id: positionSeekText
                                         text: bridge.positionStr
                                         font.pixelSize: Theme.fontSizeSmall
                                         font.bold: true
                                         color: Theme.textSecondary
-                                        Layout.preferredWidth: 38
+                                        Layout.preferredWidth: Math.max(44, positionSeekText.implicitWidth + 4)
+                                        Layout.minimumWidth: 44
+                                        Layout.alignment: Qt.AlignVCenter
                                     }
 
                                     // Smooth Interactive Scrub Slider
                                     Slider {
                                         id: heroSeekSlider
                                         Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
                                         from: 0
                                         to: Math.max(1, bridge.durationMs)
                                         value: bridge.positionMs
@@ -808,10 +832,13 @@ Item {
                                     }
 
                                     Text {
+                                        id: durationSeekText
                                         text: bridge.showRemainingTime ? ("-" + bridge.durationStr) : bridge.durationStr
                                         font.pixelSize: Theme.fontSizeSmall
                                         color: Theme.textMuted
-                                        Layout.preferredWidth: 42
+                                        Layout.preferredWidth: Math.max(48, durationSeekText.implicitWidth + 4)
+                                        Layout.minimumWidth: 48
+                                        Layout.alignment: Qt.AlignVCenter
                                         horizontalAlignment: Text.AlignRight
 
                                         MouseArea {
@@ -829,9 +856,12 @@ Item {
 
                                     // Shuffle
                                     Rectangle {
-                                        width: 32
-                                        height: 32
-                                        radius: 16
+                                        Layout.preferredWidth: 34
+                                        Layout.preferredHeight: 34
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: 34
+                                        height: 34
+                                        radius: 17
                                         color: bridge.shuffleMode !== 0 ? Theme.selection : "transparent"
                                         border.color: bridge.shuffleMode !== 0 ? Theme.accent : "transparent"
                                         VectorIcon {
@@ -851,9 +881,12 @@ Item {
 
                                     // Previous
                                     Rectangle {
-                                        width: 36
-                                        height: 36
-                                        radius: 18
+                                        Layout.preferredWidth: 38
+                                        Layout.preferredHeight: 38
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: 38
+                                        height: 38
+                                        radius: 19
                                         color: prevMouse.containsMouse ? Theme.surfaceElevated : "transparent"
                                         VectorIcon {
                                             anchors.centerIn: parent
@@ -873,9 +906,12 @@ Item {
 
                                     // Main Play / Pause Hero Button
                                     Rectangle {
-                                        width: 48
-                                        height: 48
-                                        radius: 24
+                                        Layout.preferredWidth: 50
+                                        Layout.preferredHeight: 50
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: 50
+                                        height: 50
+                                        radius: 25
                                         color: playMasterMouse.containsMouse ? Theme.accentHover : Theme.accent
 
                                         VectorIcon {
@@ -897,9 +933,12 @@ Item {
 
                                     // Next
                                     Rectangle {
-                                        width: 36
-                                        height: 36
-                                        radius: 18
+                                        Layout.preferredWidth: 38
+                                        Layout.preferredHeight: 38
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: 38
+                                        height: 38
+                                        radius: 19
                                         color: nextHeroMouse.containsMouse ? Theme.surfaceElevated : "transparent"
                                         VectorIcon {
                                             anchors.centerIn: parent
@@ -919,9 +958,12 @@ Item {
 
                                     // Repeat
                                     Rectangle {
-                                        width: 32
-                                        height: 32
-                                        radius: 16
+                                        Layout.preferredWidth: 34
+                                        Layout.preferredHeight: 34
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: 34
+                                        height: 34
+                                        radius: 17
                                         color: bridge.repeatMode !== 0 ? Theme.selection : "transparent"
                                         border.color: bridge.repeatMode !== 0 ? Theme.accent : "transparent"
                                         VectorIcon {
@@ -1193,8 +1235,11 @@ Item {
 
                                     Rectangle {
                                         visible: bridge.hasLyrics
-                                        width: syncTxt.implicitWidth + 10
-                                        height: 18
+                                        Layout.preferredWidth: syncTxt.implicitWidth + 14
+                                        Layout.preferredHeight: 20
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: Layout.preferredWidth
+                                        height: 20
                                         radius: Theme.cornerRadiusSmall
                                         color: bridge.isLyricsSynchronized ? Theme.selection : Theme.surface
                                         border.color: bridge.isLyricsSynchronized ? Theme.accent : Theme.panelBorder
@@ -1212,8 +1257,11 @@ Item {
 
                                     // Close Lyrics Button
                                     Rectangle {
-                                        width: closeLrcRow.implicitWidth + 12
-                                        height: 22
+                                        Layout.preferredWidth: closeLrcRow.implicitWidth + 16
+                                        Layout.preferredHeight: 24
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: Layout.preferredWidth
+                                        height: 24
                                         radius: Theme.cornerRadiusSmall
                                         color: closeLrcMouse.containsMouse ? Theme.selection : "transparent"
                                         border.color: Theme.panelBorder
@@ -1290,7 +1338,9 @@ Item {
 
                                         Rectangle {
                                             Layout.alignment: Qt.AlignHCenter
-                                            width: reloadTxt.implicitWidth + 20
+                                            Layout.preferredWidth: reloadTxt.implicitWidth + 24
+                                            Layout.preferredHeight: 28
+                                            width: Layout.preferredWidth
                                             height: 28
                                             radius: Theme.cornerRadiusSmall
                                             color: reloadMouse.containsMouse ? Theme.selection : Theme.surfaceElevated

@@ -111,7 +111,13 @@ int main(int argc, char *argv[]) {
   // Bridge connecting core to QML
   QtBridge bridge(playerService, libraryService, themeLoader.get());
 
-  // Dynamic Plugin Manager (Phase 2)
+  // Dynamic Plugin Manager (Phase 2) & External DSP Manager (Phase 3)
+  bridge.setDspManager(&audioEngine->dspManager());
+  audioEngine->dspManager().initialize(
+      {(appDataDir + "/dsp").toStdString(),
+       (QCoreApplication::applicationDirPath() + "/dsp").toStdString(),
+       (QCoreApplication::applicationDirPath() + "/../dsp").toStdString()});
+
   adapters::PluginManager pluginManager;
   pluginManager.setThemeLoader(themeLoader.get());
   pluginManager.setNavigateCallback([&bridge](int view) {

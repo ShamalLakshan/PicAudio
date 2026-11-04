@@ -157,11 +157,10 @@ Dialog {
                         color: Theme.textPrimary
                     }
 
-                    ComboBox {
+                    StyledComboBox {
                         id: presetCombo
                         Layout.preferredWidth: 220
                         Layout.preferredHeight: 30
-                        hoverEnabled: true
                         model: [
                             "Stereo Passthrough",
                             "Downmix Surround to Stereo",
@@ -177,74 +176,6 @@ Dialog {
                         onActivated: function(index) {
                             bridge.setChannelProcessing(model[index]);
                         }
-                        background: Rectangle {
-                            implicitWidth: 220
-                            implicitHeight: 30
-                            color: presetCombo.hovered ? Theme.surfaceElevated : Theme.background
-                            border.color: presetCombo.activeFocus ? Theme.accent : (presetCombo.hovered ? Theme.accentHover : Theme.panelBorder)
-                            border.width: 1
-                            radius: Theme.cornerRadiusSmall
-                        }
-                        contentItem: Text {
-                            leftPadding: Theme.spacingMedium + 2
-                            rightPadding: 24
-                            text: presetCombo.displayText
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.family: Theme.fontFamily
-                            color: Theme.textPrimary
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                        }
-                        indicator: VectorIcon {
-                            x: presetCombo.width - width - Theme.spacingMedium - 2
-                            y: Math.round((presetCombo.height - height) / 2)
-                            width: 10
-                            height: 10
-                            name: "arrow_down"
-                            color: presetCombo.hovered ? Theme.accentHover : Theme.textSecondary
-                        }
-                        popup: Popup {
-                            y: presetCombo.height + 2
-                            width: Math.max(presetCombo.width, 220)
-                            implicitHeight: Math.min(260, Math.max(60, (contentItem.contentHeight || 0) + topPadding + bottomPadding + 8))
-                            padding: 4
-                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent | Popup.CloseOnPressOutside
-                            contentItem: ListView {
-                                clip: true
-                                implicitHeight: contentHeight
-                                model: presetCombo.delegateModel
-                                currentIndex: presetCombo.highlightedIndex
-                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                            }
-                            background: Rectangle {
-                                color: Theme.surfaceElevated
-                                border.color: Theme.panelBorder
-                                border.width: 1
-                                radius: Theme.cornerRadiusSmall
-                            }
-                        }
-                        delegate: ItemDelegate {
-                            width: ListView.view ? ListView.view.width : presetCombo.width
-                            implicitHeight: 30
-                            highlighted: presetCombo.highlightedIndex === index
-                            contentItem: Text {
-                                text: modelData
-                                color: highlighted ? Theme.accentHover : Theme.textPrimary
-                                font.pixelSize: Theme.fontSizeSmall
-                                font.family: Theme.fontFamily
-                                elide: Text.ElideRight
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color: highlighted ? Theme.selection : "transparent"
-                                radius: Theme.cornerRadiusSmall
-                            }
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.NoButton
-                        }
                     }
 
                     Text {
@@ -255,11 +186,10 @@ Dialog {
                         Layout.leftMargin: 8
                     }
 
-                    ComboBox {
+                    StyledComboBox {
                         id: channelsCombo
                         Layout.preferredWidth: 160
                         Layout.preferredHeight: 30
-                        hoverEnabled: true
                         model: ["1 (Mono)", "2 (Stereo)", "6 (5.1 Surround)", "8 (7.1 Surround)"]
                         currentIndex: {
                             var ch = bridge.outputChannels;
@@ -273,74 +203,6 @@ Dialog {
                             var map = [1, 2, 6, 8];
                             bridge.setOutputChannels(map[index]);
                         }
-                        background: Rectangle {
-                            implicitWidth: 160
-                            implicitHeight: 30
-                            color: channelsCombo.hovered ? Theme.surfaceElevated : Theme.background
-                            border.color: channelsCombo.activeFocus ? Theme.accent : (channelsCombo.hovered ? Theme.accentHover : Theme.panelBorder)
-                            border.width: 1
-                            radius: Theme.cornerRadiusSmall
-                        }
-                        contentItem: Text {
-                            leftPadding: Theme.spacingMedium + 2
-                            rightPadding: 24
-                            text: channelsCombo.displayText
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.family: Theme.fontFamily
-                            color: Theme.textPrimary
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                        }
-                        indicator: VectorIcon {
-                            x: channelsCombo.width - width - Theme.spacingMedium - 2
-                            y: Math.round((channelsCombo.height - height) / 2)
-                            width: 10
-                            height: 10
-                            name: "arrow_down"
-                            color: channelsCombo.hovered ? Theme.accentHover : Theme.textSecondary
-                        }
-                        popup: Popup {
-                            y: channelsCombo.height + 2
-                            width: Math.max(channelsCombo.width, 160)
-                            implicitHeight: Math.min(260, Math.max(60, (contentItem.contentHeight || 0) + topPadding + bottomPadding + 8))
-                            padding: 4
-                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent | Popup.CloseOnPressOutside
-                            contentItem: ListView {
-                                clip: true
-                                implicitHeight: contentHeight
-                                model: channelsCombo.delegateModel
-                                currentIndex: channelsCombo.highlightedIndex
-                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                            }
-                            background: Rectangle {
-                                color: Theme.surfaceElevated
-                                border.color: Theme.panelBorder
-                                border.width: 1
-                                radius: Theme.cornerRadiusSmall
-                            }
-                        }
-                        delegate: ItemDelegate {
-                            width: ListView.view ? ListView.view.width : channelsCombo.width
-                            implicitHeight: 30
-                            highlighted: channelsCombo.highlightedIndex === index
-                            contentItem: Text {
-                                text: modelData
-                                color: highlighted ? Theme.accentHover : Theme.textPrimary
-                                font.pixelSize: Theme.fontSizeSmall
-                                font.family: Theme.fontFamily
-                                elide: Text.ElideRight
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color: highlighted ? Theme.selection : "transparent"
-                                radius: Theme.cornerRadiusSmall
-                            }
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.NoButton
-                        }
                     }
 
                     Item { Layout.fillWidth: true }
@@ -348,7 +210,11 @@ Dialog {
                     Button {
                         text: "Normalize"
                         implicitHeight: 30
-                        implicitWidth: 84
+                        implicitWidth: 92
+                        padding: Theme.spacingSmall
+                        leftPadding: Theme.spacingMedium
+                        rightPadding: Theme.spacingMedium
+                        hoverEnabled: true
                         ToolTip.visible: hovered
                         ToolTip.text: "Scales coefficients to prevent clipping"
                         onClicked: bridge.normalizeChannelMatrix()
@@ -377,6 +243,10 @@ Dialog {
                         text: "Reset"
                         implicitHeight: 30
                         implicitWidth: 84
+                        padding: Theme.spacingSmall
+                        leftPadding: Theme.spacingMedium
+                        rightPadding: Theme.spacingMedium
+                        hoverEnabled: true
                         ToolTip.visible: hovered
                         ToolTip.text: "Reset matrix to direct 1:1 identity"
                         onClicked: bridge.resetChannelMatrixToIdentity()
@@ -656,7 +526,11 @@ Dialog {
                     Button {
                         text: "Done"
                         implicitHeight: 32
-                        implicitWidth: 84
+                        implicitWidth: 90
+                        padding: Theme.spacingSmall
+                        leftPadding: Theme.spacingMedium
+                        rightPadding: Theme.spacingMedium
+                        hoverEnabled: true
                         onClicked: root.close()
                         contentItem: Text {
                             text: parent.text

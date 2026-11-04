@@ -93,8 +93,11 @@ Item {
 
                 // Shuffle button
                 Rectangle {
-                    width: 24
-                    height: 24
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 26
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 26
+                    height: 26
                     radius: Theme.cornerRadiusSmall
                     color: shufBtnMouse.containsMouse ? Theme.selection : "transparent"
                     border.color: Theme.panelBorder
@@ -118,8 +121,11 @@ Item {
 
                 // Clear button
                 Rectangle {
-                    width: 24
-                    height: 24
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 26
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 26
+                    height: 26
                     radius: Theme.cornerRadiusSmall
                     color: clearBtnMouse.containsMouse ? Theme.selection : "transparent"
                     border.color: Theme.panelBorder
@@ -470,11 +476,21 @@ Item {
 
                 Button {
                     text: "Cancel"
+                    implicitHeight: 30
+                    padding: Theme.spacingSmall
+                    leftPadding: Theme.spacingMedium
+                    rightPadding: Theme.spacingMedium
+                    hoverEnabled: true
                     onClicked: saveQueueDialog.close()
                 }
 
                 Button {
                     text: "Save Playlist"
+                    implicitHeight: 30
+                    padding: Theme.spacingSmall
+                    leftPadding: Theme.spacingMedium
+                    rightPadding: Theme.spacingMedium
+                    hoverEnabled: true
                     enabled: queuePlaylistNameInput.text.trim().length > 0
                     onClicked: {
                         bridge.saveQueueAsPlaylist(queuePlaylistNameInput.text.trim());

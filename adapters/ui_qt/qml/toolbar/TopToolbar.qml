@@ -56,10 +56,12 @@ Rectangle {
                 delegate: Rectangle {
                     property bool isTabActive: root.mainViewMode === modelData.mode
 
-                    Layout.preferredWidth: tabRowLayout.implicitWidth + 16
+                    Layout.preferredWidth: tabRowLayout.implicitWidth + 22
                     Layout.preferredHeight: 30
                     Layout.alignment: Qt.AlignVCenter
-                    radius: 3
+                    Layout.leftMargin: 2
+                    Layout.rightMargin: 2
+                    radius: Theme.cornerRadiusSmall
                     color: isTabActive ? Theme.selection : (tabMouse.containsMouse ? Theme.surfaceElevated : "transparent")
                     border.color: isTabActive ? Theme.panelBorder : "transparent"
                     border.width: 1
@@ -114,10 +116,12 @@ Rectangle {
             spacing: 4
 
             Rectangle {
-                Layout.preferredWidth: playAllText.implicitWidth + 18
+                Layout.preferredWidth: playAllText.implicitWidth + 22
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
-                radius: 3
+                Layout.leftMargin: 2
+                Layout.rightMargin: 2
+                radius: Theme.cornerRadiusSmall
                 color: playAllMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
                 border.color: Theme.panelBorder
                 clip: true
@@ -139,10 +143,12 @@ Rectangle {
             }
 
             Rectangle {
-                Layout.preferredWidth: shuffleAllText.implicitWidth + 18
+                Layout.preferredWidth: shuffleAllText.implicitWidth + 22
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
-                radius: 3
+                Layout.leftMargin: 2
+                Layout.rightMargin: 2
+                radius: Theme.cornerRadiusSmall
                 color: shuffleAllMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
                 border.color: Theme.panelBorder
                 clip: true
@@ -172,7 +178,9 @@ Rectangle {
             Layout.preferredHeight: 28
             Layout.minimumWidth: 140
             Layout.alignment: Qt.AlignVCenter
-            radius: 3
+            Layout.leftMargin: 6
+            Layout.rightMargin: 6
+            radius: Theme.cornerRadiusSmall
             color: Theme.background
             border.color: searchTextInput.activeFocus ? Theme.accent : Theme.panelBorder
             border.width: 1
@@ -235,10 +243,12 @@ Rectangle {
 
         // Scan Directory Action Button
         Rectangle {
-            Layout.preferredWidth: scanBtnLayout.implicitWidth + 18
+            Layout.preferredWidth: scanBtnLayout.implicitWidth + 22
             Layout.preferredHeight: 28
             Layout.alignment: Qt.AlignVCenter
-            radius: 3
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
+            radius: Theme.cornerRadiusSmall
             color: scanMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
             border.color: Theme.panelBorder
             clip: true
@@ -274,13 +284,15 @@ Rectangle {
 
         // Panel Toggle Quick Buttons
         RowLayout {
-            spacing: 2
+            spacing: 4
             Layout.alignment: Qt.AlignVCenter
 
             Rectangle {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
-                radius: 3
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                radius: Theme.cornerRadiusSmall
                 color: root.showLeftPanel ? Theme.selection : (pnlLeftMouse.containsMouse ? Theme.surfaceElevated : Theme.surface)
                 border.color: Theme.panelBorder
                 VectorIcon { anchors.centerIn: parent; name: "panel_left"; width: 13; height: 13; color: root.showLeftPanel ? Theme.textPrimary : Theme.textMuted }
@@ -296,7 +308,9 @@ Rectangle {
             Rectangle {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
-                radius: 3
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                radius: Theme.cornerRadiusSmall
                 color: root.showRightPanel ? Theme.selection : (pnlRightMouse.containsMouse ? Theme.surfaceElevated : Theme.surface)
                 border.color: Theme.panelBorder
                 VectorIcon { anchors.centerIn: parent; name: "panel_right"; width: 13; height: 13; color: root.showRightPanel ? Theme.textPrimary : Theme.textMuted }
@@ -313,7 +327,9 @@ Rectangle {
             Rectangle {
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
-                radius: 3
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                radius: Theme.cornerRadiusSmall
                 color: settingsBtnMouse.containsMouse ? Theme.surfaceElevated : "transparent"
                 border.color: Theme.panelBorder
                 VectorIcon { anchors.centerIn: parent; name: "settings"; width: 13; height: 13; color: Theme.textSecondary }

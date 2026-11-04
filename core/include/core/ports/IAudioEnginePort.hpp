@@ -187,6 +187,81 @@ public:
     (void)json;
     return false;
   }
+
+  /**
+   * @brief Sets gain in dB for a parametric equalizer band.
+   */
+  virtual void setEqBandGain(size_t bandIndex, float gainDb) {
+    (void)bandIndex;
+    (void)gainDb;
+  }
+  virtual float getEqBandGain(size_t bandIndex) const {
+    (void)bandIndex;
+    return 0.0f;
+  }
+  virtual void setEqBandGains(const std::vector<float> &gains) { (void)gains; }
+  virtual std::vector<float> getEqBandGains() const { return {}; }
+  virtual void setEqPreampGain(float gainDb) { (void)gainDb; }
+  virtual float getEqPreampGain() const { return 0.0f; }
+  virtual void setEqEnabled(bool enabled) { (void)enabled; }
+  virtual bool isEqEnabled() const { return false; }
+  virtual void setEqPreset(const std::string &preset) { (void)preset; }
+  virtual std::string getEqPreset() const { return "Flat"; }
+  virtual void resetEq() {}
+  virtual void setEqBandCount(size_t bandCount) { (void)bandCount; }
+  virtual size_t getEqBandCount() const { return 10; }
+  virtual std::vector<std::string> getEqBandFrequencyLabels() const {
+    return {"31 Hz", "63 Hz", "125 Hz", "250 Hz", "500 Hz",
+            "1 kHz", "2 kHz", "4 kHz",  "8 kHz",  "16 kHz"};
+  }
+
+  /**
+   * @brief DSP processing chain routing order (0: EQ -> DSP, 1: DSP -> EQ).
+   */
+  virtual void setDspRoutingOrder(int order) { (void)order; }
+  virtual int getDspRoutingOrder() const { return 0; }
+  virtual void setDspMasterEnabled(bool enabled) { (void)enabled; }
+  virtual bool isDspMasterEnabled() const { return true; }
+
+  // ReplayGain 2.0 & Loudness Normalization (Issue #39)
+  virtual void setReplayGainMode(int mode) { (void)mode; }
+  virtual int getReplayGainMode() const { return 3; }
+  virtual void setReplayGainPreamp(float taggedDb, float untaggedDb) {
+    (void)taggedDb;
+    (void)untaggedDb;
+  }
+  virtual void setTruePeakLimiterEnabled(bool enabled) { (void)enabled; }
+  virtual bool isTruePeakLimiterEnabled() const { return true; }
+  virtual void setCurrentTrackReplayGain(bool hasGain, float trackGain,
+                                         float trackPeak, float albumGain,
+                                         float albumPeak, bool isAlbum) {
+    (void)hasGain;
+    (void)trackGain;
+    (void)trackPeak;
+    (void)albumGain;
+    (void)albumPeak;
+    (void)isAlbum;
+  }
+
+  // Crossfade & Gapless Engine (Issues #37 & #38)
+  virtual void setCrossfadeEnabled(bool enabled) { (void)enabled; }
+  virtual bool isCrossfadeEnabled() const { return false; }
+  virtual void setCrossfadeDurationSec(float sec) { (void)sec; }
+  virtual float getCrossfadeDurationSec() const { return 2.0f; }
+  virtual void setCrossfadeCurve(int curve) { (void)curve; }
+  virtual int getCrossfadeCurve() const { return 0; }
+  virtual void setGaplessEnabled(bool enabled) { (void)enabled; }
+  virtual bool isGaplessEnabled() const { return true; }
+
+  // 64-bit TPDF Dithering (Issue #41)
+  virtual void setDitherMode(int mode) { (void)mode; }
+  virtual int getDitherMode() const { return 1; }
+
+  // Buffer Health & Diagnostics (Issue #43)
+  virtual float getBufferFillPercentage() const { return 0.0f; }
+  virtual std::string getActiveDecoderName() const {
+    return "Direct In-Process / FLAC";
+  }
 };
 
 } // namespace core

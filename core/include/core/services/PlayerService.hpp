@@ -192,6 +192,163 @@ public:
                          : false;
   }
 
+  void setEqBandGain(size_t bandIndex, float gainDb) {
+    if (m_audioEngine) {
+      m_audioEngine->setEqBandGain(bandIndex, gainDb);
+    }
+  }
+  [[nodiscard]] float getEqBandGain(size_t bandIndex) const {
+    return m_audioEngine ? m_audioEngine->getEqBandGain(bandIndex) : 0.0f;
+  }
+  void setEqBandGains(const std::vector<float> &gains) {
+    if (m_audioEngine) {
+      m_audioEngine->setEqBandGains(gains);
+    }
+  }
+  [[nodiscard]] std::vector<float> getEqBandGains() const {
+    return m_audioEngine ? m_audioEngine->getEqBandGains()
+                         : std::vector<float>{};
+  }
+  void setEqPreampGain(float gainDb) {
+    if (m_audioEngine) {
+      m_audioEngine->setEqPreampGain(gainDb);
+    }
+  }
+  [[nodiscard]] float getEqPreampGain() const {
+    return m_audioEngine ? m_audioEngine->getEqPreampGain() : 0.0f;
+  }
+  void setEqEnabled(bool enabled) {
+    if (m_audioEngine) {
+      m_audioEngine->setEqEnabled(enabled);
+    }
+  }
+  [[nodiscard]] bool isEqEnabled() const {
+    return m_audioEngine ? m_audioEngine->isEqEnabled() : false;
+  }
+  void setEqPreset(const std::string &preset) {
+    if (m_audioEngine) {
+      m_audioEngine->setEqPreset(preset);
+    }
+  }
+  [[nodiscard]] std::string getEqPreset() const {
+    return m_audioEngine ? m_audioEngine->getEqPreset() : "Flat";
+  }
+  void resetEq() {
+    if (m_audioEngine) {
+      m_audioEngine->resetEq();
+    }
+  }
+
+  void setEqBandCount(size_t bandCount) {
+    if (m_audioEngine) {
+      m_audioEngine->setEqBandCount(bandCount);
+    }
+  }
+  [[nodiscard]] size_t getEqBandCount() const {
+    return m_audioEngine ? m_audioEngine->getEqBandCount() : 10;
+  }
+  [[nodiscard]] std::vector<std::string> getEqBandFrequencyLabels() const {
+    return m_audioEngine ? m_audioEngine->getEqBandFrequencyLabels()
+                         : std::vector<std::string>{};
+  }
+
+  void setDspRoutingOrder(int order) {
+    if (m_audioEngine) {
+      m_audioEngine->setDspRoutingOrder(order);
+    }
+  }
+  [[nodiscard]] int getDspRoutingOrder() const {
+    return m_audioEngine ? m_audioEngine->getDspRoutingOrder() : 0;
+  }
+  void setDspMasterEnabled(bool enabled) {
+    if (m_audioEngine) {
+      m_audioEngine->setDspMasterEnabled(enabled);
+    }
+  }
+  [[nodiscard]] bool isDspMasterEnabled() const {
+    return m_audioEngine ? m_audioEngine->isDspMasterEnabled() : true;
+  }
+
+  void setReplayGainMode(int mode) {
+    if (m_audioEngine) {
+      m_audioEngine->setReplayGainMode(mode);
+    }
+  }
+  [[nodiscard]] int getReplayGainMode() const {
+    return m_audioEngine ? m_audioEngine->getReplayGainMode() : 3;
+  }
+  void setReplayGainPreamp(float taggedDb, float untaggedDb) {
+    if (m_audioEngine) {
+      m_audioEngine->setReplayGainPreamp(taggedDb, untaggedDb);
+    }
+  }
+  void setTruePeakLimiterEnabled(bool enabled) {
+    if (m_audioEngine) {
+      m_audioEngine->setTruePeakLimiterEnabled(enabled);
+    }
+  }
+  [[nodiscard]] bool isTruePeakLimiterEnabled() const {
+    return m_audioEngine ? m_audioEngine->isTruePeakLimiterEnabled() : true;
+  }
+  void setCurrentTrackReplayGain(bool hasGain, float trackGain, float trackPeak,
+                                 float albumGain, float albumPeak,
+                                 bool isAlbum) {
+    if (m_audioEngine) {
+      m_audioEngine->setCurrentTrackReplayGain(hasGain, trackGain, trackPeak,
+                                               albumGain, albumPeak, isAlbum);
+    }
+  }
+
+  void setCrossfadeEnabled(bool enabled) {
+    if (m_audioEngine) {
+      m_audioEngine->setCrossfadeEnabled(enabled);
+    }
+  }
+  [[nodiscard]] bool isCrossfadeEnabled() const {
+    return m_audioEngine ? m_audioEngine->isCrossfadeEnabled() : false;
+  }
+  void setCrossfadeDurationSec(float sec) {
+    if (m_audioEngine) {
+      m_audioEngine->setCrossfadeDurationSec(sec);
+    }
+  }
+  [[nodiscard]] float getCrossfadeDurationSec() const {
+    return m_audioEngine ? m_audioEngine->getCrossfadeDurationSec() : 2.0f;
+  }
+  void setCrossfadeCurve(int curve) {
+    if (m_audioEngine) {
+      m_audioEngine->setCrossfadeCurve(curve);
+    }
+  }
+  [[nodiscard]] int getCrossfadeCurve() const {
+    return m_audioEngine ? m_audioEngine->getCrossfadeCurve() : 0;
+  }
+  void setGaplessEnabled(bool enabled) {
+    if (m_audioEngine) {
+      m_audioEngine->setGaplessEnabled(enabled);
+    }
+  }
+  [[nodiscard]] bool isGaplessEnabled() const {
+    return m_audioEngine ? m_audioEngine->isGaplessEnabled() : true;
+  }
+
+  void setDitherMode(int mode) {
+    if (m_audioEngine) {
+      m_audioEngine->setDitherMode(mode);
+    }
+  }
+  [[nodiscard]] int getDitherMode() const {
+    return m_audioEngine ? m_audioEngine->getDitherMode() : 1;
+  }
+
+  [[nodiscard]] float getBufferFillPercentage() const {
+    return m_audioEngine ? m_audioEngine->getBufferFillPercentage() : 0.0f;
+  }
+  [[nodiscard]] std::string getActiveDecoderName() const {
+    return m_audioEngine ? m_audioEngine->getActiveDecoderName()
+                         : "Direct In-Process / FLAC";
+  }
+
   [[nodiscard]] PlaybackState getState() const { return m_state; }
   [[nodiscard]] bool isPlaying() const {
     return m_state == PlaybackState::Playing;

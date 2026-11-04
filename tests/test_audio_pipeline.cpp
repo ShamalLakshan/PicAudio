@@ -1,4 +1,5 @@
 #include <chrono>
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <numeric>
 #include <thread>
@@ -6,10 +7,22 @@
 
 #include "audio/AudioThreadPriority.hpp"
 #include "audio/BitPerfectAudioAdapter.hpp"
+#include "audio/CueSheetParser.hpp"
 #include "audio/LockFreeRingBuffer.hpp"
+#include "audio/WaveformExtractor.hpp"
 #include "audio/alsa/AlsaAudioSink.hpp"
+#include "audio/coreaudio/CoreAudioSink.hpp"
+#include "audio/decoders/AudioDecoderFactory.hpp"
+#include "audio/decoders/DsdAudioDecoder.hpp"
+#include "audio/decoders/FlacAudioDecoder.hpp"
+#include "audio/decoders/WavAudioDecoder.hpp"
 #include "audio/dsp/ChannelMatrixProcessor.hpp"
+#include "audio/dsp/CrossfadeEngine.hpp"
+#include "audio/dsp/DspManager.hpp"
+#include "audio/dsp/LoudnessAndDitherProcessor.hpp"
+#include "audio/dsp/ParametricEqualizer.hpp"
 #include "audio/pipewire/PipeWireAudioSink.hpp"
+#include "audio/wasapi/WasapiAudioSink.hpp"
 #include "core/services/PlayerService.hpp"
 #include <QGuiApplication>
 
@@ -143,6 +156,43 @@ TEST(AudioPipelineTest, RingBufferConcurrentSPSC) {
   for (size_t i = 0; i < totalItems; ++i) {
     ASSERT_EQ(received[i], static_cast<uint32_t>(i + 1));
   }
+}
+
+TEST(AudioPipelineTest, RingBufferConcurrentResetSafety) {
+  LockFreeRingBuffer<float> rb(2048);
+  std::atomic<bool> running{true};
+
+  std::thread writer([&]() {
+    std::vector<float> data(64, 1.0f);
+    while (running.load(std::memory_order_relaxed)) {
+      rb.write(data.data(), data.size());
+      std::this_thread::yield();
+    }
+  });
+
+  std::thread reader([&]() {
+    std::vector<float> buf(64, 0.0f);
+    while (running.load(std::memory_order_relaxed)) {
+      rb.read(buf.data(), buf.size());
+      std::this_thread::yield();
+    }
+  });
+
+  for (int i = 0; i < 500; ++i) {
+    rb.reset();
+    size_t availRead = rb.availableRead();
+    size_t availWrite = rb.availableWrite();
+    EXPECT_LE(availRead, rb.capacity());
+    EXPECT_LE(availWrite, rb.capacity());
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+  }
+
+  running.store(false, std::memory_order_relaxed);
+  writer.join();
+  reader.join();
+
+  EXPECT_LE(rb.availableRead(), rb.capacity());
+  EXPECT_LE(rb.availableWrite(), rb.capacity());
 }
 
 TEST(AudioPipelineTest, AudioThreadPriorityConfiguration) {
@@ -410,4 +460,674 @@ TEST(AudioPipelineTest, BitPerfectEngineChannelMatrixIntegration) {
   EXPECT_EQ(player.getOutputChannelCount(), 8);
   player.setChannelMatrixPreset(4); // UpmixTo71
   EXPECT_EQ(player.getChannelMatrixPreset(), 4);
+}
+
+TEST(AudioPipelineTest, ParametricEqualizerBasicConfigAndBands) {
+  ParametricEqualizer eq;
+  eq.configure(48000, 2);
+  EXPECT_FALSE(eq.isBypassed());
+  EXPECT_FLOAT_EQ(eq.getPreampGain(), 0.0f);
+  EXPECT_EQ(eq.getPreset(), "Flat");
+
+  auto initialGains = eq.getBandGains();
+  EXPECT_EQ(initialGains.size(), 10u);
+  for (float g : initialGains) {
+    EXPECT_FLOAT_EQ(g, 0.0f);
+  }
+
+  eq.setBandGain(0, 4.5f);
+  EXPECT_FLOAT_EQ(eq.getBandGain(0), 4.5f);
+
+  eq.setBandGain(9, -6.0f);
+  EXPECT_FLOAT_EQ(eq.getBandGain(9), -6.0f);
+
+  // Out of range clamping
+  eq.setBandGain(3, 20.0f);
+  EXPECT_FLOAT_EQ(eq.getBandGain(3), 12.0f);
+
+  eq.setBandGain(3, -25.0f);
+  EXPECT_FLOAT_EQ(eq.getBandGain(3), -12.0f);
+
+  eq.setPreampGain(3.0f);
+  EXPECT_FLOAT_EQ(eq.getPreampGain(), 3.0f);
+}
+
+TEST(AudioPipelineTest, ParametricEqualizerBypassIdentity) {
+  ParametricEqualizer eq;
+  eq.configure(44100, 2);
+
+  // Configure high boosts
+  eq.setBandGain(0, 10.0f);
+  eq.setBandGain(5, -8.0f);
+  eq.setPreampGain(5.0f);
+
+  // When bypassed, input buffer is untouched bit-for-bit
+  eq.setBypassed(true);
+  EXPECT_TRUE(eq.isBypassed());
+
+  std::vector<float> buffer = {0.1f, -0.2f, 0.5f, -0.4f, 0.8f, -0.7f};
+  std::vector<float> original = buffer;
+
+  eq.process(buffer.data(), 3);
+  EXPECT_EQ(buffer, original);
+
+  // Now enable and verify it modifies audio
+  eq.setBypassed(false);
+  eq.process(buffer.data(), 3);
+  EXPECT_NE(buffer, original);
+}
+
+TEST(AudioPipelineTest, ParametricEqualizerPresetAndSerialization) {
+  ParametricEqualizer eq;
+  eq.configure(96000, 2);
+
+  eq.setPreset("Bass Boost");
+  EXPECT_EQ(eq.getPreset(), "Bass Boost");
+  EXPECT_GT(eq.getBandGain(0), 4.0f);
+
+  eq.setPreampGain(-2.0f);
+
+  std::string json = eq.serialize();
+  EXPECT_FALSE(json.empty());
+  EXPECT_NE(json.find("\"Bass Boost\""), std::string::npos);
+
+  ParametricEqualizer restored;
+  restored.configure(96000, 2);
+  EXPECT_TRUE(restored.deserialize(json));
+  EXPECT_EQ(restored.getPreset(), "Bass Boost");
+  EXPECT_FLOAT_EQ(restored.getPreampGain(), -2.0f);
+  EXPECT_FLOAT_EQ(restored.getBandGain(0), eq.getBandGain(0));
+}
+
+TEST(AudioPipelineTest, ParametricEqualizerMultiChannelAndClipping) {
+  ParametricEqualizer eq;
+  eq.configure(48000, 6); // 5.1 surround
+  eq.setPreampGain(12.0f);
+  for (size_t i = 0; i < 10; ++i) {
+    eq.setBandGain(i, 12.0f);
+  }
+
+  // Large input signals to test soft limiting
+  std::vector<float> buffer(60, 0.9f);
+  eq.process(buffer.data(), 10);
+
+  // Check no samples exploded or resulted in NaN/inf
+  for (float s : buffer) {
+    EXPECT_FALSE(std::isnan(s));
+    EXPECT_FALSE(std::isinf(s));
+    EXPECT_LE(s, 1.0f);
+    EXPECT_GE(s, -1.0f);
+  }
+}
+
+TEST(AudioPipelineTest, DspManagerInitializationAndDirectories) {
+  ensureTestCoreApp();
+  DspManager dsp;
+  EXPECT_TRUE(dsp.isDspMasterEnabled());
+  EXPECT_EQ(dsp.getRoutingOrder(), DspManager::RoutingOrder::EqThenDsp);
+
+  std::string primaryDir = dsp.getPrimaryDspDirectory();
+  EXPECT_FALSE(primaryDir.empty());
+
+  // Verify directory and README.txt exist
+  EXPECT_TRUE(std::filesystem::exists(primaryDir));
+  EXPECT_TRUE(std::filesystem::exists(std::filesystem::path(primaryDir) /
+                                      "README.txt"));
+
+  // Check routing order change
+  dsp.setRoutingOrder(DspManager::RoutingOrder::DspThenEq);
+  EXPECT_EQ(dsp.getRoutingOrder(), DspManager::RoutingOrder::DspThenEq);
+
+  dsp.setDspMasterEnabled(false);
+  EXPECT_FALSE(dsp.isDspMasterEnabled());
+
+  // Test setAllPluginsEnabled invocation without plugins does not crash
+  dsp.setAllPluginsEnabled(true);
+  dsp.setAllPluginsEnabled(false);
+}
+
+TEST(AudioPipelineTest, ParametricEqualizerDynamicBandCounts) {
+  ParametricEqualizer eq;
+  eq.configure(48000, 2);
+
+  // Default is 10 bands
+  EXPECT_EQ(eq.getBandCount(), 10u);
+  EXPECT_EQ(eq.getBandGains().size(), 10u);
+  EXPECT_EQ(eq.getBandFrequencies().size(), 10u);
+  EXPECT_EQ(eq.getBandFrequencyLabels().size(), 10u);
+  EXPECT_EQ(eq.getBandFrequencyLabels()[0], "31 Hz");
+  EXPECT_EQ(eq.getBandFrequencyLabels()[9], "16 kHz");
+
+  // Switch to 15 bands
+  eq.setBandCount(15);
+  EXPECT_EQ(eq.getBandCount(), 15u);
+  EXPECT_EQ(eq.getBandGains().size(), 15u);
+  EXPECT_EQ(eq.getBandFrequencies().size(), 15u);
+  EXPECT_EQ(eq.getBandFrequencyLabels().size(), 15u);
+  EXPECT_EQ(eq.getBandFrequencyLabels()[0], "25 Hz");
+  EXPECT_EQ(eq.getBandFrequencyLabels()[14], "16 kHz");
+
+  // Switch to 31 bands
+  eq.setBandCount(31);
+  EXPECT_EQ(eq.getBandCount(), 31u);
+  EXPECT_EQ(eq.getBandGains().size(), 31u);
+  EXPECT_EQ(eq.getBandFrequencies().size(), 31u);
+  EXPECT_EQ(eq.getBandFrequencyLabels().size(), 31u);
+  EXPECT_EQ(eq.getBandFrequencyLabels()[0], "20");
+  EXPECT_EQ(eq.getBandFrequencyLabels()[30], "20k");
+
+  // Setting preset interpolates smoothly across 31 bands
+  eq.setPreset("Bass Boost");
+  EXPECT_EQ(eq.getPreset(), "Bass Boost");
+  EXPECT_GT(eq.getBandGain(0), 4.0f);
+  EXPECT_GT(eq.getBandGain(5), 1.0f);
+
+  // Test audio processing across 31 bands
+  std::vector<float> buffer = {0.2f, -0.3f, 0.4f, -0.1f, 0.5f, -0.6f};
+  std::vector<float> original = buffer;
+  eq.process(buffer.data(), 3);
+  EXPECT_NE(buffer, original);
+
+  // Switch back to 10 bands
+  eq.setBandCount(10);
+  EXPECT_EQ(eq.getBandCount(), 10u);
+  EXPECT_EQ(eq.getBandGains().size(), 10u);
+}
+
+TEST(AudioPipelineTest, ParametricEqualizerConcurrentThreadStressTest) {
+  ParametricEqualizer eq;
+  eq.configure(48000, 2);
+
+  std::atomic<bool> running{true};
+  std::atomic<uint64_t> processedBlocks{0};
+
+  // Audio thread simulating real-time audio playback
+  std::thread audioThread([&]() {
+    std::vector<float> buffer(512 * 2, 0.5f);
+    while (running.load(std::memory_order_relaxed)) {
+      eq.process(buffer.data(), 512);
+      processedBlocks.fetch_add(1, std::memory_order_relaxed);
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+  });
+
+  // UI thread rapidly changing bands, presets, preamp, and bypass state
+  for (int i = 0; i < 200; ++i) {
+    eq.setBandGain(i % 10, static_cast<float>((i % 24) - 12));
+    eq.setPreampGain(static_cast<float>((i % 10) - 5));
+    if (i % 20 == 0) {
+      eq.setBypassed((i / 20) % 2 == 1);
+    }
+    if (i % 30 == 0) {
+      eq.setPreset(i % 60 == 0 ? "Rock" : "Flat");
+    }
+    if (i % 50 == 0) {
+      eq.setBandCount(i % 100 == 0 ? 15 : 10);
+    }
+    std::this_thread::sleep_for(std::chrono::microseconds(200));
+  }
+
+  running.store(false, std::memory_order_release);
+  if (audioThread.joinable()) {
+    audioThread.join();
+  }
+
+  EXPECT_GT(processedBlocks.load(), 50u);
+}
+
+TEST(AudioPipelineTest, AudioEngineAndPlayerServiceEqDspRouting) {
+  ensureTestCoreApp();
+  auto engine = std::make_shared<BitPerfectAudioEngine>();
+  engine->initialize(44100, 2);
+
+  core::PlayerService player(engine);
+
+  // Equalizer routing through PlayerService
+  EXPECT_TRUE(player.isEqEnabled());
+  player.setEqEnabled(false);
+  EXPECT_FALSE(player.isEqEnabled());
+  player.setEqEnabled(true);
+  EXPECT_TRUE(player.isEqEnabled());
+
+  player.setEqPreampGain(2.5f);
+  EXPECT_FLOAT_EQ(player.getEqPreampGain(), 2.5f);
+
+  player.setEqBandGain(1, 3.5f);
+  EXPECT_FLOAT_EQ(player.getEqBandGain(1), 3.5f);
+
+  player.setEqPreset("Rock");
+  EXPECT_EQ(player.getEqPreset(), "Rock");
+
+  // Dynamic band count through PlayerService
+  EXPECT_EQ(player.getEqBandCount(), 10u);
+  EXPECT_EQ(player.getEqBandFrequencyLabels().size(), 10u);
+
+  player.setEqBandCount(15);
+  EXPECT_EQ(player.getEqBandCount(), 15u);
+  EXPECT_EQ(player.getEqBandFrequencyLabels().size(), 15u);
+
+  player.setEqBandCount(31);
+  EXPECT_EQ(player.getEqBandCount(), 31u);
+  EXPECT_EQ(player.getEqBandFrequencyLabels().size(), 31u);
+
+  player.resetEq();
+  EXPECT_FLOAT_EQ(player.getEqPreampGain(), 0.0f);
+  EXPECT_FLOAT_EQ(player.getEqBandGain(1), 0.0f);
+
+  // DSP Routing order through PlayerService
+  EXPECT_EQ(player.getDspRoutingOrder(), 0);
+  player.setDspRoutingOrder(1);
+  EXPECT_EQ(player.getDspRoutingOrder(), 1);
+
+  EXPECT_TRUE(player.isDspMasterEnabled());
+  player.setDspMasterEnabled(false);
+  EXPECT_FALSE(player.isDspMasterEnabled());
+}
+
+TEST(AudioPipelineTest, WasapiAudioSinkLifecycleAndProperties) {
+  WasapiAudioSink sink;
+  EXPECT_FALSE(sink.isOpen());
+  EXPECT_EQ(sink.getName(), "Windows WASAPI Exclusive Mode");
+
+  auto devices = sink.enumerateDevices();
+  EXPECT_FALSE(devices.empty());
+
+  AudioSinkConfig config;
+  config.sampleRate = 48000;
+  config.channels = 2;
+  config.bitDepth = 24;
+  config.bufferLatencyMs = 15;
+
+  EXPECT_TRUE(sink.open(config));
+  EXPECT_TRUE(sink.isOpen());
+  EXPECT_TRUE(sink.isBitPerfect());
+  EXPECT_EQ(sink.getLatencyMs(), 15u);
+
+  std::vector<float> pcm(512 * 2, 0.2f);
+  size_t written = sink.write(pcm.data(), 512);
+  EXPECT_GT(written, 0u);
+
+  sink.pause();
+  sink.resume();
+  sink.flush();
+  sink.close();
+  EXPECT_FALSE(sink.isOpen());
+}
+
+TEST(AudioPipelineTest, CoreAudioSinkLifecycleAndHogMode) {
+  CoreAudioSink sink;
+  EXPECT_FALSE(sink.isOpen());
+  EXPECT_EQ(sink.getName(), "macOS CoreAudio Integer/Hog Mode");
+
+  auto devices = sink.enumerateDevices();
+  EXPECT_FALSE(devices.empty());
+
+  AudioSinkConfig config;
+  config.sampleRate = 96000;
+  config.channels = 2;
+  config.bitDepth = 24;
+  config.bufferLatencyMs = 10;
+
+  EXPECT_TRUE(sink.open(config));
+  EXPECT_TRUE(sink.isOpen());
+  EXPECT_TRUE(sink.isBitPerfect());
+
+  EXPECT_TRUE(sink.setHogMode(true));
+  EXPECT_TRUE(sink.isHogModeActive());
+  EXPECT_TRUE(sink.setHogMode(false));
+  EXPECT_FALSE(sink.isHogModeActive());
+
+  std::vector<float> pcm(256 * 2, 0.1f);
+  size_t written = sink.write(pcm.data(), 256);
+  EXPECT_EQ(written, 256u);
+
+  sink.close();
+  EXPECT_FALSE(sink.isOpen());
+}
+
+TEST(AudioPipelineTest, WavAudioDecoderDirectPcmParsing) {
+  std::filesystem::path tempWav =
+      std::filesystem::temp_directory_path() / "test_synth.wav";
+
+  // Synthesize a valid 16-bit 44.1kHz stereo PCM WAV file
+  std::ofstream out(tempWav, std::ios::binary);
+  ASSERT_TRUE(out.is_open());
+
+  uint32_t sampleRate = 44100;
+  uint16_t channels = 2;
+  uint16_t bitsPerSample = 16;
+  uint32_t frameCount = 100;
+  uint32_t dataBytes = frameCount * channels * (bitsPerSample / 8);
+  uint32_t riffSize = 36 + dataBytes;
+
+  out.write("RIFF", 4);
+  out.write(reinterpret_cast<const char *>(&riffSize), 4);
+  out.write("WAVE", 4);
+
+  // 'fmt ' chunk
+  uint32_t fmtSize = 16;
+  uint16_t fmtTag = 1; // PCM
+  uint32_t byteRate = sampleRate * channels * (bitsPerSample / 8);
+  uint16_t blockAlign = channels * (bitsPerSample / 8);
+  out.write("fmt ", 4);
+  out.write(reinterpret_cast<const char *>(&fmtSize), 4);
+  out.write(reinterpret_cast<const char *>(&fmtTag), 2);
+  out.write(reinterpret_cast<const char *>(&channels), 2);
+  out.write(reinterpret_cast<const char *>(&sampleRate), 4);
+  out.write(reinterpret_cast<const char *>(&byteRate), 4);
+  out.write(reinterpret_cast<const char *>(&blockAlign), 2);
+  out.write(reinterpret_cast<const char *>(&bitsPerSample), 2);
+
+  // 'data' chunk
+  out.write("data", 4);
+  out.write(reinterpret_cast<const char *>(&dataBytes), 4);
+  for (uint32_t i = 0; i < frameCount * channels; ++i) {
+    int16_t sample = static_cast<int16_t>((i % 100) * 300);
+    out.write(reinterpret_cast<const char *>(&sample), 2);
+  }
+  out.close();
+
+  WavAudioDecoder decoder;
+  EXPECT_TRUE(decoder.open(tempWav.string()));
+  EXPECT_TRUE(decoder.isOpen());
+
+  auto meta = decoder.getMetadata();
+  EXPECT_EQ(meta.sampleRate, 44100u);
+  EXPECT_EQ(meta.channels, 2u);
+  EXPECT_EQ(meta.bitDepth, 16u);
+  EXPECT_EQ(meta.totalFrames, 100u);
+
+  std::vector<float> readBuf(50 * 2);
+  size_t read = decoder.readFrames(readBuf.data(), 50);
+  EXPECT_EQ(read, 50u);
+  EXPECT_EQ(decoder.getPositionFrames(), 50u);
+
+  EXPECT_TRUE(decoder.seek(10));
+  EXPECT_EQ(decoder.getPositionFrames(), 10u);
+
+  decoder.close();
+  EXPECT_FALSE(decoder.isOpen());
+  std::filesystem::remove(tempWav);
+}
+
+TEST(AudioPipelineTest, FlacAudioDecoderStreamInfoParsing) {
+  std::filesystem::path tempFlac =
+      std::filesystem::temp_directory_path() / "test_synth.flac";
+
+  // Synthesize a valid FLAC header with STREAMINFO metadata
+  std::ofstream out(tempFlac, std::ios::binary);
+  ASSERT_TRUE(out.is_open());
+
+  out.write("fLaC", 4);
+
+  // STREAMINFO metadata block header (isLast=true, type=0, length=34)
+  uint8_t blockHeader[4] = {0x80, 0x00, 0x00, 34};
+  out.write(reinterpret_cast<const char *>(blockHeader), 4);
+
+  uint8_t streamInfo[34] = {0};
+  // min/max blocksize: 4096
+  streamInfo[0] = 0x10;
+  streamInfo[1] = 0x00;
+  streamInfo[2] = 0x10;
+  streamInfo[3] = 0x00;
+
+  // sample rate = 96000 (0x17700), channels = 2 (ch-1 = 1), bits = 24 (b-1 =
+  // 23) 96000 = 0x17700: info[10]=0x17, info[11]=0x70, info[12]=(0x0 << 4) | (1
+  // << 1) | (23 >> 4) = 0x03
+  streamInfo[10] = 0x17;
+  streamInfo[11] = 0x70;
+  streamInfo[12] = 0x03;
+  // info[13] = ((23 & 0x0F) << 4) | (0 for total samples high 4 bits) = 0x70
+  streamInfo[13] = 0x70;
+  // total samples = 480000 (0x075300)
+  streamInfo[14] = 0x00;
+  streamInfo[15] = 0x07;
+  streamInfo[16] = 0x53;
+  streamInfo[17] = 0x00;
+
+  out.write(reinterpret_cast<const char *>(streamInfo), 34);
+  out.close();
+
+  FlacAudioDecoder decoder;
+  EXPECT_TRUE(decoder.open(tempFlac.string()));
+  EXPECT_TRUE(decoder.isOpen());
+
+  auto meta = decoder.getMetadata();
+  EXPECT_EQ(meta.sampleRate, 96000u);
+  EXPECT_EQ(meta.channels, 2u);
+  EXPECT_EQ(meta.bitDepth, 24u);
+  EXPECT_EQ(meta.totalFrames, 480000u);
+
+  decoder.close();
+  std::filesystem::remove(tempFlac);
+}
+
+TEST(AudioPipelineTest, DsdAudioDecoderDsfParsingAndDoP) {
+  std::filesystem::path tempDsf =
+      std::filesystem::temp_directory_path() / "test_synth.dsf";
+
+  std::ofstream out(tempDsf, std::ios::binary);
+  ASSERT_TRUE(out.is_open());
+
+  // 'DSD ' chunk (28 bytes)
+  uint8_t dsdChunk[28] = {'D', 'S', 'D', ' '};
+  *reinterpret_cast<uint64_t *>(dsdChunk + 4) = 28;
+  *reinterpret_cast<uint64_t *>(dsdChunk + 12) = 1000;
+  out.write(reinterpret_cast<const char *>(dsdChunk), 28);
+
+  // 'fmt ' chunk (52 bytes)
+  uint8_t fmtChunk[52] = {'f', 'm', 't', ' '};
+  *reinterpret_cast<uint64_t *>(fmtChunk + 4) = 52;
+  *reinterpret_cast<uint32_t *>(fmtChunk + 12) = 1;       // version
+  *reinterpret_cast<uint32_t *>(fmtChunk + 16) = 0;       // format id
+  *reinterpret_cast<uint32_t *>(fmtChunk + 20) = 1;       // channel type
+  *reinterpret_cast<uint32_t *>(fmtChunk + 24) = 2;       // channel count
+  *reinterpret_cast<uint32_t *>(fmtChunk + 28) = 2822400; // DSD64 2.8224MHz
+  *reinterpret_cast<uint32_t *>(fmtChunk + 32) = 1;       // 1-bit
+  *reinterpret_cast<uint64_t *>(fmtChunk + 36) = 2822400; // 1 second of DSD
+  *reinterpret_cast<uint32_t *>(fmtChunk + 44) = 4096;    // block size
+  out.write(reinterpret_cast<const char *>(fmtChunk), 52);
+
+  // 'data' chunk
+  uint8_t dataChunk[12] = {'d', 'a', 't', 'a'};
+  *reinterpret_cast<uint64_t *>(dataChunk + 4) = 705600 + 12;
+  out.write(reinterpret_cast<const char *>(dataChunk), 12);
+  out.close();
+
+  DsdAudioDecoder decoder;
+  EXPECT_TRUE(decoder.open(tempDsf.string()));
+  EXPECT_TRUE(decoder.isOpen());
+
+  auto meta = decoder.getMetadata();
+  EXPECT_TRUE(meta.isDsd);
+  EXPECT_EQ(meta.dsdSampleRate, 2822400u);
+  EXPECT_EQ(meta.sampleRate, 88200u); // Decimated rate
+  EXPECT_EQ(meta.channels, 2u);
+
+  // Test DoP (DSD over PCM) output mode
+  decoder.setOutputMode(DsdAudioDecoder::OutputMode::DsdOverPcm);
+  EXPECT_EQ(decoder.getOutputMode(), DsdAudioDecoder::OutputMode::DsdOverPcm);
+
+  std::vector<float> dopBuf(64 * 2);
+  size_t read = decoder.readFrames(dopBuf.data(), 64);
+  EXPECT_EQ(read, 64u);
+  // DoP produces marker bytes 0x05 / 0xFA
+  EXPECT_NE(dopBuf[0], 0.0f);
+
+  decoder.close();
+  std::filesystem::remove(tempDsf);
+}
+
+TEST(AudioPipelineTest, LoudnessAndDitherProcessorReplayGainAndLimiter) {
+  LoudnessAndDitherProcessor proc;
+
+  // Test SmartGain mode with ReplayGain tags
+  proc.setReplayGainMode(ReplayGainMode::SmartGain);
+  proc.setPreampTaggedDb(3.0f);
+  proc.setPreampUntaggedDb(-6.0f);
+  proc.setCurrentTrackLoudness(true, -4.5f, 0.95f, -3.0f, 0.98f, true);
+
+  // In album playback, album gain (-3.0) + preamp (+3.0) = 0.0 dB (linear 1.0)
+  EXPECT_FLOAT_EQ(proc.getCurrentAppliedGainDb(), 0.0f);
+
+  // Now switch to shuffle (track gain mode): -4.5 + 3.0 = -1.5 dB
+  proc.setCurrentTrackLoudness(true, -4.5f, 0.95f, -3.0f, 0.98f, false);
+  EXPECT_FLOAT_EQ(proc.getCurrentAppliedGainDb(), -1.5f);
+
+  // Test True-Peak Anti-Clipping Limiter with high positive preamp (+10 dB)
+  proc.setPreampTaggedDb(10.0f);
+  proc.setTruePeakLimiterEnabled(true);
+  EXPECT_TRUE(proc.isTruePeakLimiterEnabled());
+
+  std::vector<float> audio = {0.8f, -0.9f, 0.95f, -0.99f};
+  proc.process(audio.data(), 2, 2);
+
+  // Verify True-Peak limiter prevents digital clipping past [-1.0, +1.0]
+  for (float s : audio) {
+    EXPECT_LE(s, 1.0f);
+    EXPECT_GE(s, -1.0f);
+  }
+
+  // Test 64-bit TPDF Dithering
+  proc.setDitherMode(DitherMode::FlatTpdf);
+  EXPECT_EQ(proc.getDitherMode(), DitherMode::FlatTpdf);
+  proc.setTargetBitDepth(16);
+  EXPECT_EQ(proc.getTargetBitDepth(), 16u);
+
+  std::vector<float> quietAudio = {0.0f, 0.0f, 0.0f, 0.0f};
+  proc.process(quietAudio.data(), 2, 2);
+  // Dither injects low-level triangular noise
+  bool hasNoise = false;
+  for (float s : quietAudio) {
+    if (std::abs(s) > 0.0f)
+      hasNoise = true;
+  }
+  EXPECT_TRUE(hasNoise);
+}
+
+TEST(AudioPipelineTest, CrossfadeEngineCurvesAndAlbumProtection) {
+  CrossfadeEngine crossfader;
+
+  crossfader.setEnabled(true);
+  EXPECT_TRUE(crossfader.isEnabled());
+
+  crossfader.setDurationSec(3.0f);
+  EXPECT_FLOAT_EQ(crossfader.getDurationSec(), 3.0f);
+
+  crossfader.setAutoDisableSameAlbum(true);
+  EXPECT_TRUE(crossfader.isAutoDisableSameAlbum());
+
+  // Consecutive tracks on same album must NOT crossfade to protect gapless
+  // concept album playback
+  EXPECT_FALSE(crossfader.shouldTriggerCrossfade("The Wall", "The Wall", 2000));
+
+  // Mixed tracks on different albums MUST trigger crossfade
+  EXPECT_TRUE(
+      crossfader.shouldTriggerCrossfade("Abbey Road", "The Wall", 2000));
+
+  // Test Equal-Power crossfade blending
+  crossfader.setCurve(CrossfadeCurve::EqualPower);
+  crossfader.beginCrossfade(100);
+  EXPECT_TRUE(crossfader.isCrossfadeActive());
+
+  std::vector<float> incoming(100 * 2, 0.8f);
+  crossfader.writeIncomingSamples(incoming.data(), incoming.size());
+
+  std::vector<float> outgoing(50 * 2, 0.5f);
+  crossfader.process(outgoing.data(), 50, 2);
+
+  // Outgoing buffer should be smoothly blended with incoming
+  EXPECT_NE(outgoing[25 * 2], 0.5f);
+  EXPECT_TRUE(crossfader.isCrossfadeActive());
+
+  crossfader.reset();
+  EXPECT_FALSE(crossfader.isCrossfadeActive());
+}
+
+TEST(AudioPipelineTest, CueSheetParserIndexAndVirtualTracks) {
+  std::string cue = R"(
+PERFORMER "Pink Floyd"
+TITLE "Dark Side of the Moon"
+FILE "album.flac" WAVE
+  TRACK 01 AUDIO
+    TITLE "Speak to Me"
+    INDEX 01 00:00:00
+  TRACK 02 AUDIO
+    TITLE "Breathe"
+    PERFORMER "Pink Floyd"
+    SONGWRITER "Waters/Gilmour/Wright"
+    INDEX 01 01:13:00
+  TRACK 03 AUDIO
+    TITLE "On the Run"
+    INDEX 01 03:56:50
+)";
+
+  uint64_t ms1 = CueSheetParser::parseIndexTimestampMs("01:13:00");
+  EXPECT_EQ(ms1, (1ULL * 60 + 13) * 1000); // 73,000 ms
+
+  uint64_t ms2 = CueSheetParser::parseIndexTimestampMs("03:56:50");
+  EXPECT_EQ(ms2, (3ULL * 60 + 56) * 1000 + (50 * 1000) / 75);
+
+  auto tracks = CueSheetParser::parseString(cue, "/music/album.flac", 300000);
+  ASSERT_EQ(tracks.size(), 3u);
+
+  EXPECT_EQ(tracks[0].title, "Speak to Me");
+  EXPECT_EQ(tracks[0].album, "Dark Side of the Moon");
+  EXPECT_EQ(tracks[0].artist, "Pink Floyd");
+  EXPECT_EQ(tracks[0].startTimeMs, 0u);
+  EXPECT_EQ(tracks[0].endTimeMs, 73000u);
+  EXPECT_EQ(tracks[0].durationMs, 73000u);
+  EXPECT_TRUE(tracks[0].isVirtualTrack);
+
+  EXPECT_EQ(tracks[1].title, "Breathe");
+  EXPECT_EQ(tracks[1].startTimeMs, 73000u);
+  EXPECT_GT(tracks[1].durationMs, 0u);
+
+  EXPECT_EQ(tracks[2].title, "On the Run");
+  EXPECT_EQ(tracks[2].endTimeMs, 300000u);
+}
+
+TEST(AudioPipelineTest, WaveformExtractorPeakCalculationAndCache) {
+  std::filesystem::path tempCacheDir =
+      std::filesystem::temp_directory_path() / "waveform_cache_test";
+  WaveformExtractor extractor(tempCacheDir.string());
+  EXPECT_EQ(extractor.getCacheDirectory(), tempCacheDir.string());
+
+  std::vector<float> peaks =
+      extractor.extractPeaks("/music/non_existent.flac", 128);
+  EXPECT_EQ(peaks.size(), 128u);
+  for (float p : peaks) {
+    EXPECT_GE(p, 0.0f);
+    EXPECT_LE(p, 1.0f);
+  }
+
+  // Second extraction loads from disk cache
+  std::vector<float> cachedPeaks =
+      extractor.extractPeaks("/music/non_existent.flac", 128);
+  EXPECT_EQ(peaks, cachedPeaks);
+
+  std::filesystem::remove_all(tempCacheDir);
+}
+
+TEST(AudioPipelineTest, DirectHardwareAudioEngineFormalNamingAndBufferHealth) {
+  ensureTestCoreApp();
+  auto engine = std::make_shared<DirectHardwareAudioEngine>();
+  EXPECT_TRUE(engine->initialize(48000, 2));
+
+  // Test formal aliases
+  std::shared_ptr<StudioMasterAudioEngine> studioEngine = engine;
+  EXPECT_NE(studioEngine, nullptr);
+
+  // Diagnostics & Buffer Health
+  EXPECT_FLOAT_EQ(engine->getBufferFillPercentage(), 0.0f);
+  EXPECT_FALSE(engine->getActiveDecoderName().empty());
+
+  // Crossfade and ReplayGain core controls
+  engine->setCrossfadeEnabled(true);
+  EXPECT_TRUE(engine->isCrossfadeEnabled());
+  engine->setCrossfadeDurationSec(3.5f);
+  EXPECT_FLOAT_EQ(engine->getCrossfadeDurationSec(), 3.5f);
+
+  engine->setReplayGainMode(2); // Album Gain
+  EXPECT_EQ(engine->getReplayGainMode(), 2);
 }

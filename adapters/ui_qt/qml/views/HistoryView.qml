@@ -50,7 +50,10 @@ Item {
 
                 // Clear History Button
                 Rectangle {
-                    width: clearHistoryText.implicitWidth + 24
+                    Layout.preferredWidth: clearHistoryText.implicitWidth + 28
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
+                    width: Layout.preferredWidth
                     height: 28
                     radius: Theme.cornerRadiusSmall
                     color: clearHistoryMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
