@@ -144,6 +144,8 @@ class QtBridge : public QObject {
                  setActiveNavSection NOTIFY viewLayoutChanged)
   Q_PROPERTY(QString activePlaylistName READ activePlaylistName WRITE
                  setActivePlaylistName NOTIFY viewLayoutChanged)
+  Q_PROPERTY(bool hiResOnly READ hiResOnly WRITE setHiResOnly NOTIFY
+                 hiResFilterChanged)
 
   // Library Statistics
   Q_PROPERTY(int totalAlbums READ totalAlbums NOTIFY libraryStatsChanged)
@@ -237,6 +239,12 @@ class QtBridge : public QObject {
                  librarySettingsChanged)
   Q_PROPERTY(bool filesystemWatcher READ filesystemWatcher WRITE
                  setFilesystemWatcher NOTIFY librarySettingsChanged)
+  Q_PROPERTY(bool syncRatingsToTags READ syncRatingsToTags WRITE
+                 setSyncRatingsToTags NOTIFY syncRatingsToTagsChanged)
+  Q_PROPERTY(int currentTrackRating READ currentTrackRating NOTIFY
+                 currentTrackRatingChanged)
+  Q_PROPERTY(bool currentTrackFavorite READ currentTrackFavorite NOTIFY
+                 currentTrackRatingChanged)
   Q_PROPERTY(bool autoScanOnStartup READ autoScanOnStartup WRITE
                  setAutoScanOnStartup NOTIFY librarySettingsChanged)
   Q_PROPERTY(QStringList formatFilters READ formatFilters WRITE setFormatFilters
@@ -636,13 +644,18 @@ public:
 
   // QML-invokable actions
   Q_INVOKABLE void scanDirectory(const QString &folderPath);
-  Q_INVOKABLE void purgeMissingTracks();
+  Q_INVOKABLE int purgeMissingTracks();
   Q_INVOKABLE void clearLibrary();
   Q_INVOKABLE void search(const QString &query);
   Q_INVOKABLE void filterByLetter(const QString &letter);
   Q_INVOKABLE void filterByGenre(const QString &genre);
   Q_INVOKABLE void filterByArtist(const QString &artist);
+  Q_INVOKABLE void filterByAlbum(const QString &album);
+  [[nodiscard]] bool hiResOnly() const;
+  Q_INVOKABLE void setHiResOnly(bool enable);
+  Q_INVOKABLE void toggleHiResFilter();
   Q_INVOKABLE void resetFilters();
+  Q_INVOKABLE void showAllTracks();
   Q_INVOKABLE void openAlbumDetails(const QString &albumTitle,
                                     const QString &albumArtist);
   Q_INVOKABLE void playAlbum(const QString &albumTitle,
@@ -785,6 +798,45 @@ public:
   [[nodiscard]] Q_INVOKABLE int getTrackRating(const QString &trackId) const;
   Q_INVOKABLE void toggleTracksFavorite(const QStringList &trackIds);
   [[nodiscard]] Q_INVOKABLE bool isTrackFavorite(const QString &trackId) const;
+  [[nodiscard]] int currentTrackRating() const;
+  [[nodiscard]] bool currentTrackFavorite() const;
+  [[nodiscard]] bool syncRatingsToTags() const { return m_syncRatingsToTags; }
+  Q_INVOKABLE void setSyncRatingsToTags(bool sync);
+  Q_INVOKABLE void setCurrentTrackRating(int rating);
+  Q_INVOKABLE void toggleCurrentTrackFavorite();
+
+  // Multi-Track Tag & Art Editor (Phase 4 / Issue #52)
+  [[nodiscard]] Q_INVOKABLE QVariantMap
+  getSharedTrackTags(const QStringList &trackIds) const;
+  Q_INVOKABLE bool extractCoverArtToFile(const QString &trackId,
+                                         const QString &targetFilePath);
+  Q_INVOKABLE bool replaceCoverArtFromFile(const QStringList &trackIds,
+                                           const QString &imageFilePath);
+  Q_INVOKABLE bool removeCoverArtFromTracks(const QStringList &trackIds);
+
+  // Static Playlists & Reordering (Phase 4 / Issue #46)
+  Q_INVOKABLE bool moveTrackInPlaylist(const QString &playlistName,
+                                       int fromIndex, int toIndex);
+
+  // Smart Auto-Playlists (Phase 4 / Issue #47)
+  [[nodiscard]] Q_INVOKABLE QVariantList getBuiltInSmartPlaylists() const;
+  void populateDefaultSmartPlaylists();
+
+  // Physical Folder Navigation (Phase 4 / Issue #51)
+  [[nodiscard]] Q_INVOKABLE QVariantList
+  getDirectoryNodes(const QString &folderPath) const;
+  Q_INVOKABLE void playPhysicalFolder(const QString &folderPath,
+                                      bool enqueue = false);
+
+  // Missing File Relocation & Health Inspector (Phase 4 / Issue #54)
+  [[nodiscard]] Q_INVOKABLE QVariantList scanMissingTracks();
+  Q_INVOKABLE int relocateMissingFolder(const QString &oldPrefix,
+                                        const QString &newPrefix);
+  [[nodiscard]] Q_INVOKABLE QVariantMap checkLibraryHealth();
+
+  // Listening History & Grouping (Phase 4 / Issue #49)
+  [[nodiscard]] Q_INVOKABLE QVariantList getListeningHistoryGrouped() const;
+
   Q_INVOKABLE void refreshHistory();
 
   // Playback & DSP Settings
@@ -1200,6 +1252,8 @@ public:
   }
 
 signals:
+  void hiResFilterChanged();
+  void filtersReset();
   void playbackChanged();
   void positionChanged();
   void volumeChanged();
@@ -1229,6 +1283,9 @@ signals:
   void sleepTimerChanged();
   void playlistsChanged();
   void ratingsChanged();
+  void currentTrackRatingChanged();
+  void syncRatingsToTagsChanged();
+  void listeningHistoryChanged();
   void tableColumnsChanged();
   void viewLayoutChanged();
   void volumeLockedChanged();
@@ -1482,4 +1539,19 @@ private:
   adapters::PluginManager *m_pluginManager{nullptr};
   adapters::DspManager *m_dspManager{nullptr};
   void applyLanguage(const QString &lang);
+
+  // Phase 4 State
+  bool m_syncRatingsToTags{false};
+  int m_currentTrackRating{0};
+  bool m_currentTrackFavorite{false};
+  bool m_hasScrobbledCurrentTrack{false};
+  qint64 m_currentTrackListenMs{0};
+  QString m_lastTrackIdPlayed;
+
+  // Real-Time Background Filesystem Watcher (Issue #50)
+  class QFileSystemWatcher *m_libraryWatcher{nullptr};
+  class QTimer *m_watcherDebounceTimer{nullptr};
+  void setupFilesystemWatcher();
+  void updateWatchedFolders();
+  void onWatchedDirectoryChanged(const QString &path);
 };

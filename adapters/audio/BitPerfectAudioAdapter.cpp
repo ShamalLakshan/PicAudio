@@ -14,48 +14,16 @@
 
 namespace adapters {
 
-BitPerfectAudioEngine::BitPerfectAudioEngine(QObject *parent)
-    : QObject(parent), m_player(std::make_unique<QMediaPlayer>()),
-      m_pcmAudioDevice(std::make_unique<PcmAudioDevice>(m_outputRingBuffer)) {
+AudioPlayerWorker::AudioPlayerWorker(
+    LockFreeRingBuffer<float> &outputRingBuffer, std::condition_variable &dspCv,
+    std::atomic<int64_t> &positionMs, std::atomic<int64_t> &durationMs,
+    std::atomic<bool> &isPlaying, std::atomic<float> &playbackRate,
+    QObject *parent)
+    : QObject(parent), m_outputRingBuffer(outputRingBuffer), m_dspCv(dspCv),
+      m_atomicPositionMs(positionMs), m_atomicDurationMs(durationMs),
+      m_atomicPlaying(isPlaying), m_atomicPlaybackRate(playbackRate) {}
 
-#if __has_include(<QAudioBufferOutput>)
-  m_bufferOutput = std::make_unique<QAudioBufferOutput>();
-  m_player->setAudioBufferOutput(m_bufferOutput.get());
-  connect(m_bufferOutput.get(), &QAudioBufferOutput::audioBufferReceived, this,
-          &BitPerfectAudioEngine::handleAudioBuffer, Qt::DirectConnection);
-#endif
-
-  configureAudioSink(44100, 2);
-
-  // Launch dedicated real-time audio DSP worker thread
-  m_dspThreadRunning.store(true, std::memory_order_release);
-  m_dspThread = std::thread(&BitPerfectAudioEngine::dspWorkerLoop, this);
-
-  connect(m_player.get(), &QMediaPlayer::mediaStatusChanged, this,
-          [this](QMediaPlayer::MediaStatus status) {
-            if (status == QMediaPlayer::EndOfMedia) {
-              emit playbackFinished();
-              if (m_endOfTrackCallback) {
-                m_endOfTrackCallback();
-              }
-            }
-          });
-
-  connect(m_player.get(), &QMediaPlayer::errorOccurred, this,
-          [this](QMediaPlayer::Error error, const QString &errorString) {
-            std::cerr << "BitPerfectAudioEngine Error (" << error
-                      << "): " << errorString.toStdString() << std::endl;
-          });
-}
-
-BitPerfectAudioEngine::~BitPerfectAudioEngine() {
-  m_dspThreadRunning.store(false, std::memory_order_release);
-  m_dspCv.notify_all();
-  if (m_dspThread.joinable()) {
-    m_dspThread.join();
-  }
-
-  stop();
+AudioPlayerWorker::~AudioPlayerWorker() {
   if (m_audioSink) {
     m_audioSink->stop();
     m_audioSink.reset();
@@ -76,38 +44,299 @@ BitPerfectAudioEngine::~BitPerfectAudioEngine() {
   }
 }
 
-void BitPerfectAudioEngine::configureAudioSink(uint32_t sampleRate,
-                                               uint8_t channels) {
+void AudioPlayerWorker::init() {
+  m_player = std::make_unique<QMediaPlayer>();
+  m_player->setAudioOutput(nullptr);
+
+#if __has_include(<QAudioBufferOutput>)
+  m_bufferOutput = std::make_unique<QAudioBufferOutput>();
+  m_player->setAudioBufferOutput(m_bufferOutput.get());
+#endif
+
+  m_pcmAudioDevice =
+      std::make_unique<PcmAudioDevice>(m_outputRingBuffer, m_dspCv, this);
+
+  configureSink(44100, 2);
+
+  m_positionTimer = new QTimer(this);
+  m_positionTimer->setInterval(50);
+  connect(m_positionTimer, &QTimer::timeout, this, [this]() {
+    if (m_player) {
+      m_atomicPositionMs.store(std::max<qint64>(0, m_player->position()),
+                               std::memory_order_release);
+      m_atomicDurationMs.store(std::max<qint64>(0, m_player->duration()),
+                               std::memory_order_release);
+    }
+  });
+
+  connect(m_player.get(), &QMediaPlayer::positionChanged, this,
+          [this](qint64 pos) {
+            m_atomicPositionMs.store(std::max<qint64>(0, pos),
+                                     std::memory_order_release);
+          });
+
+  connect(m_player.get(), &QMediaPlayer::durationChanged, this,
+          [this](qint64 dur) {
+            m_atomicDurationMs.store(std::max<qint64>(0, dur),
+                                     std::memory_order_release);
+          });
+
+  connect(m_player.get(), &QMediaPlayer::playbackStateChanged, this,
+          [this](QMediaPlayer::PlaybackState state) {
+            const bool playing = (state == QMediaPlayer::PlayingState);
+            m_atomicPlaying.store(playing, std::memory_order_release);
+            if (playing) {
+              if (m_positionTimer && !m_positionTimer->isActive()) {
+                m_positionTimer->start();
+              }
+            } else {
+              if (m_positionTimer && m_positionTimer->isActive()) {
+                m_positionTimer->stop();
+              }
+            }
+          });
+
+  connect(m_player.get(), &QMediaPlayer::mediaStatusChanged, this,
+          [this](QMediaPlayer::MediaStatus status) {
+            if (status == QMediaPlayer::EndOfMedia) {
+              m_atomicPlaying.store(false, std::memory_order_release);
+              if (m_positionTimer && m_positionTimer->isActive()) {
+                m_positionTimer->stop();
+              }
+              emit trackFinished();
+            }
+          });
+
+  connect(m_player.get(), &QMediaPlayer::errorOccurred, this,
+          [](QMediaPlayer::Error error, const QString &errorString) {
+            std::cerr << "AudioPlayerWorker Error (" << error
+                      << "): " << errorString.toStdString() << std::endl;
+          });
+}
+
+void AudioPlayerWorker::loadFile(const QString &filePath) {
+  if (m_player) {
+    m_player->setSource(QUrl::fromLocalFile(filePath));
+    m_atomicPositionMs.store(0, std::memory_order_release);
+    m_atomicDurationMs.store(std::max<qint64>(0, m_player->duration()),
+                             std::memory_order_release);
+  }
+}
+
+void AudioPlayerWorker::play() {
+  if (m_player) {
+    m_player->play();
+    m_atomicPlaying.store(true, std::memory_order_release);
+    if (m_positionTimer && !m_positionTimer->isActive()) {
+      m_positionTimer->start();
+    }
+  }
+  if (m_audioSink) {
+    m_audioSink->setVolume(m_volume);
+    if (m_audioSink->state() == QAudio::SuspendedState) {
+      m_audioSink->resume();
+    } else if (m_audioSink->state() == QAudio::StoppedState ||
+               m_audioSink->state() == QAudio::IdleState) {
+      if (m_pcmAudioDevice) {
+        m_audioSink->start(m_pcmAudioDevice.get());
+      }
+    }
+  }
+}
+
+void AudioPlayerWorker::pause() {
+  if (m_player) {
+    m_player->pause();
+    m_atomicPlaying.store(false, std::memory_order_release);
+    if (m_positionTimer && m_positionTimer->isActive()) {
+      m_positionTimer->stop();
+    }
+  }
+  if (m_audioSink && m_audioSink->state() == QAudio::ActiveState) {
+    m_audioSink->suspend();
+  }
+}
+
+void AudioPlayerWorker::stop() {
+  if (m_player) {
+    m_player->stop();
+    m_atomicPlaying.store(false, std::memory_order_release);
+    m_atomicPositionMs.store(0, std::memory_order_release);
+    if (m_positionTimer && m_positionTimer->isActive()) {
+      m_positionTimer->stop();
+    }
+  }
+  if (m_audioSink) {
+    m_audioSink->stop();
+  }
+  if (m_pcmAudioDevice) {
+    m_pcmAudioDevice->resetBuffer();
+  }
+}
+
+void AudioPlayerWorker::seekTo(qint64 positionMs) {
+  if (m_pcmAudioDevice) {
+    m_pcmAudioDevice->resetBuffer();
+  }
+  if (m_player) {
+    m_player->setPosition(positionMs);
+    m_atomicPositionMs.store(positionMs, std::memory_order_release);
+  }
+}
+
+void AudioPlayerWorker::setPlayerVolume(float volume) {
+  m_volume = volume;
+  if (m_audioSink) {
+    m_audioSink->setVolume(volume);
+  }
+}
+
+void AudioPlayerWorker::setPlayerRate(qreal rate) {
+  if (m_player) {
+    m_player->setPlaybackRate(rate);
+  }
+}
+
+void AudioPlayerWorker::setAudioDevice(const QAudioDevice &device) {
+  m_currentDevice = device;
+  configureSink(m_currentSampleRate, m_currentChannels);
+}
+
+void AudioPlayerWorker::configureSink(uint32_t sampleRate, uint8_t channels) {
+  uint32_t sr = sampleRate > 0 ? sampleRate : 44100;
+  uint8_t ch = channels > 0 ? channels : 2;
+
   QAudioFormat fmt;
-  fmt.setSampleRate(sampleRate > 0 ? sampleRate : 44100);
-  fmt.setChannelCount(channels > 0 ? channels : 2);
+  fmt.setSampleRate(sr);
+  fmt.setChannelCount(ch);
   fmt.setSampleFormat(QAudioFormat::Float);
 
-  if (m_audioSink && m_audioSink->format() == fmt) {
+  if (m_audioSink && m_audioSink->format() == fmt &&
+      m_currentSampleRate == sr && m_currentChannels == ch) {
     return;
   }
+
+  m_currentSampleRate = sr;
+  m_currentChannels = ch;
 
   if (m_audioSink) {
     m_audioSink->stop();
     m_audioSink.reset();
   }
 
-  auto defaultDevice = QMediaDevices::defaultAudioOutput();
-  if (defaultDevice.isNull()) {
+  auto device = m_currentDevice.isNull() ? QMediaDevices::defaultAudioOutput()
+                                         : m_currentDevice;
+  if (device.isNull()) {
     return;
   }
 
-  m_currentSinkSampleRate.store(static_cast<uint32_t>(fmt.sampleRate()),
-                                std::memory_order_release);
-  m_currentSinkChannels.store(static_cast<uint8_t>(fmt.channelCount()),
-                              std::memory_order_release);
-
-  m_audioSink = std::make_unique<QAudioSink>(defaultDevice, fmt);
+  m_audioSink = std::make_unique<QAudioSink>(device, fmt, this);
+  qint64 bufferBytes = fmt.bytesForDuration(250000); // 250 ms buffer
+  if (bufferBytes > 0) {
+    m_audioSink->setBufferSize(bufferBytes);
+  }
   m_audioSink->setVolume(m_volume);
-  if (m_player && m_player->playbackState() == QMediaPlayer::PlayingState) {
+
+  if (m_atomicPlaying.load(std::memory_order_acquire)) {
     if (m_pcmAudioDevice) {
       m_audioSink->start(m_pcmAudioDevice.get());
     }
+  }
+}
+
+BitPerfectAudioEngine::BitPerfectAudioEngine(QObject *parent)
+    : QObject(parent) {
+
+  qRegisterMetaType<QAudioDevice>("QAudioDevice");
+
+  // Launch audio worker on dedicated QThread isolated from UI latency
+  m_audioWorker = new AudioPlayerWorker(m_outputRingBuffer, m_dspCv,
+                                        m_atomicPositionMs, m_atomicDurationMs,
+                                        m_atomicPlaying, m_atomicPlaybackRate);
+  m_audioWorker->moveToThread(&m_audioThread);
+  m_audioThread.setObjectName("PicAudioWorkerThread");
+  m_audioThread.start(QThread::HighPriority);
+
+  // Synchronously initialize QMediaPlayer and outputs on dedicated thread
+  QMetaObject::invokeMethod(m_audioWorker, "init",
+                            Qt::BlockingQueuedConnection);
+
+#if __has_include(<QAudioBufferOutput>)
+  if (m_audioWorker->bufferOutput()) {
+    connect(m_audioWorker->bufferOutput(),
+            &QAudioBufferOutput::audioBufferReceived, this,
+            &BitPerfectAudioEngine::handleAudioBuffer, Qt::DirectConnection);
+  }
+#endif
+
+  connect(
+      m_audioWorker, &AudioPlayerWorker::trackFinished, this,
+      [this]() {
+        emit playbackFinished();
+        if (m_endOfTrackCallback) {
+          m_endOfTrackCallback();
+        }
+      },
+      Qt::QueuedConnection);
+
+  // Launch dedicated real-time audio DSP worker thread
+  m_dspThreadRunning.store(true, std::memory_order_release);
+  m_dspThread = std::thread(&BitPerfectAudioEngine::dspWorkerLoop, this);
+}
+
+BitPerfectAudioEngine::~BitPerfectAudioEngine() {
+#if __has_include(<QAudioBufferOutput>)
+  if (m_audioWorker && m_audioWorker->bufferOutput()) {
+    disconnect(m_audioWorker->bufferOutput(),
+               &QAudioBufferOutput::audioBufferReceived, this,
+               &BitPerfectAudioEngine::handleAudioBuffer);
+  }
+#endif
+
+  m_dspThreadRunning.store(false, std::memory_order_release);
+  m_dspCv.notify_all();
+  if (m_dspThread.joinable()) {
+    m_dspThread.join();
+  }
+
+  stop();
+
+  if (m_audioWorker) {
+    m_audioWorker->disconnect();
+    QMetaObject::invokeMethod(m_audioWorker, "stop",
+                              Qt::BlockingQueuedConnection);
+  }
+
+  m_audioThread.quit();
+  m_audioThread.wait();
+
+  delete m_audioWorker;
+  m_audioWorker = nullptr;
+}
+
+bool BitPerfectAudioEngine::isDspProcessingActive() const {
+  const uint8_t inChannels =
+      m_currentInputChannels.load(std::memory_order_relaxed);
+  const uint8_t outChannels = m_outputChannels.load(std::memory_order_relaxed);
+  const bool eqActive = !m_parametricEq.isBypassed();
+  const bool dspActive = m_dspManager.isDspMasterEnabled();
+  const bool loudnessActive =
+      (m_loudnessProcessor.getReplayGainMode() != ReplayGainMode::Disabled ||
+       m_loudnessProcessor.isTruePeakLimiterEnabled() ||
+       m_loudnessProcessor.getDitherMode() != DitherMode::None);
+  const bool crossfadeActive = m_crossfadeEngine.isCrossfadeActive();
+  const bool needsMatrix =
+      (inChannels != outChannels && inChannels > 0 && outChannels > 0) ||
+      (m_matrixProcessor.getActivePreset() != MatrixPreset::Passthrough);
+
+  return eqActive || dspActive || loudnessActive || crossfadeActive ||
+         needsMatrix;
+}
+
+void BitPerfectAudioEngine::updateOutputRouting() {
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "setPlayerVolume",
+                              Qt::QueuedConnection, Q_ARG(float, m_volume));
   }
 }
 
@@ -121,7 +350,11 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
   const uint8_t outCh = m_outputChannels.load(std::memory_order_relaxed);
   m_matrixProcessor.configure(channels, outCh);
   m_parametricEq.configure(sampleRate, outCh);
-  configureAudioSink(sampleRate, outCh);
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "configureSink",
+                              Qt::QueuedConnection, Q_ARG(uint32_t, sampleRate),
+                              Q_ARG(uint8_t, outCh));
+  }
   return true;
 }
 
@@ -131,6 +364,7 @@ bool BitPerfectAudioEngine::load(const std::string &filePath) {
   m_decodedRingBuffer.reset();
   m_outputRingBuffer.reset();
   m_dspCv.notify_all();
+  m_atomicPositionMs.store(0, std::memory_order_release);
 
   std::string actualPath = filePath;
   m_virtualStartOffsetMs = 0;
@@ -155,50 +389,38 @@ bool BitPerfectAudioEngine::load(const std::string &filePath) {
     m_activeDecoderName = "Qt Multimedia / FFmpeg Pipeline";
   }
 
-  if (m_player) {
-    m_player->setSource(
-        QUrl::fromLocalFile(QString::fromStdString(actualPath)));
+  if (m_audioWorker) {
+    QString qPath = QString::fromStdString(actualPath);
+    QMetaObject::invokeMethod(m_audioWorker, "loadFile", Qt::QueuedConnection,
+                              Q_ARG(QString, qPath));
   }
   return true;
 }
 
 bool BitPerfectAudioEngine::play() {
-  if (m_player) {
-    if (m_audioSink) {
-      if (m_audioSink->state() == QAudio::SuspendedState) {
-        m_audioSink->resume();
-      } else if (m_audioSink->state() == QAudio::StoppedState) {
-        if (m_pcmAudioDevice) {
-          m_audioSink->start(m_pcmAudioDevice.get());
-        }
-      }
-    }
-    m_player->play();
+  m_atomicPlaying.store(true, std::memory_order_release);
+  updateOutputRouting();
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "play", Qt::QueuedConnection);
     return true;
   }
   return false;
 }
 
 bool BitPerfectAudioEngine::pause() {
-  if (m_player) {
-    m_player->pause();
-    if (m_audioSink && m_audioSink->state() == QAudio::ActiveState) {
-      m_audioSink->suspend();
-    }
+  m_atomicPlaying.store(false, std::memory_order_release);
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "pause", Qt::QueuedConnection);
     return true;
   }
   return false;
 }
 
 bool BitPerfectAudioEngine::stop() {
-  if (m_player) {
-    m_player->stop();
-    if (m_audioSink) {
-      m_audioSink->stop();
-    }
-    if (m_pcmAudioDevice) {
-      m_pcmAudioDevice->resetBuffer();
-    }
+  m_atomicPlaying.store(false, std::memory_order_release);
+  m_atomicPositionMs.store(0, std::memory_order_release);
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "stop", Qt::QueuedConnection);
     m_decodedRingBuffer.reset();
     m_outputRingBuffer.reset();
     m_dspCv.notify_all();
@@ -208,11 +430,14 @@ bool BitPerfectAudioEngine::stop() {
 }
 
 bool BitPerfectAudioEngine::seek(uint64_t positionMs) {
-  if (m_player) {
-    m_decodedRingBuffer.reset();
-    m_outputRingBuffer.reset();
-    m_dspCv.notify_all();
-    m_player->setPosition(static_cast<qint64>(positionMs));
+  m_atomicPositionMs.store(static_cast<int64_t>(positionMs),
+                           std::memory_order_release);
+  m_decodedRingBuffer.reset();
+  m_outputRingBuffer.reset();
+  m_dspCv.notify_all();
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "seekTo", Qt::QueuedConnection,
+                              Q_ARG(qint64, static_cast<qint64>(positionMs)));
     return true;
   }
   return false;
@@ -220,29 +445,26 @@ bool BitPerfectAudioEngine::seek(uint64_t positionMs) {
 
 void BitPerfectAudioEngine::setVolume(float volume) {
   m_volume = std::clamp(volume, 0.0f, 1.0f);
-  if (m_audioSink) {
-    m_audioSink->setVolume(m_volume);
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "setPlayerVolume",
+                              Qt::QueuedConnection, Q_ARG(float, m_volume));
   }
 }
 
 float BitPerfectAudioEngine::getVolume() const { return m_volume; }
 
 uint64_t BitPerfectAudioEngine::getPositionMs() const {
-  if (m_player) {
-    return static_cast<uint64_t>(std::max<qint64>(0, m_player->position()));
-  }
-  return 0;
+  return static_cast<uint64_t>(
+      std::max<int64_t>(0, m_atomicPositionMs.load(std::memory_order_relaxed)));
 }
 
 uint64_t BitPerfectAudioEngine::getDurationMs() const {
-  if (m_player) {
-    return static_cast<uint64_t>(std::max<qint64>(0, m_player->duration()));
-  }
-  return 0;
+  return static_cast<uint64_t>(
+      std::max<int64_t>(0, m_atomicDurationMs.load(std::memory_order_relaxed)));
 }
 
 bool BitPerfectAudioEngine::isPlaying() const {
-  return m_player && (m_player->playbackState() == QMediaPlayer::PlayingState);
+  return m_atomicPlaying.load(std::memory_order_relaxed);
 }
 
 core::AudioStreamInfo BitPerfectAudioEngine::getStreamInfo() const {
@@ -259,19 +481,21 @@ void BitPerfectAudioEngine::setAudioBufferCallback(
     core::IAudioEnginePort::AudioBufferCallback callback) {
   std::lock_guard<std::mutex> lock(m_mutex);
   m_audioBufferCallback = std::move(callback);
+  m_hasAudioBufferCallback.store(m_audioBufferCallback != nullptr,
+                                 std::memory_order_release);
 }
 
 void BitPerfectAudioEngine::setPlaybackRate(float rate) {
-  if (m_player) {
-    m_player->setPlaybackRate(static_cast<qreal>(rate));
+  m_atomicPlaybackRate.store(rate, std::memory_order_release);
+  if (m_audioWorker) {
+    QMetaObject::invokeMethod(m_audioWorker, "setPlayerRate",
+                              Qt::QueuedConnection,
+                              Q_ARG(qreal, static_cast<qreal>(rate)));
   }
 }
 
 float BitPerfectAudioEngine::getPlaybackRate() const {
-  if (m_player) {
-    return static_cast<float>(m_player->playbackRate());
-  }
-  return 1.0f;
+  return m_atomicPlaybackRate.load(std::memory_order_relaxed);
 }
 
 #if __has_include(<QAudioBufferOutput>)
@@ -296,23 +520,29 @@ void BitPerfectAudioEngine::handleAudioBuffer(const QAudioBuffer &buffer) {
 
   const uint8_t targetOutCh = m_outputChannels.load(std::memory_order_relaxed);
   if (sampleRate != m_currentSinkSampleRate.load(std::memory_order_relaxed)) {
+    m_currentSinkSampleRate.store(sampleRate, std::memory_order_release);
     m_parametricEq.configure(sampleRate, targetOutCh);
-    QMetaObject::invokeMethod(
-        this,
-        [this, sampleRate, targetOutCh]() {
-          configureAudioSink(sampleRate, targetOutCh);
-        },
-        Qt::QueuedConnection);
+    if (m_audioWorker) {
+      QMetaObject::invokeMethod(
+          m_audioWorker, "configureSink", Qt::QueuedConnection,
+          Q_ARG(uint32_t, sampleRate), Q_ARG(uint8_t, targetOutCh));
+    }
   }
 
-  std::vector<float> inInterleaved(totalSamples, 0.0f);
+  thread_local std::vector<float> inInterleaved;
+  if (inInterleaved.size() < static_cast<size_t>(totalSamples)) {
+    inInterleaved.resize(std::max<size_t>(totalSamples, 8192));
+  }
 
+  bool decoded = false;
   if (format.sampleFormat() == QAudioFormat::Float) {
     const float *data = buffer.constData<float>();
     if (data) {
-      size_t copyBytes = std::min(static_cast<size_t>(buffer.byteCount()),
-                                  inInterleaved.size() * sizeof(float));
+      size_t copyBytes =
+          std::min(static_cast<size_t>(buffer.byteCount()),
+                   static_cast<size_t>(totalSamples) * sizeof(float));
       std::memcpy(inInterleaved.data(), data, copyBytes);
+      decoded = true;
     }
   } else if (format.sampleFormat() == QAudioFormat::Int16) {
     const int16_t *data = buffer.constData<int16_t>();
@@ -322,6 +552,7 @@ void BitPerfectAudioEngine::handleAudioBuffer(const QAudioBuffer &buffer) {
       for (int i = 0; i < count; ++i) {
         inInterleaved[i] = static_cast<float>(data[i]) / 32768.0f;
       }
+      decoded = true;
     }
   } else if (format.sampleFormat() == QAudioFormat::Int32) {
     const int32_t *data = buffer.constData<int32_t>();
@@ -331,6 +562,7 @@ void BitPerfectAudioEngine::handleAudioBuffer(const QAudioBuffer &buffer) {
       for (int i = 0; i < count; ++i) {
         inInterleaved[i] = static_cast<float>(data[i]) / 2147483648.0f;
       }
+      decoded = true;
     }
   } else if (format.sampleFormat() == QAudioFormat::UInt8) {
     const uint8_t *data = buffer.constData<uint8_t>();
@@ -340,12 +572,16 @@ void BitPerfectAudioEngine::handleAudioBuffer(const QAudioBuffer &buffer) {
       for (int i = 0; i < count; ++i) {
         inInterleaved[i] = (static_cast<float>(data[i]) - 128.0f) / 128.0f;
       }
+      decoded = true;
     }
   }
 
-  // Enqueue decoded frames into ring buffer for the dedicated DSP worker thread
-  m_decodedRingBuffer.write(inInterleaved.data(), inInterleaved.size());
-  m_dspCv.notify_one();
+  // Enqueue decoded frames with natural flow control to eliminate dropped
+  // samples
+  if (decoded) {
+    m_decodedRingBuffer.write(inInterleaved.data(), totalSamples);
+    m_dspCv.notify_one();
+  }
 }
 #endif
 
@@ -354,6 +590,8 @@ void BitPerfectAudioEngine::dspWorkerLoop() {
 
   std::vector<float> inChunk;
   std::vector<float> matrixOut;
+  inChunk.reserve(8192);
+  matrixOut.reserve(8192);
 
   while (m_dspThreadRunning.load(std::memory_order_relaxed)) {
     const uint8_t inChannels =
@@ -373,14 +611,14 @@ void BitPerfectAudioEngine::dspWorkerLoop() {
 
     size_t framesToRead = availRead / inChannels;
     size_t framesCanWrite = availWrite / outChannels;
-    size_t frames = std::min({framesToRead, framesCanWrite, size_t(1024)});
+    size_t frames = std::min({framesToRead, framesCanWrite, size_t(4096)});
 
     if (frames == 0) {
       std::unique_lock<std::mutex> lock(m_dspCvMutex);
       m_dspCv.wait_for(lock, std::chrono::milliseconds(5), [this]() {
         return !m_dspThreadRunning.load(std::memory_order_relaxed) ||
-               (m_decodedRingBuffer.availableRead() >= 256 &&
-                m_outputRingBuffer.availableWrite() >= 256);
+               (m_decodedRingBuffer.availableRead() > 0 &&
+                m_outputRingBuffer.availableWrite() > 0);
       });
       continue;
     }
@@ -388,12 +626,13 @@ void BitPerfectAudioEngine::dspWorkerLoop() {
     inChunk.resize(frames * inChannels);
     size_t readSamples =
         m_decodedRingBuffer.read(inChunk.data(), frames * inChannels);
+
     frames = readSamples / inChannels;
     if (frames == 0)
       continue;
 
     const bool eqActive = !m_parametricEq.isBypassed();
-    const bool dspActive = m_dspManager.isDspMasterEnabled();
+    const bool dspMasterActive = m_dspManager.isDspMasterEnabled();
     const bool loudnessActive =
         (m_loudnessProcessor.getReplayGainMode() != ReplayGainMode::Disabled ||
          m_loudnessProcessor.isTruePeakLimiterEnabled() ||
@@ -403,9 +642,9 @@ void BitPerfectAudioEngine::dspWorkerLoop() {
         (inChannels != outChannels) ||
         (m_matrixProcessor.getActivePreset() != MatrixPreset::Passthrough);
 
-    if (!needsMatrix && !eqActive && !dspActive && !loudnessActive &&
+    if (!needsMatrix && !eqActive && !dspMasterActive && !loudnessActive &&
         !crossfadeActive) {
-      // Fast path: bit-perfect passthrough when DSP and processing are disabled
+      // Direct pass-through into output ring buffer for QAudioSink
       m_outputRingBuffer.write(inChunk.data(), frames * inChannels);
       updateVisualizerTap(inChunk.data(), frames, inChannels, sampleRate);
       continue;
@@ -425,12 +664,12 @@ void BitPerfectAudioEngine::dspWorkerLoop() {
       if (eqActive) {
         m_parametricEq.process(matrixOut.data(), frames);
       }
-      if (dspActive) {
+      if (dspMasterActive) {
         m_dspManager.processDspChain(matrixOut.data(), frames, sampleRate,
                                      outChannels);
       }
     } else {
-      if (dspActive) {
+      if (dspMasterActive) {
         m_dspManager.processDspChain(matrixOut.data(), frames, sampleRate,
                                      outChannels);
       }
@@ -460,7 +699,11 @@ void BitPerfectAudioEngine::updateVisualizerTap(const float *samples,
   if (!samples || frames == 0 || channels == 0)
     return;
 
-  std::vector<float> monoSamples(frames, 0.0f);
+  thread_local std::vector<float> monoSamples;
+  if (monoSamples.size() < frames) {
+    monoSamples.resize(std::max<size_t>(frames, 4096));
+  }
+
   for (size_t i = 0; i < frames; ++i) {
     float sum = 0.0f;
     for (uint8_t c = 0; c < channels; ++c) {
@@ -472,7 +715,8 @@ void BitPerfectAudioEngine::updateVisualizerTap(const float *samples,
   // Calculate audio level (RMS and peak)
   float sumSq = 0.0f;
   float peak = 0.0f;
-  for (float s : monoSamples) {
+  for (size_t i = 0; i < frames; ++i) {
+    float s = monoSamples[i];
     float absS = std::abs(s);
     if (absS > peak)
       peak = absS;
@@ -481,27 +725,44 @@ void BitPerfectAudioEngine::updateVisualizerTap(const float *samples,
   float rms = std::sqrt(sumSq / static_cast<float>(frames));
   float level = std::clamp(rms * 2.2f + peak * 0.3f, 0.0f, 1.0f);
 
-  {
-    std::lock_guard<std::mutex> lock(m_visMutex);
-    m_audioLevel = std::max(level, m_audioLevel * 0.82f);
+  float prevLevel = m_audioLevel.load(std::memory_order_relaxed);
+  m_audioLevel.store(std::max(level, prevLevel * 0.82f),
+                     std::memory_order_relaxed);
 
-    if (m_pcmVisBuffer.size() != 4096) {
-      m_pcmVisBuffer.assign(4096, 0.0f);
-      m_pcmVisWriteHead = 0;
-    }
-    for (float s : monoSamples) {
-      m_pcmVisBuffer[m_pcmVisWriteHead] = s;
-      m_pcmVisWriteHead = (m_pcmVisWriteHead + 1) % 4096;
+  {
+    std::unique_lock<std::mutex> lock(m_visMutex, std::try_to_lock);
+    if (lock.owns_lock()) {
+      if (m_pcmVisBuffer.size() != 4096) {
+        m_pcmVisBuffer.assign(4096, 0.0f);
+        m_pcmVisWriteHead = 0;
+      }
+      for (size_t i = 0; i < frames; ++i) {
+        m_pcmVisBuffer[m_pcmVisWriteHead] = monoSamples[i];
+        m_pcmVisWriteHead = (m_pcmVisWriteHead + 1) % 4096;
+      }
     }
   }
 
-  core::IAudioEnginePort::AudioBufferCallback cb;
-  {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    cb = m_audioBufferCallback;
+  // Compute FFT on dedicated DSP worker thread at ~30 FPS
+  static auto lastFft = std::chrono::steady_clock::now();
+  auto now = std::chrono::steady_clock::now();
+  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastFft)
+          .count() >= 30) {
+    lastFft = now;
+    updateFftBands(sampleRate);
   }
-  if (cb) {
-    cb(samples, frames, sampleRate, channels);
+
+  if (m_hasAudioBufferCallback.load(std::memory_order_relaxed)) {
+    core::IAudioEnginePort::AudioBufferCallback cb;
+    {
+      std::unique_lock<std::mutex> lock(m_mutex, std::try_to_lock);
+      if (lock.owns_lock()) {
+        cb = m_audioBufferCallback;
+      }
+    }
+    if (cb) {
+      cb(samples, frames, sampleRate, channels);
+    }
   }
 }
 
@@ -534,15 +795,13 @@ static void fftRadix2(std::vector<std::complex<float>> &a) {
   }
 }
 
-void BitPerfectAudioEngine::updateFftBands(const std::vector<float> &samples,
-                                           uint32_t sampleRate) {
-  (void)samples;
+void BitPerfectAudioEngine::updateFftBands(uint32_t sampleRate) {
   constexpr size_t N = 512;
   std::vector<std::complex<float>> fftInput(N, {0.0f, 0.0f});
 
   {
-    std::lock_guard<std::mutex> lock(m_visMutex);
-    if (m_pcmVisBuffer.size() < N) {
+    std::unique_lock<std::mutex> lock(m_visMutex, std::try_to_lock);
+    if (!lock.owns_lock() || m_pcmVisBuffer.size() < N) {
       return;
     }
     const size_t total = m_pcmVisBuffer.size();
@@ -602,15 +861,17 @@ void BitPerfectAudioEngine::updateFftBands(const std::vector<float> &samples,
   }
 
   {
-    std::lock_guard<std::mutex> lock(m_visMutex);
-    if (m_currentBands.size() != numBands) {
-      m_currentBands = newBands;
-    } else {
-      for (size_t b = 0; b < numBands; ++b) {
-        if (newBands[b] >= m_currentBands[b]) {
-          m_currentBands[b] = m_currentBands[b] * 0.2f + newBands[b] * 0.8f;
-        } else {
-          m_currentBands[b] = m_currentBands[b] * 0.78f;
+    std::unique_lock<std::mutex> lock(m_visMutex, std::try_to_lock);
+    if (lock.owns_lock()) {
+      if (m_currentBands.size() != numBands) {
+        m_currentBands = newBands;
+      } else {
+        for (size_t b = 0; b < numBands; ++b) {
+          if (newBands[b] >= m_currentBands[b]) {
+            m_currentBands[b] = m_currentBands[b] * 0.2f + newBands[b] * 0.8f;
+          } else {
+            m_currentBands[b] = m_currentBands[b] * 0.78f;
+          }
         }
       }
     }
@@ -619,22 +880,21 @@ void BitPerfectAudioEngine::updateFftBands(const std::vector<float> &samples,
 
 std::vector<float>
 BitPerfectAudioEngine::getFrequencyBands(size_t bandCount) const {
+  std::unique_lock<std::mutex> lock(m_visMutex, std::try_to_lock);
   if (!isPlaying()) {
-    std::lock_guard<std::mutex> lock(m_visMutex);
-    for (auto &b : m_currentBands) {
-      b *= 0.7f;
+    if (lock.owns_lock()) {
+      for (auto &b : m_currentBands) {
+        b *= 0.7f;
+      }
     }
-    m_audioLevel *= 0.7f;
-    if (m_currentBands.empty()) {
+    float lvl = m_audioLevel.load(std::memory_order_relaxed);
+    m_audioLevel.store(lvl * 0.7f, std::memory_order_relaxed);
+    if (!lock.owns_lock() || m_currentBands.empty()) {
       return std::vector<float>(bandCount, 0.0f);
     }
-  } else {
-    const_cast<BitPerfectAudioEngine *>(this)->updateFftBands(
-        {}, m_currentSinkSampleRate);
   }
 
-  std::lock_guard<std::mutex> lock(m_visMutex);
-  if (m_currentBands.empty()) {
+  if (!lock.owns_lock() || m_currentBands.empty()) {
     return std::vector<float>(bandCount, 0.0f);
   }
   if (m_currentBands.size() == bandCount) {
@@ -650,13 +910,13 @@ BitPerfectAudioEngine::getFrequencyBands(size_t bandCount) const {
 
 std::vector<float>
 BitPerfectAudioEngine::getWaveformSamples(size_t sampleCount) const {
-  std::lock_guard<std::mutex> lock(m_visMutex);
-  if (!isPlaying()) {
+  std::unique_lock<std::mutex> lock(m_visMutex, std::try_to_lock);
+  if (!isPlaying() && lock.owns_lock()) {
     for (auto &w : m_currentWaveform) {
       w *= 0.7f;
     }
   }
-  if (m_currentWaveform.empty()) {
+  if (!lock.owns_lock() || m_currentWaveform.empty()) {
     return std::vector<float>(sampleCount, 0.0f);
   }
   if (m_currentWaveform.size() == sampleCount) {
@@ -671,11 +931,12 @@ BitPerfectAudioEngine::getWaveformSamples(size_t sampleCount) const {
 }
 
 float BitPerfectAudioEngine::getAudioLevel() const {
-  std::lock_guard<std::mutex> lock(m_visMutex);
+  float lvl = m_audioLevel.load(std::memory_order_relaxed);
   if (!isPlaying()) {
-    m_audioLevel *= 0.7f;
+    lvl *= 0.7f;
+    m_audioLevel.store(lvl, std::memory_order_relaxed);
   }
-  return m_audioLevel;
+  return lvl;
 }
 
 void BitPerfectAudioEngine::setAudioBackend(const std::string &backend) {
@@ -691,6 +952,18 @@ std::string BitPerfectAudioEngine::getAudioBackend() const {
 void BitPerfectAudioEngine::setAudioDevice(const std::string &deviceId) {
   std::lock_guard<std::mutex> lock(m_mutex);
   m_audioDevice = deviceId;
+  auto devices = QMediaDevices::audioOutputs();
+  for (const auto &dev : devices) {
+    if (dev.id().toStdString() == deviceId ||
+        dev.description().toStdString() == deviceId) {
+      if (m_audioWorker) {
+        QMetaObject::invokeMethod(m_audioWorker, "setAudioDevice",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QAudioDevice, dev));
+      }
+      break;
+    }
+  }
 }
 
 std::string BitPerfectAudioEngine::getAudioDevice() const {
@@ -767,6 +1040,7 @@ float BitPerfectAudioEngine::getChannelMatrixCoefficient(size_t outCh,
 
 void BitPerfectAudioEngine::setChannelMatrixPreset(int preset) {
   m_matrixProcessor.loadPreset(static_cast<MatrixPreset>(preset));
+  updateOutputRouting();
 }
 
 int BitPerfectAudioEngine::getChannelMatrixPreset() const {
@@ -775,6 +1049,7 @@ int BitPerfectAudioEngine::getChannelMatrixPreset() const {
 
 void BitPerfectAudioEngine::normalizeChannelMatrix() {
   m_matrixProcessor.normalize();
+  updateOutputRouting();
 }
 
 std::vector<float> BitPerfectAudioEngine::getChannelLevels() const {
@@ -785,6 +1060,7 @@ void BitPerfectAudioEngine::setOutputChannelCount(uint8_t channels) {
   uint8_t ch = std::clamp<uint8_t>(channels, 1, 8);
   m_outputChannels.store(ch, std::memory_order_release);
   m_matrixProcessor.setOutputChannels(ch);
+  updateOutputRouting();
 }
 
 uint8_t BitPerfectAudioEngine::getOutputChannelCount() const {
@@ -826,6 +1102,7 @@ float BitPerfectAudioEngine::getEqPreampGain() const {
 
 void BitPerfectAudioEngine::setEqEnabled(bool enabled) {
   m_parametricEq.setBypassed(!enabled);
+  updateOutputRouting();
 }
 
 bool BitPerfectAudioEngine::isEqEnabled() const {
@@ -840,7 +1117,10 @@ std::string BitPerfectAudioEngine::getEqPreset() const {
   return m_parametricEq.getPreset();
 }
 
-void BitPerfectAudioEngine::resetEq() { m_parametricEq.reset(); }
+void BitPerfectAudioEngine::resetEq() {
+  m_parametricEq.reset();
+  updateOutputRouting();
+}
 
 void BitPerfectAudioEngine::setEqBandCount(size_t bandCount) {
   m_parametricEq.setBandCount(bandCount);
@@ -873,6 +1153,7 @@ bool BitPerfectAudioEngine::isDspMasterEnabled() const {
 
 void BitPerfectAudioEngine::setReplayGainMode(int mode) {
   m_loudnessProcessor.setReplayGainMode(static_cast<ReplayGainMode>(mode));
+  updateOutputRouting();
 }
 
 int BitPerfectAudioEngine::getReplayGainMode() const {
@@ -887,6 +1168,7 @@ void BitPerfectAudioEngine::setReplayGainPreamp(float taggedDb,
 
 void BitPerfectAudioEngine::setTruePeakLimiterEnabled(bool enabled) {
   m_loudnessProcessor.setTruePeakLimiterEnabled(enabled);
+  updateOutputRouting();
 }
 
 bool BitPerfectAudioEngine::isTruePeakLimiterEnabled() const {
@@ -902,6 +1184,7 @@ void BitPerfectAudioEngine::setCurrentTrackReplayGain(
 
 void BitPerfectAudioEngine::setCrossfadeEnabled(bool enabled) {
   m_crossfadeEngine.setEnabled(enabled);
+  updateOutputRouting();
 }
 
 bool BitPerfectAudioEngine::isCrossfadeEnabled() const {
@@ -934,6 +1217,7 @@ bool BitPerfectAudioEngine::isGaplessEnabled() const {
 
 void BitPerfectAudioEngine::setDitherMode(int mode) {
   m_loudnessProcessor.setDitherMode(static_cast<DitherMode>(mode));
+  updateOutputRouting();
 }
 
 int BitPerfectAudioEngine::getDitherMode() const {

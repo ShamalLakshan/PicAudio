@@ -167,4 +167,46 @@ bool LibraryService::clearLibrary() { return m_dbPort.clearLibrary(); }
 
 bool LibraryService::optimizeDatabase() { return m_dbPort.optimizeDatabase(); }
 
+bool LibraryService::updateTrackRating(const std::string &id, uint8_t rating) {
+  return m_dbPort.updateTrackRating(id, rating);
+}
+
+bool LibraryService::updateTrackFavorite(const std::string &id,
+                                         bool isFavorite) {
+  return m_dbPort.updateTrackFavorite(id, isFavorite);
+}
+
+bool LibraryService::recordTrackPlayed(const std::string &id,
+                                       uint64_t timestamp) {
+  return m_dbPort.recordTrackPlayed(id, timestamp);
+}
+
+bool LibraryService::recordTrackSkipped(const std::string &id) {
+  return m_dbPort.recordTrackSkipped(id);
+}
+
+std::vector<std::pair<Track, uint64_t>>
+LibraryService::getListeningHistory(size_t limit) {
+  return m_dbPort.getListeningHistory(limit);
+}
+
+bool LibraryService::clearListeningHistory() {
+  return m_dbPort.clearListeningHistory();
+}
+
+std::vector<Track> LibraryService::getMissingTracks() {
+  return m_dbPort.getMissingTracks();
+}
+
+size_t LibraryService::relocateTracks(const std::string &oldPrefix,
+                                      const std::string &newPrefix) {
+  return m_dbPort.relocateTracks(oldPrefix, newPrefix);
+}
+
+std::vector<Track>
+LibraryService::queryTracksDynamic(const std::string &whereClause,
+                                   const std::string &orderBy, size_t limit) {
+  return m_dbPort.queryTracksDynamic(whereClause, orderBy, limit);
+}
+
 } // namespace core

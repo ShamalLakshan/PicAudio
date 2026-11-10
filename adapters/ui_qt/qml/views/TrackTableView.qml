@@ -227,17 +227,17 @@ Item {
             }
         }
 
-        // Table Rows ScrollView
-        ScrollView {
+        // Table Rows ListView
+        ListView {
+            id: trackTableListView
             Layout.fillWidth: true
             Layout.fillHeight: true
-            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-            ListView {
-                id: trackTableListView
-                anchors.fill: parent
-                model: bridge.trackModel
-                clip: true
+            model: bridge.trackModel
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+            }
 
                 MouseArea {
                     id: emptyViewportMouse
@@ -255,7 +255,7 @@ Item {
 
                 delegate: Rectangle {
                     id: rowRect
-                    width: trackTableListView.width
+                    width: Math.max(100, trackTableListView.width)
                     height: bridge.tableRowHeight > 0 ? bridge.tableRowHeight : 25
                     color: model.isSelected ? Theme.selection : ((bridge.currentFilePath === model.filePath) ? Theme.surfaceElevated : (tableRowMouse.containsMouse ? Theme.surfaceElevated : (index % 2 === 0 ? Theme.surface : Theme.background)))
 
@@ -273,6 +273,7 @@ Item {
                     property int rowBitDepth: model.bitDepth
                     property int rowPlayCount: model.playCount
                     property int rowRating: model.rating
+                    property bool rowIsFavorite: model.isFavorite
                     property string rowDateAddedFormatted: model.dateAddedFormatted || ""
                     property string rowFilePath: model.filePath
                     property string rowFileSizeFormatted: model.fileSizeFormatted || ""
@@ -285,6 +286,7 @@ Item {
                         anchors.leftMargin: 10
                         anchors.rightMargin: 10
                         spacing: 8
+                        z: 1
 
                         Repeater {
                             model: bridge.tableColumnKeys
@@ -297,6 +299,32 @@ Item {
                                 Layout.fillWidth: colKey === "title"
                                 Layout.fillHeight: true
                                 clip: true
+
+                                // 0. Favorite
+                                Item {
+                                    anchors.centerIn: parent
+                                    width: 20
+                                    height: 20
+                                    visible: cellItem.colKey === "isFavorite"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: rowRect.rowIsFavorite ? "♥" : "♡"
+                                        font.pixelSize: 13
+                                        color: rowRect.rowIsFavorite ? Theme.accent : (favMouse.containsMouse ? Theme.textPrimary : Theme.textMuted)
+                                        opacity: rowRect.rowIsFavorite ? 1.0 : (favMouse.containsMouse ? 0.9 : 0.4)
+                                    }
+
+                                    MouseArea {
+                                        id: favMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            bridge.trackModel.setTrackFavorite(rowRect.rowIndex, !rowRect.rowIsFavorite);
+                                        }
+                                    }
+                                }
 
                                 // 1. Track Number
                                 RowLayout {
@@ -457,12 +485,47 @@ Item {
                                 }
 
                                 // 13. Rating
-                                Text {
+                                Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     visible: cellItem.colKey === "rating"
-                                    text: rowRect.rowRating > 0 ? ("★".repeat(rowRect.rowRating) + "☆".repeat(5 - rowRect.rowRating)) : ""
-                                    font.pixelSize: 10
-                                    color: Theme.accent
+                                    width: 75
+                                    height: 18
+
+                                    property int hoverStar: 0
+
+                                    Row {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: 2
+                                        Repeater {
+                                            model: 5
+                                            Text {
+                                                property int starIndex: index + 1
+                                                text: (parent.parent.hoverStar > 0 ? (starIndex <= parent.parent.hoverStar) : (starIndex <= rowRect.rowRating)) ? "★" : "☆"
+                                                font.pixelSize: 11
+                                                color: (parent.parent.hoverStar > 0 ? (starIndex <= parent.parent.hoverStar) : (starIndex <= rowRect.rowRating)) ? Theme.accent : Theme.textMuted
+                                                opacity: (starIndex <= rowRect.rowRating || (parent.parent.hoverStar > 0 && starIndex <= parent.parent.hoverStar)) ? 1.0 : 0.4
+                                            }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onPositionChanged: (mouse) => {
+                                            let s = Math.ceil(mouse.x / (width / 5));
+                                            parent.hoverStar = Math.max(1, Math.min(5, s));
+                                        }
+                                        onExited: {
+                                            parent.hoverStar = 0;
+                                        }
+                                        onClicked: (mouse) => {
+                                            let s = Math.ceil(mouse.x / (width / 5));
+                                            let clickedStar = Math.max(1, Math.min(5, s));
+                                            let newRating = (rowRect.rowRating === clickedStar) ? 0 : clickedStar;
+                                            bridge.trackModel.setTrackRating(rowRect.rowIndex, newRating);
+                                        }
+                                    }
                                 }
 
                                 // 14. Date Added
@@ -551,4 +614,3 @@ Item {
             }
         }
     }
-}

@@ -201,6 +201,8 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/dialogs/NewPlaylistDialog.qml
         ui_qt/qml/dialogs/RenamePlaylistDialog.qml
         ui_qt/qml/dialogs/DeleteConfirmDialog.qml
+        ui_qt/qml/dialogs/LibraryHealthDialog.qml
+        ui_qt/qml/dialogs/SmartPlaylistRuleDialog.qml
         ui_qt/qml/views/QueueView.qml
         ui_qt/qml/views/NowPlayingView.qml
         ui_qt/qml/views/HistoryView.qml

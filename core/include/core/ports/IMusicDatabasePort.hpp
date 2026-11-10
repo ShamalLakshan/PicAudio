@@ -41,6 +41,25 @@ public:
   virtual bool optimizeDatabase() = 0;
   virtual size_t getTrackCount() = 0;
   virtual size_t getAlbumCount() = 0;
+
+  // Ratings, Favorites & Play Statistics (Phase 4)
+  virtual bool updateTrackRating(const std::string &id, uint8_t rating) = 0;
+  virtual bool updateTrackFavorite(const std::string &id, bool isFavorite) = 0;
+  virtual bool recordTrackPlayed(const std::string &id, uint64_t timestamp) = 0;
+  virtual bool recordTrackSkipped(const std::string &id) = 0;
+  virtual std::vector<std::pair<Track, uint64_t>>
+  getListeningHistory(size_t limit = 200) = 0;
+  virtual bool clearListeningHistory() = 0;
+
+  // Library Health & Relocation (Phase 4)
+  virtual std::vector<Track> getMissingTracks() = 0;
+  virtual size_t relocateTracks(const std::string &oldPrefix,
+                                const std::string &newPrefix) = 0;
+
+  // Dynamic Rule Query (Phase 4)
+  virtual std::vector<Track> queryTracksDynamic(const std::string &whereClause,
+                                                const std::string &orderBy = "",
+                                                size_t limit = 0) = 0;
 };
 
 } // namespace core

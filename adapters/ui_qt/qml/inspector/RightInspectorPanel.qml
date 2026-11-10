@@ -145,6 +145,83 @@ Rectangle {
                     }
                 }
 
+                // Interactive Rating & Favorite row
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 16
+                    Layout.rightMargin: 16
+                    spacing: 12
+
+                    // 5-Star Rating
+                    Item {
+                        Layout.preferredWidth: 80
+                        Layout.preferredHeight: 22
+
+                        property int hoverStar: 0
+
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 3
+                            Repeater {
+                                model: 5
+                                Text {
+                                    property int starIndex: index + 1
+                                    text: (parent.parent.hoverStar > 0 ? (starIndex <= parent.parent.hoverStar) : (starIndex <= bridge.currentTrackRating)) ? "★" : "☆"
+                                    font.pixelSize: 14
+                                    color: (parent.parent.hoverStar > 0 ? (starIndex <= parent.parent.hoverStar) : (starIndex <= bridge.currentTrackRating)) ? Theme.accent : Theme.textMuted
+                                    opacity: (starIndex <= bridge.currentTrackRating || (parent.parent.hoverStar > 0 && starIndex <= parent.parent.hoverStar)) ? 1.0 : 0.4
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onPositionChanged: (mouse) => {
+                                let s = Math.ceil(mouse.x / (width / 5));
+                                parent.hoverStar = Math.max(1, Math.min(5, s));
+                            }
+                            onExited: {
+                                parent.hoverStar = 0;
+                            }
+                            onClicked: (mouse) => {
+                                let s = Math.ceil(mouse.x / (width / 5));
+                                let clickedStar = Math.max(1, Math.min(5, s));
+                                let newRating = (bridge.currentTrackRating === clickedStar) ? 0 : clickedStar;
+                                bridge.setCurrentTrackRating(newRating);
+                            }
+                        }
+                    }
+
+                    // Favorite Heart Button
+                    Rectangle {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        radius: 13
+                        color: favMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                        border.color: bridge.currentTrackFavorite ? Theme.accent : Theme.panelBorder
+                        border.width: 1
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: bridge.currentTrackFavorite ? "♥" : "♡"
+                            font.pixelSize: 14
+                            color: bridge.currentTrackFavorite ? Theme.accent : Theme.textMuted
+                        }
+
+                        MouseArea {
+                            id: favMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: bridge.toggleCurrentTrackFavorite()
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
                 // Dense Technical Specs Table
                 Rectangle {
                     Layout.fillWidth: true

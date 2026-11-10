@@ -9,9 +9,11 @@ Rectangle {
     property bool showBrowser: false
     property string selectedGenreFilter: "All"
     property string selectedArtistFilter: "All"
+    property string selectedAlbumFilter: "All"
 
     signal genreFilterChanged(string genre)
     signal artistFilterChanged(string artist)
+    signal albumFilterChanged(string album)
     signal requestAlbumContextMenu(string title, string artist)
     signal requestSwitchToExpandedView(string title, string artist)
 
@@ -179,7 +181,7 @@ Rectangle {
                     delegate: Rectangle {
                         width: parent ? parent.width : (ListView.view ? ListView.view.width : 0)
                         height: 20
-                        color: albColMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                        color: (root.selectedAlbumFilter === model.title) ? Theme.selection : (albColMouse.containsMouse ? Theme.surfaceElevated : "transparent")
 
                         RowLayout {
                             anchors.fill: parent
@@ -190,7 +192,7 @@ Rectangle {
                             Text {
                                 text: model.title
                                 font.pixelSize: 10
-                                color: Theme.textSecondary
+                                color: (root.selectedAlbumFilter === model.title) ? Theme.accent : Theme.textSecondary
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
@@ -198,7 +200,7 @@ Rectangle {
                             Text {
                                 text: model.trackCount
                                 font.pixelSize: 9
-                                color: Theme.textMuted
+                                color: (root.selectedAlbumFilter === model.title) ? Theme.accentHover : Theme.textMuted
                             }
 
                             VectorIcon {
@@ -220,7 +222,15 @@ Rectangle {
                                 if (mouse.button === Qt.RightButton) {
                                     root.requestAlbumContextMenu(model.title, model.artist);
                                 } else {
-                                    bridge.search(model.title);
+                                    if (root.selectedAlbumFilter === model.title) {
+                                        root.selectedAlbumFilter = "All";
+                                        bridge.filterByAlbum("All");
+                                        root.albumFilterChanged("All");
+                                    } else {
+                                        root.selectedAlbumFilter = model.title;
+                                        bridge.filterByAlbum(model.title);
+                                        root.albumFilterChanged(model.title);
+                                    }
                                 }
                             }
                             onDoubleClicked: {

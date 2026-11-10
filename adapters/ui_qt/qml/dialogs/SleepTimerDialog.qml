@@ -366,7 +366,7 @@ Dialog {
                         text: parent.text
                         font.pixelSize: Theme.fontSizeSmall
                         font.family: Theme.fontFamily
-                        color: parent.enabled ? Theme.danger : Theme.textMuted
+                        color: parent.enabled ? Theme.error : Theme.textMuted
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }

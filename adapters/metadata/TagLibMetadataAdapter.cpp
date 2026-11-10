@@ -25,6 +25,7 @@
 #include <taglib/mp4tag.h>
 #include <taglib/mpegfile.h>
 #include <taglib/opusfile.h>
+#include <taglib/popularimeterframe.h>
 #include <taglib/tag.h>
 #include <taglib/tbytevector.h>
 #include <taglib/tfile.h>
@@ -753,6 +754,55 @@ TagLibMetadataAdapter::extract(const std::string &filePath) {
       track.bitrate = props->bitrate();
       track.durationMs = props->lengthInMilliseconds();
     }
+  } else if (ext == ".m4a" || ext == ".alac" || ext == ".mp4" ||
+             ext == ".m4b") {
+    TagLib::MP4::File mp4File(filePath.c_str());
+    if (mp4File.isValid() && mp4File.audioProperties()) {
+      auto *props = mp4File.audioProperties();
+      track.sampleRate = props->sampleRate();
+      if (props->bitsPerSample() > 0) {
+        track.bitDepth = props->bitsPerSample();
+      }
+      track.channels = props->channels();
+      track.bitrate = props->bitrate();
+      track.durationMs = props->lengthInMilliseconds();
+    }
+  } else if (ext == ".wv") {
+    TagLib::WavPack::File wvFile(filePath.c_str());
+    if (wvFile.isValid() && wvFile.audioProperties()) {
+      auto *props = wvFile.audioProperties();
+      track.sampleRate = props->sampleRate();
+      if (props->bitsPerSample() > 0) {
+        track.bitDepth = props->bitsPerSample();
+      }
+      track.channels = props->channels();
+      track.bitrate = props->bitrate();
+      track.durationMs = props->lengthInMilliseconds();
+    }
+  } else if (ext == ".ape") {
+    TagLib::APE::File apeFile(filePath.c_str());
+    if (apeFile.isValid() && apeFile.audioProperties()) {
+      auto *props = apeFile.audioProperties();
+      track.sampleRate = props->sampleRate();
+      if (props->bitsPerSample() > 0) {
+        track.bitDepth = props->bitsPerSample();
+      }
+      track.channels = props->channels();
+      track.bitrate = props->bitrate();
+      track.durationMs = props->lengthInMilliseconds();
+    }
+#if PIC_AUDIO_HAS_TAGLIB_DSF
+  } else if (ext == ".dsf") {
+    TagLib::DSF::File dsfFile(filePath.c_str());
+    if (dsfFile.isValid() && dsfFile.audioProperties()) {
+      auto *props = dsfFile.audioProperties();
+      track.sampleRate = props->sampleRate();
+      track.bitDepth = props->bitsPerSample() > 0 ? props->bitsPerSample() : 1;
+      track.channels = props->channels();
+      track.bitrate = props->bitrate();
+      track.durationMs = props->lengthInMilliseconds();
+    }
+#endif
   }
 
   // Extract album artist and disc number from TagLib PropertyMap
@@ -934,6 +984,321 @@ std::string TagLibMetadataAdapter::extractLyrics(const std::string &filePath) {
   }
 
   return "";
+}
+
+bool TagLibMetadataAdapter::writeTags(
+    const std::string &filePath,
+    const std::unordered_map<std::string, std::string> &tags) {
+  if (!fs::exists(filePath))
+    return false;
+
+  std::string tempPath = filePath + ".picaudio_tmp";
+  std::error_code ec;
+  fs::copy_file(filePath, tempPath, fs::copy_options::overwrite_existing, ec);
+  if (ec)
+    return false;
+
+  bool ok = false;
+  {
+    TagLib::FileRef f(tempPath.c_str());
+    if (!f.isNull() && f.file() && f.file()->isValid()) {
+      TagLib::PropertyMap props = f.file()->properties();
+
+      auto updateProp = [&](const std::string &key,
+                            const std::string &propName) {
+        auto it = tags.find(key);
+        if (it != tags.end()) {
+          if (it->second.empty()) {
+            props.erase(propName.c_str());
+          } else {
+            TagLib::StringList list;
+            list.append(TagLib::String(it->second, TagLib::String::UTF8));
+            props.replace(propName.c_str(), list);
+          }
+        }
+      };
+
+      updateProp("title", "TITLE");
+      updateProp("artist", "ARTIST");
+      updateProp("album", "ALBUM");
+      updateProp("albumArtist", "ALBUMARTIST");
+      updateProp("genre", "GENRE");
+      updateProp("year", "DATE");
+      updateProp("trackNumber", "TRACKNUMBER");
+      updateProp("discNumber", "DISCNUMBER");
+      updateProp("comment", "COMMENT");
+
+      f.file()->setProperties(props);
+
+      if (f.tag()) {
+        auto it = tags.find("title");
+        if (it != tags.end())
+          f.tag()->setTitle(TagLib::String(it->second, TagLib::String::UTF8));
+        it = tags.find("artist");
+        if (it != tags.end())
+          f.tag()->setArtist(TagLib::String(it->second, TagLib::String::UTF8));
+        it = tags.find("album");
+        if (it != tags.end())
+          f.tag()->setAlbum(TagLib::String(it->second, TagLib::String::UTF8));
+        it = tags.find("genre");
+        if (it != tags.end())
+          f.tag()->setGenre(TagLib::String(it->second, TagLib::String::UTF8));
+        it = tags.find("year");
+        if (it != tags.end()) {
+          try {
+            f.tag()->setYear(std::stoi(it->second));
+          } catch (...) {
+          }
+        }
+        it = tags.find("trackNumber");
+        if (it != tags.end()) {
+          try {
+            f.tag()->setTrack(std::stoi(it->second));
+          } catch (...) {
+          }
+        }
+        it = tags.find("comment");
+        if (it != tags.end())
+          f.tag()->setComment(TagLib::String(it->second, TagLib::String::UTF8));
+      }
+
+      ok = f.file()->save();
+    }
+  }
+
+  if (ok) {
+    fs::rename(tempPath, filePath, ec);
+    if (!ec) {
+      return true;
+    }
+  }
+
+  fs::remove(tempPath, ec);
+  return false;
+}
+
+bool TagLibMetadataAdapter::writeRating(const std::string &filePath,
+                                        int rating) {
+  if (!fs::exists(filePath))
+    return false;
+
+  std::string tempPath = filePath + ".picaudio_tmp";
+  std::error_code ec;
+  fs::copy_file(filePath, tempPath, fs::copy_options::overwrite_existing, ec);
+  if (ec)
+    return false;
+
+  bool ok = false;
+  std::string ext = getFileExtension(filePath);
+
+  if (ext == ".mp3" || ext == ".aiff" || ext == ".wav") {
+    TagLib::MPEG::File mpegFile(tempPath.c_str());
+    if (mpegFile.isValid()) {
+      auto *id3v2 = mpegFile.ID3v2Tag(true);
+      if (id3v2) {
+        int popmRating = 0;
+        switch (rating) {
+        case 1:
+          popmRating = 1;
+          break;
+        case 2:
+          popmRating = 64;
+          break;
+        case 3:
+          popmRating = 128;
+          break;
+        case 4:
+          popmRating = 196;
+          break;
+        case 5:
+          popmRating = 255;
+          break;
+        default:
+          popmRating = 0;
+          break;
+        }
+
+        auto frames = id3v2->frameList("POPM");
+        for (auto *f : frames) {
+          id3v2->removeFrame(f);
+        }
+
+        if (popmRating > 0) {
+          auto *popm = new TagLib::ID3v2::PopularimeterFrame();
+          popm->setEmail("picaudio@local");
+          popm->setRating(popmRating);
+          popm->setCounter(0);
+          id3v2->addFrame(popm);
+        }
+        ok = mpegFile.save();
+      }
+    }
+  } else if (ext == ".flac") {
+    TagLib::FLAC::File flacFile(tempPath.c_str());
+    if (flacFile.isValid()) {
+      auto *xiph = flacFile.xiphComment(true);
+      if (xiph) {
+        xiph->removeFields("RATING");
+        if (rating > 0) {
+          xiph->addField("RATING", std::to_string(rating * 20));
+        }
+        ok = flacFile.save();
+      }
+    }
+  } else if (ext == ".ogg" || ext == ".opus") {
+    TagLib::Ogg::Vorbis::File oggFile(tempPath.c_str());
+    if (oggFile.isValid() && oggFile.tag()) {
+      auto *xiph = oggFile.tag();
+      xiph->removeFields("RATING");
+      if (rating > 0) {
+        xiph->addField("RATING", std::to_string(rating * 20));
+      }
+      ok = oggFile.save();
+    }
+  } else {
+    TagLib::FileRef f(tempPath.c_str());
+    if (!f.isNull() && f.file() && f.file()->isValid()) {
+      auto props = f.file()->properties();
+      props.replace("RATING", TagLib::StringList(std::to_string(rating)));
+      f.file()->setProperties(props);
+      ok = f.file()->save();
+    }
+  }
+
+  if (ok) {
+    fs::rename(tempPath, filePath, ec);
+    if (!ec) {
+      return true;
+    }
+  }
+
+  fs::remove(tempPath, ec);
+  return false;
+}
+
+bool TagLibMetadataAdapter::writeCoverArt(const std::string &filePath,
+                                          const std::vector<uint8_t> &imageData,
+                                          const std::string &mimeType) {
+  if (!fs::exists(filePath) || imageData.empty())
+    return false;
+
+  std::string tempPath = filePath + ".picaudio_tmp";
+  std::error_code ec;
+  fs::copy_file(filePath, tempPath, fs::copy_options::overwrite_existing, ec);
+  if (ec)
+    return false;
+
+  bool ok = false;
+  std::string ext = getFileExtension(filePath);
+
+  if (ext == ".mp3" || ext == ".aiff" || ext == ".wav") {
+    TagLib::MPEG::File mpegFile(tempPath.c_str());
+    if (mpegFile.isValid()) {
+      auto *id3v2 = mpegFile.ID3v2Tag(true);
+      if (id3v2) {
+        auto frames = id3v2->frameList("APIC");
+        for (auto *f : frames) {
+          id3v2->removeFrame(f);
+        }
+        auto *apic = new TagLib::ID3v2::AttachedPictureFrame();
+        apic->setMimeType(TagLib::String(mimeType, TagLib::String::UTF8));
+        apic->setType(TagLib::ID3v2::AttachedPictureFrame::FrontCover);
+        apic->setPicture(
+            TagLib::ByteVector(reinterpret_cast<const char *>(imageData.data()),
+                               imageData.size()));
+        id3v2->addFrame(apic);
+        ok = mpegFile.save();
+      }
+    }
+  } else if (ext == ".flac") {
+    TagLib::FLAC::File flacFile(tempPath.c_str());
+    if (flacFile.isValid()) {
+      flacFile.removePictures();
+      auto *pic = new TagLib::FLAC::Picture();
+      pic->setData(TagLib::ByteVector(
+          reinterpret_cast<const char *>(imageData.data()), imageData.size()));
+      pic->setType(TagLib::FLAC::Picture::FrontCover);
+      pic->setMimeType(TagLib::String(mimeType, TagLib::String::UTF8));
+      flacFile.addPicture(pic);
+      ok = flacFile.save();
+    }
+  } else if (ext == ".m4a" || ext == ".mp4" || ext == ".alac") {
+    TagLib::MP4::File mp4File(tempPath.c_str());
+    if (mp4File.isValid() && mp4File.tag()) {
+      TagLib::MP4::CoverArt::Format fmt = (mimeType == "image/png")
+                                              ? TagLib::MP4::CoverArt::PNG
+                                              : TagLib::MP4::CoverArt::JPEG;
+      TagLib::MP4::CoverArt art(
+          fmt,
+          TagLib::ByteVector(reinterpret_cast<const char *>(imageData.data()),
+                             imageData.size()));
+      TagLib::MP4::CoverArtList list;
+      list.append(art);
+      mp4File.tag()->setItem("covr", TagLib::MP4::Item(list));
+      ok = mp4File.save();
+    }
+  }
+
+  if (ok) {
+    fs::rename(tempPath, filePath, ec);
+    if (!ec) {
+      std::lock_guard<std::mutex> lock(m_cacheMutex);
+      m_folderArtCache.erase(filePath);
+      return true;
+    }
+  }
+
+  fs::remove(tempPath, ec);
+  return false;
+}
+
+bool TagLibMetadataAdapter::removeCoverArt(const std::string &filePath) {
+  if (!fs::exists(filePath))
+    return false;
+
+  std::string tempPath = filePath + ".picaudio_tmp";
+  std::error_code ec;
+  fs::copy_file(filePath, tempPath, fs::copy_options::overwrite_existing, ec);
+  if (ec)
+    return false;
+
+  bool ok = false;
+  std::string ext = getFileExtension(filePath);
+
+  if (ext == ".mp3" || ext == ".aiff" || ext == ".wav") {
+    TagLib::MPEG::File mpegFile(tempPath.c_str());
+    if (mpegFile.isValid() && mpegFile.ID3v2Tag()) {
+      auto frames = mpegFile.ID3v2Tag()->frameList("APIC");
+      for (auto *f : frames) {
+        mpegFile.ID3v2Tag()->removeFrame(f);
+      }
+      ok = mpegFile.save();
+    }
+  } else if (ext == ".flac") {
+    TagLib::FLAC::File flacFile(tempPath.c_str());
+    if (flacFile.isValid()) {
+      flacFile.removePictures();
+      ok = flacFile.save();
+    }
+  } else if (ext == ".m4a" || ext == ".mp4" || ext == ".alac") {
+    TagLib::MP4::File mp4File(tempPath.c_str());
+    if (mp4File.isValid() && mp4File.tag()) {
+      mp4File.tag()->removeItem("covr");
+      ok = mp4File.save();
+    }
+  }
+
+  if (ok) {
+    fs::rename(tempPath, filePath, ec);
+    if (!ec) {
+      std::lock_guard<std::mutex> lock(m_cacheMutex);
+      m_folderArtCache.erase(filePath);
+      return true;
+    }
+  }
+
+  fs::remove(tempPath, ec);
+  return false;
 }
 
 } // namespace adapters

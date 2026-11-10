@@ -34,6 +34,7 @@ struct ThemeTokens {
   QString textSecondary{"#a3a3a3"};
   QString textMuted{"#737373"};
   QString selection{"#262626"};
+  QString surfaceHighlight{"#1f1f1f"};
   QString error{"#ef4444"};
   QString warning{"#f59e0b"};
   QString success{"#22c55e"};
@@ -94,7 +95,9 @@ class ThemeLoader : public QObject {
   Q_PROPERTY(QString textSecondary READ textSecondary NOTIFY themeChanged)
   Q_PROPERTY(QString textMuted READ textMuted NOTIFY themeChanged)
   Q_PROPERTY(QString selection READ selection NOTIFY themeChanged)
+  Q_PROPERTY(QString surfaceHighlight READ surfaceHighlight NOTIFY themeChanged)
   Q_PROPERTY(QString error READ error NOTIFY themeChanged)
+  Q_PROPERTY(QString danger READ danger NOTIFY themeChanged)
   Q_PROPERTY(QString warning READ warning NOTIFY themeChanged)
   Q_PROPERTY(QString success READ success NOTIFY themeChanged)
 
@@ -149,7 +152,11 @@ public:
   [[nodiscard]] QString textSecondary() const { return m_tokens.textSecondary; }
   [[nodiscard]] QString textMuted() const { return m_tokens.textMuted; }
   [[nodiscard]] QString selection() const { return m_tokens.selection; }
+  [[nodiscard]] QString surfaceHighlight() const {
+    return m_tokens.surfaceElevated;
+  }
   [[nodiscard]] QString error() const { return m_tokens.error; }
+  [[nodiscard]] QString danger() const { return m_tokens.error; }
   [[nodiscard]] QString warning() const { return m_tokens.warning; }
   [[nodiscard]] QString success() const { return m_tokens.success; }
 

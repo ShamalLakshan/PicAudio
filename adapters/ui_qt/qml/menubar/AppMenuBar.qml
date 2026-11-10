@@ -29,6 +29,7 @@ RowLayout {
     signal requestHideWindow()
     signal requestSwitchViewMode(int mode)
     signal requestToggleEqualizer()
+    signal requestLibraryHealth()
 
     // Two-way UI state properties
     property bool showLeftPanel: true
@@ -670,6 +671,10 @@ RowLayout {
             MenuItem {
                 text: "Playback Sleep Timer..."
                 onTriggered: root.requestSleepTimer()
+            }
+            MenuItem {
+                text: "Library Health & Missing Files Inspector..."
+                onTriggered: root.requestLibraryHealth()
             }
             MenuSeparator {}
             Menu {

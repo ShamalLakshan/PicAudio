@@ -116,7 +116,7 @@ Rectangle {
             Layout.preferredHeight: 24
             Layout.alignment: Qt.AlignVCenter
             Layout.leftMargin: 4
-            Layout.rightMargin: 4
+            Layout.rightMargin: 2
             width: Layout.preferredWidth
             height: 24
             radius: Theme.cornerRadiusSmall
@@ -161,6 +161,51 @@ Rectangle {
             ToolTip.text: (root.showColumnBrowser ? "Collapse" : "Expand") + " Category Filters (Genre, Artist, Album) (Ctrl+2)"
         }
 
+        // Toggle Hi-Res Audio Filter Button
+        Rectangle {
+            Layout.preferredWidth: hiresLayout.implicitWidth + 16
+            Layout.preferredHeight: 24
+            Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: 2
+            Layout.rightMargin: 4
+            width: Layout.preferredWidth
+            height: 24
+            radius: Theme.cornerRadiusSmall
+            color: bridge.hiResOnly ? Theme.accent : (hiresMouse.containsMouse ? Theme.surfaceElevated : "transparent")
+            border.color: bridge.hiResOnly ? Theme.accent : Theme.panelBorder
+
+            RowLayout {
+                id: hiresLayout
+                anchors.centerIn: parent
+                spacing: 4
+
+                VectorIcon {
+                    name: "volume"
+                    width: 10
+                    height: 10
+                    color: bridge.hiResOnly ? Theme.textPrimary : Theme.textMuted
+                }
+
+                Text {
+                    text: "HI-RES"
+                    font.pixelSize: 10
+                    font.bold: true
+                    color: bridge.hiResOnly ? Theme.textPrimary : Theme.textSecondary
+                }
+            }
+
+            MouseArea {
+                id: hiresMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: bridge.toggleHiResFilter()
+            }
+
+            ToolTip.visible: hiresMouse.containsMouse
+            ToolTip.text: bridge.hiResOnly ? "Showing Hi-Res files only (24-bit, 88.2kHz+ or DSD). Click to show all." : "Filter tracks & albums to Hi-Res (24-bit, 88.2kHz+ or DSD)"
+        }
+
         // Alphabet jump ribbon
         Flickable {
             Layout.fillWidth: true
@@ -200,8 +245,13 @@ Rectangle {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                root.activeLetterFilter = modelData;
-                                root.letterFilterSelected(modelData);
+                                if (root.activeLetterFilter === modelData && modelData !== "All") {
+                                    root.activeLetterFilter = "All";
+                                    root.letterFilterSelected("All");
+                                } else {
+                                    root.activeLetterFilter = modelData;
+                                    root.letterFilterSelected(modelData);
+                                }
                             }
                         }
                     }
@@ -212,17 +262,18 @@ Rectangle {
         // Item counter
         Text {
             text: {
+                var suffix = bridge.hiResOnly ? " (Hi-Res)" : "";
                 if (root.mainViewMode === 0) {
-                    return bridge.albumModel.count + " albums";
+                    return bridge.albumModel.count + " albums" + suffix;
                 } else if (root.mainViewMode === 2) {
                     return (bridge.selectedAlbumTrackCount > 0 ? (bridge.selectedAlbumTrackCount + " tracks • " + bridge.selectedAlbumDuration) : "Album Details");
                 } else if (root.mainViewMode === 3) {
                     return bridge.historyTrackModel.count + " played";
                 }
-                return bridge.trackModel.count + " tracks";
+                return bridge.trackModel.count + " tracks" + suffix;
             }
             font.pixelSize: 10
-            color: Theme.textMuted
+            color: bridge.hiResOnly ? Theme.accent : Theme.textMuted
         }
     }
 }

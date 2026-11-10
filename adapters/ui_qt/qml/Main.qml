@@ -90,6 +90,16 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: bridge
+        function onFiltersReset() {
+            root.activeLetterFilter = "All";
+            root.selectedGenreFilter = "All";
+            root.selectedArtistFilter = "All";
+            topToolbar.clearSearch();
+        }
+    }
+
     onClosing: (close) => {
         if (!isMiniPlayer && visibility !== Window.Minimized) {
             var isMax = (visibility === Window.Maximized);
@@ -115,7 +125,7 @@ ApplicationWindow {
     }
 
     // Focus isolation state
-    readonly property bool isAnyDialogOpen: preferencesDialog.visible || tagEditorDialog.visible || openUrlDialog.visible || shortcutsDialog.visible || diagnosticsDialog.visible || channelMatrixDialog.visible || aboutDialog.visible || sleepTimerDialog.visible || newPlaylistDialog.visible || renamePlaylistDialog.visible || deleteConfirmDialog.visible || (equalizerOverlay && equalizerOverlay.visible)
+    readonly property bool isAnyDialogOpen: preferencesDialog.visible || tagEditorDialog.visible || openUrlDialog.visible || shortcutsDialog.visible || diagnosticsDialog.visible || channelMatrixDialog.visible || aboutDialog.visible || sleepTimerDialog.visible || newPlaylistDialog.visible || renamePlaylistDialog.visible || deleteConfirmDialog.visible || libraryHealthDialog.visible || smartPlaylistRuleDialog.visible || (equalizerOverlay && equalizerOverlay.visible)
     readonly property bool isTextInputFocused: (root.activeFocusItem !== null) && ((root.activeFocusItem.echoMode !== undefined) || (root.activeFocusItem.cursorPosition !== undefined) || (root.activeFocusItem.text !== undefined && root.activeFocusItem.readOnly !== undefined && !root.activeFocusItem.readOnly))
     readonly property bool isInputActive: topToolbar.isSearchActiveFocus || isAnyDialogOpen || isTextInputFocused
 
@@ -171,6 +181,10 @@ ApplicationWindow {
         mainViewMode = mode;
         if (mode === 1) {
             activeNavSection = 0;
+            activePlaylistName = "";
+            if (bridge.trackModel.count === 0 && bridge.totalTracks > 0) {
+                bridge.trackModel.loadAllTracks();
+            }
         } else if (mode === 0) {
             activeNavSection = 1;
         } else if (mode === 3) {
@@ -226,10 +240,22 @@ ApplicationWindow {
 
     PreferencesDialog {
         id: preferencesDialog
+        onRequestLibraryHealth: {
+            preferencesDialog.close();
+            libraryHealthDialog.open();
+        }
     }
 
     TagEditorDialog {
         id: tagEditorDialog
+    }
+
+    LibraryHealthDialog {
+        id: libraryHealthDialog
+    }
+
+    SmartPlaylistRuleDialog {
+        id: smartPlaylistRuleDialog
     }
 
     OpenUrlDialog {
@@ -449,7 +475,8 @@ ApplicationWindow {
             exportPlaylistDialog.open();
         }
         onEditSmartPlaylistRequested: (plName) => {
-            newPlaylistDialog.openSmartEdit(plName, bridge.getSmartPlaylistRules(plName));
+            smartPlaylistRuleDialog.playlistName = plName;
+            smartPlaylistRuleDialog.open();
         }
         onDeletePlaylistRequested: (plName) => {
             deleteConfirmDialog.confirmDeletePlaylist(plName);
@@ -841,12 +868,14 @@ ApplicationWindow {
                     }
                     onRequestNewPlaylist: (isSmart) => {
                         if (isSmart) {
-                            newPlaylistDialog.openSmart();
+                            smartPlaylistRuleDialog.playlistName = "";
+                            smartPlaylistRuleDialog.open();
                         } else {
                             newPlaylistDialog.isSmart = false;
                             newPlaylistDialog.open();
                         }
                     }
+                    onRequestLibraryHealth: libraryHealthDialog.open()
                     onRequestImportPlaylist: importPlaylistDialog.open()
                     onRequestSleepTimer: sleepTimerDialog.open()
                     onRequestShortcuts: shortcutsDialog.open()
@@ -900,7 +929,11 @@ ApplicationWindow {
                 onNavSectionSelected: (nav, mode) => {
                     root.activeNavSection = nav;
                     root.mainViewMode = mode;
-                    root.activePlaylistName = "";
+                    if (nav !== 5 && nav !== 6) {
+                        root.activePlaylistName = "";
+                    } else if (nav === 6) {
+                        root.activePlaylistName = "Favorites";
+                    }
                 }
                 onPlaylistSelected: (name) => {
                     root.activeNavSection = 5;
@@ -1210,6 +1243,8 @@ ApplicationWindow {
         id: miniPlayerContainer
         anchors.fill: parent
         visible: isMiniPlayer
+        stayOnTop: root.stayOnTop
+        onRequestToggleStayOnTop: root.stayOnTop = !root.stayOnTop
         onRequestRestore: root.toggleMiniPlayer()
         onRequestMove: root.startSystemMove()
         onRequestResize: (edge) => {

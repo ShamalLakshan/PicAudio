@@ -10,6 +10,7 @@
 #include "audio/dsp/LoudnessAndDitherProcessor.hpp"
 #include "audio/dsp/ParametricEqualizer.hpp"
 #include "core/ports/IAudioEnginePort.hpp"
+#include <QAudioDevice>
 #include <QAudioFormat>
 #include <QAudioOutput>
 #include <QAudioSink>
@@ -17,6 +18,9 @@
 #include <QMediaDevices>
 #include <QMediaPlayer>
 #include <QObject>
+#include <QThread>
+#include <QTimer>
+#include <QUrl>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -41,8 +45,9 @@ class PcmAudioDevice : public QIODevice {
   Q_OBJECT
 public:
   explicit PcmAudioDevice(LockFreeRingBuffer<float> &ringBuffer,
+                          std::condition_variable &dspCv,
                           QObject *parent = nullptr)
-      : QIODevice(parent), m_ringBuffer(ringBuffer) {
+      : QIODevice(parent), m_ringBuffer(ringBuffer), m_dspCv(dspCv) {
     open(QIODevice::ReadOnly | QIODevice::Unbuffered);
   }
 
@@ -54,14 +59,14 @@ public:
       std::memset(dst + samplesRead, 0,
                   (samplesNeeded - samplesRead) * sizeof(float));
     }
+    m_dspCv.notify_one();
     return static_cast<qint64>(samplesNeeded * sizeof(float));
   }
 
   qint64 writeData(const char *, qint64) override { return 0; }
 
   qint64 bytesAvailable() const override {
-    return static_cast<qint64>(m_ringBuffer.availableRead() * sizeof(float) +
-                               QIODevice::bytesAvailable());
+    return static_cast<qint64>(m_ringBuffer.availableRead() * sizeof(float));
   }
 
   bool isSequential() const override { return true; }
@@ -70,6 +75,68 @@ public:
 
 private:
   LockFreeRingBuffer<float> &m_ringBuffer;
+  std::condition_variable &m_dspCv;
+};
+
+/**
+ * @brief Dedicated worker object managing QMediaPlayer and hardware output
+ * on a dedicated high-priority audio QThread, completely isolated from GUI
+ * latency.
+ */
+class AudioPlayerWorker : public QObject {
+  Q_OBJECT
+
+public:
+  explicit AudioPlayerWorker(LockFreeRingBuffer<float> &outputRingBuffer,
+                             std::condition_variable &dspCv,
+                             std::atomic<int64_t> &positionMs,
+                             std::atomic<int64_t> &durationMs,
+                             std::atomic<bool> &isPlaying,
+                             std::atomic<float> &playbackRate,
+                             QObject *parent = nullptr);
+  ~AudioPlayerWorker() override;
+
+#if __has_include(<QAudioBufferOutput>)
+  QAudioBufferOutput *bufferOutput() const { return m_bufferOutput.get(); }
+#endif
+
+public slots:
+  void init();
+  void loadFile(const QString &filePath);
+  void play();
+  void pause();
+  void stop();
+  void seekTo(qint64 positionMs);
+  void setPlayerVolume(float volume);
+  void setPlayerRate(qreal rate);
+  void setAudioDevice(const QAudioDevice &device);
+  void configureSink(uint32_t sampleRate, uint8_t channels);
+
+signals:
+  void trackFinished();
+
+private:
+  LockFreeRingBuffer<float> &m_outputRingBuffer;
+  std::condition_variable &m_dspCv;
+
+  std::unique_ptr<QMediaPlayer> m_player;
+#if __has_include(<QAudioBufferOutput>)
+  std::unique_ptr<QAudioBufferOutput> m_bufferOutput;
+#endif
+  std::unique_ptr<PcmAudioDevice> m_pcmAudioDevice;
+  std::unique_ptr<QAudioSink> m_audioSink;
+  QAudioDevice m_currentDevice;
+  uint32_t m_currentSampleRate{44100};
+  uint8_t m_currentChannels{2};
+
+  QTimer *m_positionTimer{nullptr};
+
+  std::atomic<int64_t> &m_atomicPositionMs;
+  std::atomic<int64_t> &m_atomicDurationMs;
+  std::atomic<bool> &m_atomicPlaying;
+  std::atomic<float> &m_atomicPlaybackRate;
+
+  float m_volume{0.8f};
 };
 
 /**
@@ -194,22 +261,28 @@ signals:
   void playbackFinished();
 
 private:
-  std::unique_ptr<QMediaPlayer> m_player;
-  std::unique_ptr<QAudioOutput> m_audioOutput;
+  QThread m_audioThread;
+  AudioPlayerWorker *m_audioWorker{nullptr};
+  std::atomic<int64_t> m_atomicPositionMs{0};
+  std::atomic<int64_t> m_atomicDurationMs{0};
+  std::atomic<bool> m_atomicPlaying{false};
+  std::atomic<float> m_atomicPlaybackRate{1.0f};
+
 #if __has_include(<QAudioBufferOutput>)
   void handleAudioBuffer(const QAudioBuffer &buffer);
-  std::unique_ptr<QAudioBufferOutput> m_bufferOutput;
 #endif
-  void updateFftBands(const std::vector<float> &samples, uint32_t sampleRate);
-  void configureAudioSink(uint32_t sampleRate, uint8_t channels);
+  void updateFftBands(uint32_t sampleRate);
   void dspWorkerLoop();
   void updateVisualizerTap(const float *samples, size_t frames,
                            uint8_t channels, uint32_t sampleRate);
+  bool isDspProcessingActive() const;
+  void updateOutputRouting();
 
   core::AudioStreamInfo m_streamInfo;
   mutable std::mutex m_mutex;
   std::function<void()> m_endOfTrackCallback;
   core::IAudioEnginePort::AudioBufferCallback m_audioBufferCallback;
+  std::atomic<bool> m_hasAudioBufferCallback{false};
   std::string m_currentFilePath;
 
   std::string m_audioBackend{"Linux PipeWire Lock-Free Client"};
@@ -232,16 +305,14 @@ private:
   uint64_t m_virtualStartOffsetMs{0};
   uint64_t m_virtualEndOffsetMs{0};
 
-  LockFreeRingBuffer<float> m_decodedRingBuffer{262144};
-  LockFreeRingBuffer<float> m_outputRingBuffer{131072};
+  LockFreeRingBuffer<float> m_decodedRingBuffer{1048576};
+  LockFreeRingBuffer<float> m_outputRingBuffer{1048576};
   std::thread m_dspThread;
   std::atomic<bool> m_dspThreadRunning{false};
   std::condition_variable m_dspCv;
   std::mutex m_dspCvMutex;
   std::atomic<uint8_t> m_currentInputChannels{2};
 
-  std::unique_ptr<PcmAudioDevice> m_pcmAudioDevice;
-  std::unique_ptr<QAudioSink> m_audioSink;
   std::atomic<uint32_t> m_currentSinkSampleRate{44100};
   std::atomic<uint8_t> m_currentSinkChannels{2};
 
@@ -250,7 +321,7 @@ private:
   size_t m_pcmVisWriteHead{0};
   mutable std::vector<float> m_currentBands;
   mutable std::vector<float> m_currentWaveform;
-  mutable float m_audioLevel{0.0f};
+  mutable std::atomic<float> m_audioLevel{0.0f};
 };
 
 using BitPerfectAudioAdapter = BitPerfectAudioEngine;

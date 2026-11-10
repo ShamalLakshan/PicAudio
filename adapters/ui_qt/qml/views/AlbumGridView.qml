@@ -3,13 +3,11 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
 
-ScrollView {
+Item {
     id: root
 
     signal albumSelected(string title, string artist)
     signal requestAlbumContextMenu(string title, string artist)
-
-    ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
     GridView {
         id: albumGridView
@@ -21,6 +19,10 @@ ScrollView {
         cellHeight: cellWidth + 68
         model: bridge.albumModel
         clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+        }
 
         delegate: Rectangle {
             width: albumGridView.cellWidth - 10

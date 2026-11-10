@@ -73,6 +73,70 @@ public:
   bool optimizeDatabase() override { return true; }
   size_t getTrackCount() override { return tracks.size(); }
   size_t getAlbumCount() override { return 0; }
+  bool updateTrackRating(const std::string &id, uint8_t rating) override {
+    for (auto &t : tracks) {
+      if (t.id == id) {
+        t.rating = rating;
+        return true;
+      }
+    }
+    return false;
+  }
+  bool updateTrackFavorite(const std::string &id, bool isFavorite) override {
+    for (auto &t : tracks) {
+      if (t.id == id) {
+        t.isFavorite = isFavorite;
+        return true;
+      }
+    }
+    return false;
+  }
+  bool recordTrackPlayed(const std::string &id, uint64_t timestamp) override {
+    for (auto &t : tracks) {
+      if (t.id == id) {
+        t.playCount++;
+        t.lastPlayed = timestamp;
+        return true;
+      }
+    }
+    return false;
+  }
+  bool recordTrackSkipped(const std::string &id) override {
+    for (auto &t : tracks) {
+      if (t.id == id) {
+        t.skipCount++;
+        return true;
+      }
+    }
+    return false;
+  }
+  std::vector<std::pair<core::Track, uint64_t>>
+  getListeningHistory(size_t limit = 200) override {
+    std::vector<std::pair<core::Track, uint64_t>> res;
+    for (const auto &t : tracks) {
+      if (t.lastPlayed > 0) {
+        res.emplace_back(t, t.lastPlayed);
+        if (res.size() >= limit)
+          break;
+      }
+    }
+    return res;
+  }
+  bool clearListeningHistory() override {
+    for (auto &t : tracks) {
+      t.lastPlayed = 0;
+    }
+    return true;
+  }
+  std::vector<core::Track> getMissingTracks() override { return {}; }
+  size_t relocateTracks(const std::string &, const std::string &) override {
+    return 0;
+  }
+  std::vector<core::Track> queryTracksDynamic(const std::string &,
+                                              const std::string &,
+                                              size_t) override {
+    return tracks;
+  }
 
 private:
   bool m_groupAlbumsByTitle{true};

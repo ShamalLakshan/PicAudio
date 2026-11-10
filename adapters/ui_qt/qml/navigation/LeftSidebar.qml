@@ -9,6 +9,7 @@ Rectangle {
     property int activeNavSection: 0
     property string activePlaylistName: ""
     property int mainViewMode: 1
+    property bool physicalFoldersExpanded: true
 
     signal navSectionSelected(int nav, int mode)
     signal playlistSelected(string name)
@@ -95,7 +96,9 @@ Rectangle {
                         { title: "All Music Tracks", count: bridge.totalTracks, icon: "table", nav: 0, mode: 1 },
                         { title: "Albums", count: bridge.totalAlbums, icon: "grid", nav: 1, mode: 0 },
                         { title: "Artists", count: bridge.artistsList.length, icon: "disc", nav: 2, mode: 1 },
-                        { title: "Genres", count: bridge.genresList.length, icon: "music", nav: 3, mode: 1 }
+                        { title: "Genres", count: bridge.genresList.length, icon: "music", nav: 3, mode: 1 },
+                        { title: "Favorites", count: "", icon: "heart", nav: 6, mode: 1 },
+                        { title: "Listening History", count: "", icon: "queue", nav: 7, mode: 3 }
                     ]
 
                     delegate: Rectangle {
@@ -126,6 +129,7 @@ Rectangle {
 
                             Text {
                                 text: "" + modelData.count
+                                visible: ("" + modelData.count).length > 0
                                 font.pixelSize: Theme.fontSizeSmall - 1
                                 color: root.activeNavSection === modelData.nav ? Theme.textPrimary : Theme.textMuted
                             }
@@ -138,10 +142,24 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 root.activeNavSection = modelData.nav;
-                                root.navSectionSelected(modelData.nav, modelData.mode);
-                                if (modelData.nav === 2 || modelData.nav === 3) {
+                                if (modelData.nav === 0) {
+                                    bridge.showAllTracks();
+                                    root.navSectionSelected(0, 1);
+                                } else if (modelData.nav === 2) {
+                                    root.navSectionSelected(2, 1);
                                     root.requestShowColumnBrowser(true);
+                                    bridge.trackModel.sortBy("artist", true);
+                                } else if (modelData.nav === 3) {
+                                    root.navSectionSelected(3, 1);
+                                    root.requestShowColumnBrowser(true);
+                                    bridge.trackModel.sortBy("genre", true);
+                                } else if (modelData.nav === 6) {
+                                    bridge.openPlaylist("Favorites");
+                                    root.navSectionSelected(6, 1);
+                                } else if (modelData.nav === 7) {
+                                    root.navSectionSelected(7, 3);
                                 } else {
+                                    root.navSectionSelected(modelData.nav, modelData.mode);
                                     bridge.resetFilters();
                                 }
                             }
@@ -380,6 +398,86 @@ Rectangle {
                             }
                             ToolTip.visible: folderItemMouse.containsMouse
                             ToolTip.text: modelData + "\nRight-click for options (Rescan, Reveal, Remove)"
+                        }
+                    }
+                }
+
+                // Physical Folder Navigation (Issue #51)
+                Item { height: 10; width: 1 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 8
+                    Layout.rightMargin: 8
+                    Text {
+                        text: "  PHYSICAL DIRECTORIES"
+                        font.pixelSize: Theme.fontSizeSmall - 2
+                        font.bold: true
+                        font.letterSpacing: 1.0
+                        color: Theme.textMuted
+                        Layout.fillWidth: true
+                    }
+                    Text {
+                        text: root.physicalFoldersExpanded ? "▲" : "▼"
+                        font.pixelSize: 8
+                        color: Theme.textMuted
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.physicalFoldersExpanded = !root.physicalFoldersExpanded
+                        }
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    visible: root.physicalFoldersExpanded
+
+                    Repeater {
+                        model: bridge.getDirectoryNodes("")
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 26
+                            color: dirNodeMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                VectorIcon {
+                                    name: "folder"
+                                    width: 11
+                                    height: 11
+                                    color: Theme.accent
+                                }
+
+                                Text {
+                                    text: modelData.name || modelData.path
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textSecondary
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            MouseArea {
+                                id: dirNodeMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.RightButton) {
+                                        root.requestFolderContextMenu(modelData.path);
+                                    } else {
+                                        bridge.openFolder(modelData.path, false);
+                                    }
+                                }
+                                ToolTip.visible: dirNodeMouse.containsMouse
+                                ToolTip.text: modelData.path + "\nClick to open, Right-click for options"
+                            }
                         }
                     }
                 }
