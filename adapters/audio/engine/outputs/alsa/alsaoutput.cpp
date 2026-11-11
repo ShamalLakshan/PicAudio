@@ -1,25 +1,12 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "alsaoutput.h"
 
-namespace Fooyin {
+namespace PicAudioEngine {
 constexpr auto BufferLengthSetting = "ALSA/BufferLength";
 constexpr auto DefaultBufferLength = 200;
 constexpr auto PeriodLengthSetting = "ALSA/PeriodLength";
@@ -40,49 +27,49 @@ constexpr auto DefaultPeriodLength = 40;
 #include <ranges>
 #include <utility>
 
-Q_LOGGING_CATEGORY(ALSA, "fy.alsa")
+Q_LOGGING_CATEGORY(ALSA, "picaudio.engine.alsa")
 
 using namespace Qt::StringLiterals;
 
 namespace {
-using ChannelPosition = Fooyin::AudioFormat::ChannelPosition;
+using ChannelPosition = PicAudioEngine::AudioFormat::ChannelPosition;
 
-snd_pcm_format_t findAlsaFormat(Fooyin::SampleFormat format)
+snd_pcm_format_t findAlsaFormat(PicAudioEngine::SampleFormat format)
 {
     switch(format) {
-        case(Fooyin::SampleFormat::U8):
+        case(PicAudioEngine::SampleFormat::U8):
             return SND_PCM_FORMAT_U8;
-        case(Fooyin::SampleFormat::S16):
+        case(PicAudioEngine::SampleFormat::S16):
             return SND_PCM_FORMAT_S16;
-        case(Fooyin::SampleFormat::S24In32):
-        case(Fooyin::SampleFormat::S32):
+        case(PicAudioEngine::SampleFormat::S24In32):
+        case(PicAudioEngine::SampleFormat::S32):
             return SND_PCM_FORMAT_S32;
-        case(Fooyin::SampleFormat::F32):
+        case(PicAudioEngine::SampleFormat::F32):
             return SND_PCM_FORMAT_FLOAT;
-        case(Fooyin::SampleFormat::F64):
+        case(PicAudioEngine::SampleFormat::F64):
             return SND_PCM_FORMAT_FLOAT64;
-        case(Fooyin::SampleFormat::Unknown):
+        case(PicAudioEngine::SampleFormat::Unknown):
         default:
             return SND_PCM_FORMAT_UNKNOWN;
     }
 }
 
-Fooyin::SampleFormat findSampleFormat(snd_pcm_format_t format)
+PicAudioEngine::SampleFormat findSampleFormat(snd_pcm_format_t format)
 {
     switch(format) {
         case(SND_PCM_FORMAT_U8):
-            return Fooyin::SampleFormat::U8;
+            return PicAudioEngine::SampleFormat::U8;
         case(SND_PCM_FORMAT_S16):
-            return Fooyin::SampleFormat::S16;
+            return PicAudioEngine::SampleFormat::S16;
         case(SND_PCM_FORMAT_S32):
-            return Fooyin::SampleFormat::S32;
+            return PicAudioEngine::SampleFormat::S32;
         case(SND_PCM_FORMAT_FLOAT):
-            return Fooyin::SampleFormat::F32;
+            return PicAudioEngine::SampleFormat::F32;
         case(SND_PCM_FORMAT_FLOAT64):
-            return Fooyin::SampleFormat::F64;
+            return PicAudioEngine::SampleFormat::F64;
         case(SND_PCM_FORMAT_UNKNOWN):
         default:
-            return Fooyin::SampleFormat::Unknown;
+            return PicAudioEngine::SampleFormat::Unknown;
     }
 }
 
@@ -119,7 +106,7 @@ struct DeviceString
     }
 };
 
-void getPcmDevices(Fooyin::OutputDevices& devices)
+void getPcmDevices(PicAudioEngine::OutputDevices& devices)
 {
     DeviceHint deviceHint;
 
@@ -240,9 +227,9 @@ ChannelPosition channelPositionFromAlsa(unsigned int pos)
     }
 }
 
-Fooyin::AudioFormat::ChannelLayout channelLayoutFromAlsaMap(const snd_pcm_chmap_t& map)
+PicAudioEngine::AudioFormat::ChannelLayout channelLayoutFromAlsaMap(const snd_pcm_chmap_t& map)
 {
-    Fooyin::AudioFormat::ChannelLayout layout;
+    PicAudioEngine::AudioFormat::ChannelLayout layout;
     if(map.channels == 0) {
         return layout;
     }
@@ -255,7 +242,7 @@ Fooyin::AudioFormat::ChannelLayout channelLayoutFromAlsaMap(const snd_pcm_chmap_
 }
 } // namespace
 
-namespace Fooyin::Alsa {
+namespace PicAudioEngine::Alsa {
 AlsaOutput::AlsaOutput()
     : m_initialised{false}
     , m_pausable{true}
@@ -894,4 +881,4 @@ bool AlsaOutput::recoverState(OutputState* state)
 
     return recovered;
 }
-} // namespace Fooyin::Alsa
+} // namespace PicAudioEngine::Alsa

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -22,7 +9,7 @@
 #include <cmath>
 #include <cstdlib>
 
-namespace Fooyin::Math {
+namespace PicAudioEngine::Math {
 #if (defined(__GNUC__) && defined(__x86_64__))
 #include <emmintrin.h>
 inline int32_t fltToInt(float flt)
@@ -45,4 +32,4 @@ inline int32_t fltToInt(double flt)
     return static_cast<int32_t>(std::floor(flt + 0.5));
 }
 #endif
-} // namespace Fooyin::Math
+} // namespace PicAudioEngine::Math

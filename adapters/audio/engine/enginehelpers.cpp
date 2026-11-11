@@ -1,27 +1,14 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "enginehelpers.h"
 
 #include <core/track.h>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 bool sameTrackIdentity(const Track& lhs, const Track& rhs)
 {
     return lhs.sameIdentityAs(rhs);
@@ -101,7 +88,7 @@ AudioFormat normaliseChannelLayout(const AudioFormat& format)
     bool needsInference = !format.hasChannelLayout();
     if(!needsInference) {
         for(int i{0}; i < channels; ++i) {
-            if(format.channelPosition(i) == Fooyin::AudioFormat::ChannelPosition::UnknownPosition) {
+            if(format.channelPosition(i) == PicAudioEngine::AudioFormat::ChannelPosition::UnknownPosition) {
                 needsInference = true;
                 break;
             }
@@ -113,9 +100,9 @@ AudioFormat normaliseChannelLayout(const AudioFormat& format)
     }
 
     auto inferred{format};
-    const auto fallback = Fooyin::AudioFormat::defaultChannelLayoutForChannelCount(channels);
+    const auto fallback = PicAudioEngine::AudioFormat::defaultChannelLayoutForChannelCount(channels);
     inferred.setChannelLayout(fallback);
 
     return inferred;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

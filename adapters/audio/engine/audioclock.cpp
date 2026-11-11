@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "audioclock.h"
@@ -36,7 +23,7 @@ constexpr auto MaxEffectiveRate     = 8.0;
 constexpr auto MinDelayToSourceRate = 0.01;
 constexpr auto MaxDelayToSourceRate = 8.0;
 
-Q_LOGGING_CATEGORY(AUDIO_CLOCK, "fy.audioclock")
+Q_LOGGING_CATEGORY(AUDIO_CLOCK, "picaudio.engine.audioclock")
 
 namespace {
 uint64_t saturatingSub(uint64_t lhs, uint64_t rhs)
@@ -54,7 +41,7 @@ double elapsedMs(const std::chrono::steady_clock::time_point now, const std::chr
 }
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 AudioClock::AudioClock(QObject* parent)
     : QObject{parent}
     , m_state{State::Stopped}
@@ -286,4 +273,4 @@ void AudioClock::resetClock()
     m_rateUsed     = 1.0;
     m_lastReportedPositionMs.store(0, std::memory_order_relaxed);
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

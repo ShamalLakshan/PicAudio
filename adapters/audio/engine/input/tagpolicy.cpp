@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "tagpolicy.h"
@@ -23,10 +10,10 @@
 
 #include <core/coresettings.h>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 namespace {
 template <typename Enum>
-Enum enumSetting(const FySettings& settings, auto key, Enum defaultValue, Enum min, Enum max)
+Enum enumSetting(const PicAudioSettings& settings, auto key, Enum defaultValue, Enum min, Enum max)
 {
     const int value = settings.value(key, static_cast<int>(defaultValue)).toInt();
 
@@ -40,7 +27,7 @@ Enum enumSetting(const FySettings& settings, auto key, Enum defaultValue, Enum m
 
 TagPolicy tagPolicy()
 {
-    const FySettings settings;
+    const PicAudioSettings settings;
 
     const auto id3v2Version = enumSetting(settings, Settings::Core::Internal::Id3v2WriteVersion, Id3v2WriteVersion::V4,
                                           Id3v2WriteVersion::V3, Id3v2WriteVersion::V4);
@@ -58,4 +45,4 @@ TagPolicy tagPolicy()
         .mp3TagWritingScheme = mp3TagWritingScheme,
     };
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

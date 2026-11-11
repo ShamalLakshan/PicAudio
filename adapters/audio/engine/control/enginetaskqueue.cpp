@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "enginetaskqueue.h"
@@ -27,12 +14,12 @@
 #include <algorithm>
 #include <utility>
 
-Q_LOGGING_CATEGORY(ENGINE_TASK_QUEUE, "fy.engine.taskqueue")
+Q_LOGGING_CATEGORY(ENGINE_TASK_QUEUE, "picaudio.engine.engine.taskqueue")
 
 constexpr auto MaxQueuedEngineTasks = 64;
 constexpr auto MaxDrainBatchSize    = 64;
 
-namespace Fooyin {
+namespace PicAudioEngine {
 EngineTaskQueue::EngineTaskQueue(QObject* wakeTarget, int wakeEventType)
     : m_droppedCount{0}
     , m_evictedCount{0}
@@ -369,4 +356,4 @@ void EngineTaskQueue::postWake()
     const int wakeEventType = m_wakeEventType.load(std::memory_order_relaxed);
     QCoreApplication::postEvent(target, new QEvent(static_cast<QEvent::Type>(wakeEventType)));
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

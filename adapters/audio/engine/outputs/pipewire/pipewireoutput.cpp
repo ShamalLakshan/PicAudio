@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "pipewireoutput.h"
@@ -22,7 +9,7 @@
 #include "pipewirecontext.h"
 #include "pipewirecore.h"
 #include "pipewireregistry.h"
-namespace Fooyin::Pipewire {
+namespace PicAudioEngine::Pipewire {
 constexpr auto LatencySetting = "PipeWire/LatencyMs";
 constexpr auto DefaultLatency = 20;
 constexpr auto MaximumLatency = 200;
@@ -61,7 +48,7 @@ constexpr auto BufferLength          = 200; // ms
 constexpr auto MaxOutputDelaySeconds = 60.0L;
 constexpr auto NsecPerSecond         = 1'000'000'000.0L;
 
-namespace Fooyin::Pipewire {
+namespace PicAudioEngine::Pipewire {
 namespace {
 int clampToInt(const uint64_t value)
 {
@@ -855,4 +842,4 @@ void PipeWireOutput::drained(void* userdata)
     auto* self = static_cast<PipeWireOutput*>(userdata);
     self->m_loop->signal(false);
 }
-} // namespace Fooyin::Pipewire
+} // namespace PicAudioEngine::Pipewire

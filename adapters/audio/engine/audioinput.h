@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -33,7 +20,7 @@
 #include <stop_token>
 #include <utility>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 //! Default priority. Lower values are tried first.
 constexpr int DefaultInputPriority = 100;
 
@@ -93,7 +80,7 @@ struct AudioSource
  * Runtime playback policy is provided via `PlaybackHints`, which can be
  * injected before and during playback by the engine.
  */
-class FYCORE_EXPORT AudioDecoder
+class PICAUDIO_ENGINE_EXPORT AudioDecoder
 {
     Q_GADGET
 
@@ -337,7 +324,7 @@ using DecoderCreator = std::function<std::unique_ptr<AudioDecoder>()>;
 
 //! Optional cancellation support
 // TODO: Add to AudioReader for 1.0
-class FYCORE_EXPORT CancellableReader
+class PICAUDIO_ENGINE_EXPORT CancellableReader
 {
 public:
     virtual ~CancellableReader()                                 = default;
@@ -347,7 +334,7 @@ public:
 /*!
  * Metadata/tag reader/writer interface.
  */
-class FYCORE_EXPORT AudioReader
+class PICAUDIO_ENGINE_EXPORT AudioReader
 {
     Q_GADGET
 
@@ -442,7 +429,7 @@ using ReaderCreator = std::function<std::unique_ptr<AudioReader>()>;
 /*!
  * Reader interface for archive containers that expose files as virtual entries.
  */
-class FYCORE_EXPORT ArchiveReader
+class PICAUDIO_ENGINE_EXPORT ArchiveReader
 {
 public:
     using ReadEntryCallback     = std::function<void(ArchiveEntryData&&)>;
@@ -505,8 +492,8 @@ public:
     virtual QByteArray readCover(const Track& track, Track::Cover cover) = 0;
 };
 using ArchiveReaderCreator = std::function<std::unique_ptr<ArchiveReader>()>;
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
-Q_DECLARE_OPERATORS_FOR_FLAGS(Fooyin::AudioDecoder::DecoderOptions)
-Q_DECLARE_OPERATORS_FOR_FLAGS(Fooyin::AudioDecoder::PlaybackHints)
-Q_DECLARE_OPERATORS_FOR_FLAGS(Fooyin::AudioReader::WriteOptions)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::AudioDecoder::DecoderOptions)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::AudioDecoder::PlaybackHints)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::AudioReader::WriteOptions)

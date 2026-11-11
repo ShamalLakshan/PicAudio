@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -27,7 +14,7 @@
 #include <optional>
 #include <span>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class PlaybackQueuePrivate;
 
 // Queue positions for each playlist
@@ -57,7 +44,7 @@ enum class PlaybackQueueItemOrigin : uint8_t
     PlaylistGenerated,
 };
 
-struct FYCORE_EXPORT PlaybackQueueItem
+struct PICAUDIO_ENGINE_EXPORT PlaybackQueueItem
 {
     PlaybackQueueItemId id{0};
     PlaylistTrack track;
@@ -70,13 +57,13 @@ struct FYCORE_EXPORT PlaybackQueueItem
 
 using PlaybackQueueItems = std::vector<PlaybackQueueItem>;
 
-struct FYCORE_EXPORT PlaybackQueueSnapshot
+struct PICAUDIO_ENGINE_EXPORT PlaybackQueueSnapshot
 {
     PlaybackQueueItems items;
     int currentIndex{-1};
 };
 
-class FYCORE_EXPORT PlaybackQueue
+class PICAUDIO_ENGINE_EXPORT PlaybackQueue
 {
 public:
     PlaybackQueue();
@@ -137,4 +124,4 @@ public:
 private:
     std::unique_ptr<PlaybackQueuePrivate> p;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

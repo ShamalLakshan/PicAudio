@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include <core/engine/audioloader.h>
@@ -40,14 +27,14 @@
 #include <shared_mutex>
 #include <thread>
 
-Q_LOGGING_CATEGORY(AUD_LDR, "fy.audioloader")
+Q_LOGGING_CATEGORY(AUD_LDR, "picaudio.engine.audioloader")
 
 using namespace Qt::StringLiterals;
 
 constexpr auto DecoderState = "Engine/DecoderState";
 constexpr auto ReaderState  = "Engine/ReaderState";
 
-namespace Fooyin {
+namespace PicAudioEngine {
 namespace {
 class MetadataReadCancellation
 {
@@ -391,7 +378,7 @@ AudioLoader::AudioLoader()
 
 void AudioLoader::saveState()
 {
-    FySettings settings;
+    PicAudioSettings settings;
 
     auto saveLoaders = [&settings](auto& loaders, const char* state) {
         QByteArray data;
@@ -413,7 +400,7 @@ void AudioLoader::saveState()
 
 void AudioLoader::restoreState()
 {
-    const FySettings settings;
+    const PicAudioSettings settings;
 
     auto restoreLoaders = [&settings](auto& loaders, auto& defaultLoaders, const char* state) {
         defaultLoaders = loaders;
@@ -1202,7 +1189,7 @@ void AudioLoader::reloadReaderExtensions(const QString& name)
 
 void AudioLoader::reset()
 {
-    FySettings settings;
+    PicAudioSettings settings;
     settings.remove(QLatin1String{DecoderState});
     settings.remove(QLatin1String{ReaderState});
 
@@ -1210,4 +1197,4 @@ void AudioLoader::reset()
     p->m_decoders = p->m_defaultDecoders;
     p->m_readers  = p->m_defaultReaders;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

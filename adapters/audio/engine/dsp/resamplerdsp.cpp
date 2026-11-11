@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "resamplerdsp.h"
@@ -57,9 +44,9 @@ bool swresampleHasSoxr()
     return config && std::strstr(config, "--enable-libsoxr");
 }
 
-uint64_t channelBit(const Fooyin::AudioFormat::ChannelPosition position)
+uint64_t channelBit(const PicAudioEngine::AudioFormat::ChannelPosition position)
 {
-    using P = Fooyin::AudioFormat::ChannelPosition;
+    using P = PicAudioEngine::AudioFormat::ChannelPosition;
     switch(position) {
         case P::FrontLeft:
             return static_cast<uint64_t>(AV_CH_FRONT_LEFT);
@@ -127,7 +114,7 @@ uint64_t channelBit(const Fooyin::AudioFormat::ChannelPosition position)
     }
 }
 
-std::optional<uint64_t> explicitMaskFromLayout(const Fooyin::AudioFormat& format)
+std::optional<uint64_t> explicitMaskFromLayout(const PicAudioEngine::AudioFormat& format)
 {
     if(!format.hasChannelLayout()) {
         return {};
@@ -159,7 +146,7 @@ std::optional<uint64_t> explicitMaskFromLayout(const Fooyin::AudioFormat& format
 }
 
 #if OLD_CHANNEL_LAYOUT
-uint64_t channelMaskForFormat(const Fooyin::AudioFormat& format)
+uint64_t channelMaskForFormat(const PicAudioEngine::AudioFormat& format)
 {
     if(const auto explicitMask = explicitMaskFromLayout(format)) {
         return *explicitMask;
@@ -174,7 +161,7 @@ uint64_t channelMaskForFormat(const Fooyin::AudioFormat& format)
     return 0;
 }
 #else
-bool channelLayoutForFormat(const Fooyin::AudioFormat& format, AVChannelLayout& layout)
+bool channelLayoutForFormat(const PicAudioEngine::AudioFormat& format, AVChannelLayout& layout)
 {
     layout = {};
 
@@ -222,16 +209,16 @@ std::set<int> parseFilteredSampleRates(const QString& text)
     return rates;
 }
 
-Fooyin::ResamplerSettings::SampleRateFilterMode
-normaliseSampleRateFilterMode(Fooyin::ResamplerSettings::SampleRateFilterMode mode)
+PicAudioEngine::ResamplerSettings::SampleRateFilterMode
+normaliseSampleRateFilterMode(PicAudioEngine::ResamplerSettings::SampleRateFilterMode mode)
 {
     switch(mode) {
-        case Fooyin::ResamplerSettings::SampleRateFilterMode::ExcludeListed:
-        case Fooyin::ResamplerSettings::SampleRateFilterMode::OnlyListed:
+        case PicAudioEngine::ResamplerSettings::SampleRateFilterMode::ExcludeListed:
+        case PicAudioEngine::ResamplerSettings::SampleRateFilterMode::OnlyListed:
             return mode;
     }
 
-    return Fooyin::ResamplerSettings::SampleRateFilterMode::ExcludeListed;
+    return PicAudioEngine::ResamplerSettings::SampleRateFilterMode::ExcludeListed;
 }
 
 int estimateMaxOutFrames(SwrContext* context, int inFrames, int inputRate, int outputRate)
@@ -260,11 +247,11 @@ int estimateMaxOutFrames(SwrContext* context, int inFrames, int inputRate, int o
 uint64_t nominalFrameDurationNs(int sampleRate)
 {
     const int safeRate   = std::max(1, sampleRate);
-    const double frameNs = static_cast<double>(Fooyin::Time::NsPerSecond) / static_cast<double>(safeRate);
+    const double frameNs = static_cast<double>(PicAudioEngine::Time::NsPerSecond) / static_cast<double>(safeRate);
     return static_cast<uint64_t>(std::max<int64_t>(1, std::llround(frameNs)));
 }
 
-uint64_t mappedFrameDurationNs(const Fooyin::ProcessingBuffer& buffer, int inputRate, int outputRate)
+uint64_t mappedFrameDurationNs(const PicAudioEngine::ProcessingBuffer& buffer, int inputRate, int outputRate)
 {
     const uint64_t inputSourceNs
         = buffer.sourceFrameDurationNs() > 0 ? buffer.sourceFrameDurationNs() : nominalFrameDurationNs(inputRate);
@@ -277,7 +264,7 @@ uint64_t mappedFrameDurationNs(const Fooyin::ProcessingBuffer& buffer, int input
 
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 ResamplerDsp::ResamplerDsp()
     : m_swr{nullptr}
     , m_hasOutputCursor{false}
@@ -308,7 +295,7 @@ QString ResamplerDsp::name() const
 
 QString ResamplerDsp::id() const
 {
-    return u"fooyin.dsp.resampler"_s;
+    return u"picaudio.engine.dsp.resampler"_s;
 }
 
 AudioFormat ResamplerDsp::outputFormat(const AudioFormat& input) const
@@ -800,4 +787,4 @@ void ResamplerDsp::advanceOutputCursor(int outFrames, uint64_t sourceFrameDurati
     m_outputCursorRemainderNs = advanceNsFull - static_cast<double>(advanceNs);
     m_outputCursorNs += advanceNs;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

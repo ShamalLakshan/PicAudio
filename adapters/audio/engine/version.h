@@ -1,3 +1,3 @@
 #pragma once
 
-#define FOOYIN_VERSION "0.1.0"
+#define PICAUDIO_ENGINE_VERSION "0.1.0"

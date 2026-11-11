@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -42,7 +29,7 @@ class QSize;
 class QString;
 class QWidget;
 
-namespace Fooyin::Utils {
+namespace PicAudioEngine::Utils {
 enum class DateTimePrecision : uint8_t
 {
     Year   = 4,
@@ -53,7 +40,7 @@ enum class DateTimePrecision : uint8_t
     Second = 19
 };
 
-struct FYUTILS_EXPORT ParsedDateTime
+struct PICAUDIO_UTILS_EXPORT ParsedDateTime
 {
     QDate date;
     QTime time;
@@ -65,39 +52,39 @@ struct FYUTILS_EXPORT ParsedDateTime
     }
 };
 
-FYUTILS_EXPORT int randomNumber(int min, int max);
+PICAUDIO_UTILS_EXPORT int randomNumber(int min, int max);
 
-FYUTILS_EXPORT uint64_t currentDateToInt();
-FYUTILS_EXPORT QString formatTimeMs(uint64_t time);
-FYUTILS_EXPORT std::optional<ParsedDateTime> parseDateTime(QStringView value);
-FYUTILS_EXPORT QDateTime dateStringToDate(const QString& str);
-FYUTILS_EXPORT std::optional<int64_t> dateStringToMs(const QString& str);
-FYUTILS_EXPORT QString msToDateString(int64_t dateMs);
+PICAUDIO_UTILS_EXPORT uint64_t currentDateToInt();
+PICAUDIO_UTILS_EXPORT QString formatTimeMs(uint64_t time);
+PICAUDIO_UTILS_EXPORT std::optional<ParsedDateTime> parseDateTime(QStringView value);
+PICAUDIO_UTILS_EXPORT QDateTime dateStringToDate(const QString& str);
+PICAUDIO_UTILS_EXPORT std::optional<int64_t> dateStringToMs(const QString& str);
+PICAUDIO_UTILS_EXPORT QString msToDateString(int64_t dateMs);
 
-FYUTILS_EXPORT QStringList extensionsToWildcards(const QStringList& extensions);
-FYUTILS_EXPORT QString extensionsToFilterList(const QStringList& extensions, const QString& name);
-FYUTILS_EXPORT QString extensionFromFilter(const QString& filter);
+PICAUDIO_UTILS_EXPORT QStringList extensionsToWildcards(const QStringList& extensions);
+PICAUDIO_UTILS_EXPORT QString extensionsToFilterList(const QStringList& extensions, const QString& name);
+PICAUDIO_UTILS_EXPORT QString extensionFromFilter(const QString& filter);
 
-FYUTILS_EXPORT QPixmap scalePixmap(const QPixmap& image, const QSize& size, double dpr, bool upscale = false);
-FYUTILS_EXPORT QPixmap scalePixmap(const QPixmap& image, int width, double dpr, bool upscale = false);
-FYUTILS_EXPORT QImage scaleImage(const QImage& image, const QSize& size, double dpr, bool upscale = false);
-FYUTILS_EXPORT QImage scaleImage(const QImage& image, int width, double dpr, bool upscale = false);
-FYUTILS_EXPORT QPixmap changePixmapColour(const QPixmap& orig, const QColor& color);
+PICAUDIO_UTILS_EXPORT QPixmap scalePixmap(const QPixmap& image, const QSize& size, double dpr, bool upscale = false);
+PICAUDIO_UTILS_EXPORT QPixmap scalePixmap(const QPixmap& image, int width, double dpr, bool upscale = false);
+PICAUDIO_UTILS_EXPORT QImage scaleImage(const QImage& image, const QSize& size, double dpr, bool upscale = false);
+PICAUDIO_UTILS_EXPORT QImage scaleImage(const QImage& image, int width, double dpr, bool upscale = false);
+PICAUDIO_UTILS_EXPORT QPixmap changePixmapColour(const QPixmap& orig, const QColor& color);
 
-FYUTILS_EXPORT QMainWindow* getMainWindow();
-FYUTILS_EXPORT double windowDpr();
-FYUTILS_EXPORT QSize proportionateSize(const QWidget* widget, double widthFactor, double heightFactor);
-FYUTILS_EXPORT void showMessageBox(const QString& text, const QString& infoText);
-FYUTILS_EXPORT void appendMenuActions(QMenu* originalMenu, QMenu* menu);
-FYUTILS_EXPORT void forwardMenuStatusTips(QMenu* menu, QWidget* target = nullptr);
-FYUTILS_EXPORT QAction* cloneMenuAction(QMenu* menu, const QAction* source, const std::function<void()>& handler);
-FYUTILS_EXPORT int visibleSectionCount(const QHeaderView* headerView);
-FYUTILS_EXPORT int firstVisualIndex(const QHeaderView* headerView);
-FYUTILS_EXPORT int realVisualIndex(const QHeaderView* headerView, int logicalIndex);
-FYUTILS_EXPORT std::vector<int> logicalIndexOrder(const QHeaderView* headerView);
+PICAUDIO_UTILS_EXPORT QMainWindow* getMainWindow();
+PICAUDIO_UTILS_EXPORT double windowDpr();
+PICAUDIO_UTILS_EXPORT QSize proportionateSize(const QWidget* widget, double widthFactor, double heightFactor);
+PICAUDIO_UTILS_EXPORT void showMessageBox(const QString& text, const QString& infoText);
+PICAUDIO_UTILS_EXPORT void appendMenuActions(QMenu* originalMenu, QMenu* menu);
+PICAUDIO_UTILS_EXPORT void forwardMenuStatusTips(QMenu* menu, QWidget* target = nullptr);
+PICAUDIO_UTILS_EXPORT QAction* cloneMenuAction(QMenu* menu, const QAction* source, const std::function<void()>& handler);
+PICAUDIO_UTILS_EXPORT int visibleSectionCount(const QHeaderView* headerView);
+PICAUDIO_UTILS_EXPORT int firstVisualIndex(const QHeaderView* headerView);
+PICAUDIO_UTILS_EXPORT int realVisualIndex(const QHeaderView* headerView, int logicalIndex);
+PICAUDIO_UTILS_EXPORT std::vector<int> logicalIndexOrder(const QHeaderView* headerView);
 
-FYUTILS_EXPORT void saveState(QWidget* widget, QSettings& settings, const QString& name = {});
-FYUTILS_EXPORT void restoreState(QWidget* widget, const QSettings& settings, const QString& name = {});
+PICAUDIO_UTILS_EXPORT void saveState(QWidget* widget, QSettings& settings, const QString& name = {});
+PICAUDIO_UTILS_EXPORT void restoreState(QWidget* widget, const QSettings& settings, const QString& name = {});
 
-FYUTILS_EXPORT bool isDarkMode();
-} // namespace Fooyin::Utils
+PICAUDIO_UTILS_EXPORT bool isDarkMode();
+} // namespace PicAudioEngine::Utils

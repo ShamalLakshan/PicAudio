@@ -3,7 +3,7 @@
 #include <QString>
 #include <core/track.h>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 
 struct ParsedScript
 {
@@ -25,4 +25,4 @@ public:
     }
 };
 
-} // namespace Fooyin
+} // namespace PicAudioEngine

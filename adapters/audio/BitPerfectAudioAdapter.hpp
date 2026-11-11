@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class EngineHandler;
 class PlayerController;
 class SettingsManager;
@@ -15,13 +15,17 @@ class AudioLoader;
 class DspRegistry;
 class VisualisationSession;
 class Track;
-} // namespace Fooyin
+} // namespace PicAudioEngine
+
+namespace PicAudio {
+namespace Engine = PicAudioEngine;
+} // namespace PicAudio
 
 namespace adapters {
 
 /**
  * @brief High-fidelity audio engine adapter implementing IAudioEnginePort
- * using Fooyin's multi-threaded audio pipeline, lock-free mixer, and real-time
+ * using PicAudio's multi-threaded audio pipeline, lock-free mixer, and real-time
  * visualization.
  */
 class BitPerfectAudioEngine : public core::IAudioEnginePort {
@@ -138,9 +142,9 @@ public:
   // External CLAP DSP Plugin Host Manager
   DspManager &dspManager() { return m_dspManager; }
 
-  // Direct reference to Fooyin controllers
-  Fooyin::EngineHandler *engineHandler() const;
-  Fooyin::PlayerController *playerController() const;
+  // Direct reference to underlying engine controllers
+  PicAudioEngine::EngineHandler *engineHandler() const;
+  PicAudioEngine::PlayerController *playerController() const;
 
 private:
   struct Impl;

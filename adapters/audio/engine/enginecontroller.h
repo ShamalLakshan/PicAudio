@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -29,7 +16,7 @@
 #include <QByteArray>
 #include <QObject>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 struct AudioOutputBuilder;
 class AudioBuffer;
 class VisualisationService;
@@ -42,7 +29,7 @@ using OutputNames = std::vector<QString>;
  * Implementations bridge UI/player requests to an underlying audio engine and
  * emit normalised engine events/signals for the rest of the application.
  */
-class FYCORE_EXPORT EngineController : public QObject
+class PICAUDIO_ENGINE_EXPORT EngineController : public QObject
 {
     Q_OBJECT
 
@@ -85,37 +72,37 @@ Q_SIGNALS:
     //! Fatal/non-recoverable engine error text.
     void engineError(const QString& error);
     //! Playback state transitions.
-    void engineStateChanged(Fooyin::Engine::PlaybackState state);
+    void engineStateChanged(PicAudioEngine::Engine::PlaybackState state);
     //! Emitted while a faded pause drains already-queued audio to the output.
     void audiblePauseDrainStarted();
     //! Emitted once the faded-pause output drain is no longer audible.
     void audiblePauseDrainCompleted();
     //! Track-status transitions with stable generation identifier.
-    void trackStatusContextChanged(const Fooyin::Engine::TrackStatusContext& context);
+    void trackStatusContextChanged(const PicAudioEngine::Engine::TrackStatusContext& context);
 
     //! Push-style fixed-hop level analysis snapshots for general consumers.
-    void levelReady(const Fooyin::LevelFrame& frame);
+    void levelReady(const PicAudioEngine::LevelFrame& frame);
     //! Push-style fixed-hop PCM analysis snapshots for general consumers.
-    void pcmReady(const Fooyin::PcmFrame& frame);
+    void pcmReady(const PicAudioEngine::PcmFrame& frame);
 
     //! Metadata/context update for currently active track.
-    void trackChanged(const Fooyin::Track& track);
+    void trackChanged(const PicAudioEngine::Track& track);
     //! Logical track switch committed by the engine.
-    void trackCommitted(const Fooyin::Engine::TrackCommitContext& context);
+    void trackCommitted(const PicAudioEngine::Engine::TrackCommitContext& context);
     //! Early callback before track reaches terminal end.
-    void trackAboutToFinish(const Fooyin::Engine::AboutToFinishContext& context);
+    void trackAboutToFinish(const PicAudioEngine::Engine::AboutToFinishContext& context);
     //! Callback fired when transition timing reaches the switch anchor.
-    void trackReadyToSwitch(const Fooyin::Engine::AboutToFinishContext& context);
+    void trackReadyToSwitch(const PicAudioEngine::Engine::AboutToFinishContext& context);
     //! Callback fired when active logical track reaches its exact boundary.
-    void trackBoundaryReached(const Fooyin::Engine::AboutToFinishContext& context);
+    void trackBoundaryReached(const PicAudioEngine::Engine::AboutToFinishContext& context);
     //! Prepared-next-track readiness notification.
-    void nextTrackReadiness(const Fooyin::Engine::PlaybackItem& item, bool ready, uint64_t requestId);
+    void nextTrackReadiness(const PicAudioEngine::Engine::PlaybackItem& item, bool ready, uint64_t requestId);
     //! Result of async prepared-crossfade arm attempt for a specific boundary generation.
-    void preparedCrossfadeArmResult(const Fooyin::Engine::PlaybackItem& item, uint64_t generation, bool armed);
+    void preparedCrossfadeArmResult(const PicAudioEngine::Engine::PlaybackItem& item, uint64_t generation, bool armed);
     //! Result of async prepared-gapless arm attempt for a specific boundary generation.
-    void preparedGaplessArmResult(const Fooyin::Engine::PlaybackItem& item, uint64_t generation, bool armed);
+    void preparedGaplessArmResult(const PicAudioEngine::Engine::PlaybackItem& item, uint64_t generation, bool armed);
 
     //! Emitted after stop teardown completes.
     void finished();
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -37,7 +24,7 @@
 #include <optional>
 #include <unordered_map>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 using StreamId                     = uint32_t;
 constexpr StreamId InvalidStreamId = 0;
 
@@ -53,7 +40,7 @@ constexpr StreamId InvalidStreamId = 0;
  * - Track metadata can be updated by controller code and read concurrently.
  * - Fade state: managed only by audio thread
  */
-class FYCORE_EXPORT AudioStream
+class PICAUDIO_ENGINE_EXPORT AudioStream
 {
 public:
     enum class State : uint8_t
@@ -259,7 +246,7 @@ using AudioStreamPtr = std::shared_ptr<AudioStream>;
  *
  * Access is mutex-protected and intended for control-path lookups.
  */
-class FYCORE_EXPORT StreamRegistry
+class PICAUDIO_ENGINE_EXPORT StreamRegistry
 {
 public:
     StreamId registerStream(AudioStreamPtr stream);
@@ -279,7 +266,7 @@ private:
  * Factory that allocates unique stream IDs and returns shared stream instances.
  * Thread-safe via atomic id allocator.
  */
-class FYCORE_EXPORT StreamFactory
+class PICAUDIO_ENGINE_EXPORT StreamFactory
 {
 public:
     static AudioStreamPtr createStream(const AudioFormat& format, size_t bufferSamples);
@@ -287,4 +274,4 @@ public:
 private:
     static std::atomic<StreamId> s_nextId;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

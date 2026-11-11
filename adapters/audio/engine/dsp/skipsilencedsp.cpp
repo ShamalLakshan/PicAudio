@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "skipsilencedsp.h"
@@ -40,14 +27,14 @@ double dbToLin(int db)
     return std::pow(10.0, static_cast<double>(db) / 20.0);
 }
 
-uint64_t startTimeForFrameNs(const Fooyin::AudioFormat& fmt, uint64_t bufferStartTimeNs, int frameOffset)
+uint64_t startTimeForFrameNs(const PicAudioEngine::AudioFormat& fmt, uint64_t bufferStartTimeNs, int frameOffset)
 {
     if(!fmt.isValid() || fmt.sampleRate() <= 0 || frameOffset <= 0) {
         return bufferStartTimeNs;
     }
 
     return bufferStartTimeNs
-         + (static_cast<uint64_t>(frameOffset) * Fooyin::Time::NsPerSecond / static_cast<uint64_t>(fmt.sampleRate()));
+         + (static_cast<uint64_t>(frameOffset) * PicAudioEngine::Time::NsPerSecond / static_cast<uint64_t>(fmt.sampleRate()));
 }
 
 double blockPeakAbs(const double* interleaved, int frames, int channels) noexcept
@@ -60,7 +47,7 @@ double blockPeakAbs(const double* interleaved, int frames, int channels) noexcep
     return peak;
 }
 
-uint64_t sourceFrameDurationNsFor(const Fooyin::ProcessingBuffer& buffer, const Fooyin::AudioFormat& format)
+uint64_t sourceFrameDurationNsFor(const PicAudioEngine::ProcessingBuffer& buffer, const PicAudioEngine::AudioFormat& format)
 {
     if(buffer.sourceFrameDurationNs() > 0) {
         return buffer.sourceFrameDurationNs();
@@ -71,12 +58,12 @@ uint64_t sourceFrameDurationNsFor(const Fooyin::ProcessingBuffer& buffer, const 
     }
 
     const double frameNs
-        = static_cast<double>(Fooyin::Time::NsPerSecond) / static_cast<double>(std::max(1, format.sampleRate()));
+        = static_cast<double>(PicAudioEngine::Time::NsPerSecond) / static_cast<double>(std::max(1, format.sampleRate()));
     return static_cast<uint64_t>(std::max<int64_t>(1, std::llround(frameNs)));
 }
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 SkipSilenceDsp::SkipSilenceDsp()
     : m_minSilenceDurationMs{SkipSilenceSettings::DefaultMinSilenceDurationMs}
     , m_thresholdDb{SkipSilenceSettings::DefaultThresholdDb}
@@ -92,7 +79,7 @@ QString SkipSilenceDsp::name() const
 
 QString SkipSilenceDsp::id() const
 {
-    return QStringLiteral("fooyin.dsp.skipsilence");
+    return QStringLiteral("picaudio.engine.dsp.skipsilence");
 }
 
 void SkipSilenceDsp::prepare(const AudioFormat& format)
@@ -431,4 +418,4 @@ bool SkipSilenceDsp::loadSettings(const QByteArray& preset)
 
     return true;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

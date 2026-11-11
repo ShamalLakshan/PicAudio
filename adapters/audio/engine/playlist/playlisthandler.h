@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -29,7 +16,7 @@
 
 #include <QObject>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class DbConnectionPool;
 using DbConnectionPoolPtr = std::shared_ptr<DbConnectionPool>;
 class MusicLibrary;
@@ -42,7 +29,7 @@ enum class PlaylistTrackChangeSource
     History,
 };
 
-class FYCORE_EXPORT PlaylistHandler : public QObject
+class PICAUDIO_ENGINE_EXPORT PlaylistHandler : public QObject
 {
     Q_OBJECT
 
@@ -152,28 +139,28 @@ public:
     void finishPendingUpdates();
 
 Q_SIGNALS:
-    void playlistItemEnsureVisible(Fooyin::Playlist* playlist, int index);
+    void playlistItemEnsureVisible(PicAudioEngine::Playlist* playlist, int index);
     void playlistsPopulated();
-    void playlistAdded(Fooyin::Playlist* playlist);
-    void playlistRemoved(Fooyin::Playlist* playlist);
-    void playlistRenamed(Fooyin::Playlist* playlist);
-    void playlistUpdated(Fooyin::Playlist* playlist);
-    void playlistIndexChanged(Fooyin::Playlist* playlist);
-    void activePlaylistChanged(Fooyin::Playlist* playlist);
+    void playlistAdded(PicAudioEngine::Playlist* playlist);
+    void playlistRemoved(PicAudioEngine::Playlist* playlist);
+    void playlistRenamed(PicAudioEngine::Playlist* playlist);
+    void playlistUpdated(PicAudioEngine::Playlist* playlist);
+    void playlistIndexChanged(PicAudioEngine::Playlist* playlist);
+    void activePlaylistChanged(PicAudioEngine::Playlist* playlist);
     void activePlaylistDeleted();
-    void playlistReferencesRemapRequested(const Fooyin::UId& fromPlaylistId, const Fooyin::UId& toPlaylistId);
+    void playlistReferencesRemapRequested(const PicAudioEngine::UId& fromPlaylistId, const PicAudioEngine::UId& toPlaylistId);
 
-    void tracksAdded(Fooyin::Playlist* playlist, const Fooyin::TrackList& tracks, int index);
-    void tracksPatched(Fooyin::Playlist* playlist, const Fooyin::PlaylistChangeset& changeSet,
-                       Fooyin::PlaylistTrackChangeSource source);
-    void tracksChanged(Fooyin::Playlist* playlist, const std::vector<int>& indexes,
-                       Fooyin::PlaylistTrackChangeSource source);
-    void tracksUpdated(Fooyin::Playlist* playlist, const std::vector<int>& indexes);
-    void tracksRemoved(Fooyin::Playlist* playlist, const std::vector<int>& indexes);
+    void tracksAdded(PicAudioEngine::Playlist* playlist, const PicAudioEngine::TrackList& tracks, int index);
+    void tracksPatched(PicAudioEngine::Playlist* playlist, const PicAudioEngine::PlaylistChangeset& changeSet,
+                       PicAudioEngine::PlaylistTrackChangeSource source);
+    void tracksChanged(PicAudioEngine::Playlist* playlist, const std::vector<int>& indexes,
+                       PicAudioEngine::PlaylistTrackChangeSource source);
+    void tracksUpdated(PicAudioEngine::Playlist* playlist, const std::vector<int>& indexes);
+    void tracksRemoved(PicAudioEngine::Playlist* playlist, const std::vector<int>& indexes);
 
 private:
     std::unique_ptr<PlaylistHandlerPrivate> p;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
-Q_DECLARE_METATYPE(Fooyin::PlaylistTrackChangeSource)
+Q_DECLARE_METATYPE(PicAudioEngine::PlaylistTrackChangeSource)

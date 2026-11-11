@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "archiveinput.h"
@@ -22,10 +9,10 @@
 #include <QFileInfo>
 #include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(ARCH_READER, "fy.archivereader")
+Q_LOGGING_CATEGORY(ARCH_READER, "picaudio.engine.archivereader")
 
-namespace Fooyin {
-Fooyin::GeneralArchiveReader::GeneralArchiveReader(std::shared_ptr<AudioLoader> audioLoader)
+namespace PicAudioEngine {
+PicAudioEngine::GeneralArchiveReader::GeneralArchiveReader(std::shared_ptr<AudioLoader> audioLoader)
     : m_audioLoader{std::move(audioLoader)}
 { }
 
@@ -137,4 +124,4 @@ bool GeneralArchiveReader::writeTrack(const AudioSource& /*source*/, const Track
     trackSource.archiveReader = m_loadedReader.input.archiveReader.get();
     return m_loadedReader.reader->writeTrack(trackSource, track, options);
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

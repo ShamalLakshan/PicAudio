@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "pipelinerenderer.h"
@@ -34,7 +21,7 @@
 #include <utility>
 
 namespace {
-void applyMasterVolume(Fooyin::ProcessingBufferList& chunks, double volume)
+void applyMasterVolume(PicAudioEngine::ProcessingBufferList& chunks, double volume)
 {
     const double gain = std::clamp(volume, 0.0, 1.0);
     if(gain == 1.0) {
@@ -61,20 +48,20 @@ void applyMasterVolume(Fooyin::ProcessingBufferList& chunks, double volume)
     }
 }
 
-uint64_t liveRevisionKey(const Fooyin::Engine::DspChainScope scope, uint64_t instanceId)
+uint64_t liveRevisionKey(const PicAudioEngine::Engine::DspChainScope scope, uint64_t instanceId)
 {
     static constexpr uint64_t ScopeBitMask = (1ULL << 63);
-    const uint64_t scopeBit                = (scope == Fooyin::Engine::DspChainScope::PerTrack) ? ScopeBitMask : 0ULL;
+    const uint64_t scopeBit                = (scope == PicAudioEngine::Engine::DspChainScope::PerTrack) ? ScopeBitMask : 0ULL;
     return scopeBit | (instanceId & ~ScopeBitMask);
 }
 
-std::vector<Fooyin::DspChain::NodeSnapshot> snapshotNodes(const std::vector<Fooyin::DspNodePtr>& nodes)
+std::vector<PicAudioEngine::DspChain::NodeSnapshot> snapshotNodes(const std::vector<PicAudioEngine::DspNodePtr>& nodes)
 {
-    std::vector<Fooyin::DspChain::NodeSnapshot> snapshot;
+    std::vector<PicAudioEngine::DspChain::NodeSnapshot> snapshot;
     snapshot.reserve(nodes.size());
 
     for(const auto& node : nodes) {
-        Fooyin::DspChain::NodeSnapshot entry;
+        PicAudioEngine::DspChain::NodeSnapshot entry;
         if(node) {
             entry.id         = node->id();
             entry.name       = node->name();
@@ -88,14 +75,14 @@ std::vector<Fooyin::DspChain::NodeSnapshot> snapshotNodes(const std::vector<Fooy
     return snapshot;
 }
 
-std::vector<Fooyin::DspNodePtr> buildPerTrackNodesForDefs(const Fooyin::Engine::DspChain& defs,
-                                                          Fooyin::DspRegistry* registry)
+std::vector<PicAudioEngine::DspNodePtr> buildPerTrackNodesForDefs(const PicAudioEngine::Engine::DspChain& defs,
+                                                          PicAudioEngine::DspRegistry* registry)
 {
     if(!registry || defs.empty()) {
         return {};
     }
 
-    std::vector<Fooyin::DspNodePtr> nodes;
+    std::vector<PicAudioEngine::DspNodePtr> nodes;
     nodes.reserve(defs.size());
 
     for(const auto& entry : defs) {
@@ -114,7 +101,7 @@ std::vector<Fooyin::DspNodePtr> buildPerTrackNodesForDefs(const Fooyin::Engine::
 }
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 AudioFormat PipelineRenderer::configureForInputFormat(const AudioFormat& inputFormat, const AudioFormat& effectiveInput,
                                                       const SampleFormat outputBitdepth, size_t minProcessChunkFrames)
 {
@@ -917,4 +904,4 @@ void PipelineRenderer::tapAnalysis(AudioAnalysisBus* analysisBus, std::chrono::n
     analysisBus->push(std::span<const float>{m_analysisScratch.data(), writeOffset}, analysisFormat, streamTimeMs,
                       streamId, presentationTime);
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

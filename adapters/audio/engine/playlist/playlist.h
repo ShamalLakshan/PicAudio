@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -28,7 +15,7 @@
 #include <QObject>
 #include <QVariant>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class PlaylistPrivate;
 class PlaylistNavigator;
 namespace Testing {
@@ -41,7 +28,7 @@ class SettingsManager;
 
 using PlaylistTrackList = std::vector<PlaylistTrack>;
 
-struct FYCORE_EXPORT PlaylistTrack
+struct PICAUDIO_ENGINE_EXPORT PlaylistTrack
 {
     Track track;
     UId playlistId;
@@ -87,7 +74,7 @@ struct FYCORE_EXPORT PlaylistTrack
  * Owned by PlaylistHandler and accessed only on the main thread. Pass
  * copied track data and metadata to workers instead of the live playlist.
  */
-class FYCORE_EXPORT Playlist final
+class PICAUDIO_ENGINE_EXPORT Playlist final
 {
     struct PrivateKey;
 
@@ -233,6 +220,6 @@ private:
     std::unique_ptr<PlaylistPrivate> p;
 };
 using PlaylistList = std::vector<Playlist*>;
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
-Q_DECLARE_OPERATORS_FOR_FLAGS(Fooyin::Playlist::PlayModes)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::Playlist::PlayModes)

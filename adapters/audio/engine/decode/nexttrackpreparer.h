@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -36,10 +23,10 @@
 #include <optional>
 #include <thread>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class AudioLoader;
 
-struct FYCORE_EXPORT NextTrackPreparationState
+struct PICAUDIO_ENGINE_EXPORT NextTrackPreparationState
 {
     Engine::PlaybackItem item;
     LoadedDecoder loadedDecoder;
@@ -60,7 +47,7 @@ struct FYCORE_EXPORT NextTrackPreparationState
  * Called by `NextTrackPrepareWorker` to pre-open decoder resources and
  * optionally pre-create/prefill a stream for transition handoff.
  */
-class FYCORE_EXPORT NextTrackPreparer
+class PICAUDIO_ENGINE_EXPORT NextTrackPreparer
 {
 public:
     struct Context
@@ -91,7 +78,7 @@ public:
  * Queue semantics are replace-latest: at most one pending request is retained.
  * Completion callback is invoked from the worker thread.
  */
-class FYCORE_EXPORT NextTrackPrepareWorker
+class PICAUDIO_ENGINE_EXPORT NextTrackPrepareWorker
 {
 public:
     enum class Purpose : uint8_t
@@ -146,4 +133,4 @@ private:
     std::shared_ptr<std::atomic<bool>> m_cancelFlag;
     AudioDecoder* m_activeDecoder;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

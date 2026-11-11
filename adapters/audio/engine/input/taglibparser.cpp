@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "taglibparser.h"
@@ -87,7 +74,7 @@
 #include <set>
 #include <vector>
 
-Q_LOGGING_CATEGORY(TAGLIB, "fy.taglib")
+Q_LOGGING_CATEGORY(TAGLIB, "picaudio.engine.taglib")
 
 using namespace Qt::StringLiterals;
 
@@ -96,7 +83,7 @@ constexpr auto RGReferenceOffset = 5.0;
 
 constexpr auto BufferSize = 1024;
 
-namespace Fooyin {
+namespace PicAudioEngine {
 namespace {
 void initialiseTagLib()
 {
@@ -110,7 +97,7 @@ void initialiseTagLib()
         TagLib::ID3v2::TextIdentificationFrame::involvedPeopleMap();
 
         TagLib::PropertyMap properties;
-        properties.insert("TITLE", TagLib::StringList{"fooyin"});
+        properties.insert("TITLE", TagLib::StringList{"PicAudio"});
         TagLib::RIFF::Info::Tag wav;
         wav.setProperties(properties);
         TagLib::ASF::Tag asf;
@@ -124,7 +111,7 @@ void initialiseTagLib()
         auto* people = new TagLib::ID3v2::TextIdentificationFrame("TIPL");
         TagLib::StringList peopleFields;
         peopleFields.append("ENGINEER");
-        peopleFields.append("fooyin");
+        peopleFields.append("PicAudio");
         people->setText(peopleFields);
         legacy.addFrame(people);
         TagLib::ID3v2::FrameFactory::instance()->rebuildAggregateFrames(&legacy);
@@ -622,7 +609,7 @@ QByteArray detectLegacyEncoding(const QByteArray& data)
         return {};
     }
 
-    const FySettings settings;
+    const PicAudioSettings settings;
     const Utils::DetectEncodingOptions options{
         .preferredFallbackEncoding
         = settings.value(QString::fromLatin1(Utils::PreferredFallbackEncodingSetting)).toString().toLatin1()};
@@ -4114,4 +4101,4 @@ bool TagLibReader::writeCover(const AudioSource& source, const Track& track, con
 
     return true;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

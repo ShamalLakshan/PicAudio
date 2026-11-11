@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -27,21 +14,21 @@
 #include <QObject>
 #include <QSettings>
 
-namespace Fooyin {
-class FYCORE_EXPORT FySettings : public QSettings
+namespace PicAudioEngine {
+class PICAUDIO_ENGINE_EXPORT PicAudioSettings : public QSettings
 {
 public:
-    explicit FySettings(QObject* parent = nullptr);
+    explicit PicAudioSettings(QObject* parent = nullptr);
 };
 
-class FYCORE_EXPORT FyStateSettings : public QSettings
+class PICAUDIO_ENGINE_EXPORT PicAudioStateSettings : public QSettings
 {
 public:
-    explicit FyStateSettings(QObject* parent = nullptr);
+    explicit PicAudioStateSettings(QObject* parent = nullptr);
 };
 
 namespace Settings::Core {
-Q_NAMESPACE_EXPORT(FYCORE_EXPORT)
+Q_NAMESPACE_EXPORT(PICAUDIO_ENGINE_EXPORT)
 
 const auto PlayModeKey     = "Player/PlayMode";
 const auto SearchModeKey   = "Searching/SearchMode";
@@ -100,4 +87,4 @@ enum CoreSettings : uint32_t
 };
 Q_ENUM_NS(CoreSettings)
 } // namespace Settings::Core
-} // namespace Fooyin
+} // namespace PicAudioEngine

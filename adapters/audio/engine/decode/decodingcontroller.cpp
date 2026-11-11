@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "decodingcontroller.h"
@@ -54,7 +41,7 @@ constexpr auto SynchronousPrefillWaitTimeout = std::chrono::milliseconds{100};
 Q_DECLARE_LOGGING_CATEGORY(ENGINE)
 
 namespace {
-int streamCapacityMs(const Fooyin::AudioStreamPtr& stream)
+int streamCapacityMs(const PicAudioEngine::AudioStreamPtr& stream)
 {
     if(!stream) {
         return 0;
@@ -77,7 +64,7 @@ int streamCapacityMs(const Fooyin::AudioStreamPtr& stream)
     return static_cast<int>(std::min<uint64_t>(ms, std::numeric_limits<int>::max()));
 }
 
-std::pair<int, int> effectiveWatermarksForStream(const Fooyin::AudioStreamPtr& stream, int lowWatermarkMs,
+std::pair<int, int> effectiveWatermarksForStream(const PicAudioEngine::AudioStreamPtr& stream, int lowWatermarkMs,
                                                  int highWatermarkMs)
 {
     const int low  = std::max(1, lowWatermarkMs);
@@ -103,7 +90,7 @@ std::pair<int, int> effectiveWatermarksForStream(const Fooyin::AudioStreamPtr& s
     return {effectiveLow, effectiveHigh};
 }
 
-int clampMsToStreamCapacity(const Fooyin::AudioStreamPtr& stream, int valueMs, int minMs)
+int clampMsToStreamCapacity(const PicAudioEngine::AudioStreamPtr& stream, int valueMs, int minMs)
 {
     const int clampedValue = std::max(minMs, valueMs);
     const int capacityMs   = streamCapacityMs(stream);
@@ -114,7 +101,7 @@ int clampMsToStreamCapacity(const Fooyin::AudioStreamPtr& stream, int valueMs, i
     return std::clamp(clampedValue, minMs, capacityMs);
 }
 
-size_t targetSamplesForMs(const Fooyin::AudioStreamPtr& stream, int targetMs)
+size_t targetSamplesForMs(const PicAudioEngine::AudioStreamPtr& stream, int targetMs)
 {
     if(!stream || targetMs <= 0) {
         return 0;
@@ -131,7 +118,7 @@ size_t targetSamplesForMs(const Fooyin::AudioStreamPtr& stream, int targetMs)
     return std::min<uint64_t>(samples, std::numeric_limits<size_t>::max());
 }
 
-int adaptiveBurstChunkLimit(const Fooyin::AudioStreamPtr& stream, int fillTargetMs)
+int adaptiveBurstChunkLimit(const PicAudioEngine::AudioStreamPtr& stream, int fillTargetMs)
 {
     static constexpr auto MinBurstChunks = 8;
     static constexpr auto MaxBurstChunks = 128;
@@ -174,7 +161,7 @@ int adaptiveBurstChunkLimit(const Fooyin::AudioStreamPtr& stream, int fillTarget
     return static_cast<int>(std::clamp<uint64_t>(neededChunks, MinBurstChunks, MaxBurstChunks));
 }
 
-size_t decodeFramesPerChunk(const Fooyin::AudioStreamPtr& stream)
+size_t decodeFramesPerChunk(const PicAudioEngine::AudioStreamPtr& stream)
 {
     if(!stream) {
         return BaseDecodeFramesPerChunk;
@@ -199,7 +186,7 @@ void incrementAtomicSaturating(std::atomic<uint64_t>& value)
 }
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class DecodingControllerPrivate
 {
 public:
@@ -1063,4 +1050,4 @@ std::optional<DecodingController::DecodeResult> DecodingController::handleTimer(
     p->scheduleDecode();
     return {};
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

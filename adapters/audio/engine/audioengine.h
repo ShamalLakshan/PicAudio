@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -52,7 +39,7 @@
 
 class QTimerEvent;
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class AudioLoader;
 class AudioAnalysisBus;
 class DspRegistry;
@@ -74,7 +61,7 @@ class AudioEngineTestAccessor;
  * - output init/reinit and device selection,
  * - playback state and position publication.
  */
-class FYCORE_EXPORT AudioEngine : public QObject
+class PICAUDIO_ENGINE_EXPORT AudioEngine : public QObject
 {
     Q_OBJECT
 
@@ -146,22 +133,22 @@ public:
     void requestBlockingDecoderAbort();
 
 public Q_SLOTS:
-    void loadTrack(const Fooyin::Engine::PlaybackItem& item, bool manualChange = false);
+    void loadTrack(const PicAudioEngine::Engine::PlaybackItem& item, bool manualChange = false);
     void setTrackEndAutoTransitionEnabled(bool enabled);
-    void setUpcomingTrackCandidate(const Fooyin::Engine::PlaybackItem& item);
+    void setUpcomingTrackCandidate(const PicAudioEngine::Engine::PlaybackItem& item);
     //! Schedule/prepare candidate next track for seamless transition.
-    void prepareNextTrack(const Fooyin::Engine::PlaybackItem& item, uint64_t requestId = 0);
+    void prepareNextTrack(const PicAudioEngine::Engine::PlaybackItem& item, uint64_t requestId = 0);
     //! Stage a prepared crossfade stream in the pipeline without committing UI track context.
-    [[nodiscard]] bool armPreparedCrossfadeTransition(const Fooyin::Engine::PlaybackItem& item, uint64_t generation);
+    [[nodiscard]] bool armPreparedCrossfadeTransition(const PicAudioEngine::Engine::PlaybackItem& item, uint64_t generation);
     //! Commit a previously armed prepared crossfade transition after UI track context changes.
-    [[nodiscard]] bool commitPreparedCrossfadeTransition(const Fooyin::Engine::PlaybackItem& item);
-    [[nodiscard]] static bool shouldEnableTimelineTransitionHints(const Fooyin::Track& track,
-                                                                  Fooyin::AudioDecoder::PlaybackHints playbackHints,
-                                                                  Fooyin::AudioDecoder::RepeatHandling repeatHandling);
+    [[nodiscard]] bool commitPreparedCrossfadeTransition(const PicAudioEngine::Engine::PlaybackItem& item);
+    [[nodiscard]] static bool shouldEnableTimelineTransitionHints(const PicAudioEngine::Track& track,
+                                                                  PicAudioEngine::AudioDecoder::PlaybackHints playbackHints,
+                                                                  PicAudioEngine::AudioDecoder::RepeatHandling repeatHandling);
     //! Stage a prepared gapless stream in the pipeline without committing UI track context.
-    [[nodiscard]] bool armPreparedGaplessTransition(const Fooyin::Engine::PlaybackItem& item, uint64_t generation);
+    [[nodiscard]] bool armPreparedGaplessTransition(const PicAudioEngine::Engine::PlaybackItem& item, uint64_t generation);
     //! Commit a previously armed prepared gapless transition after UI track context changes.
-    [[nodiscard]] bool commitPreparedGaplessTransition(const Fooyin::Engine::PlaybackItem& item);
+    [[nodiscard]] bool commitPreparedGaplessTransition(const PicAudioEngine::Engine::PlaybackItem& item);
 
     void play();
     void pause();
@@ -176,24 +163,24 @@ public Q_SLOTS:
     void setVolume(double volume);
     void setVolumeControlEnabled(bool enabled);
     void handleOutputVolumeChange(double volume);
-    void updateCurrentTrackMetadata(const Fooyin::Track& track);
+    void updateCurrentTrackMetadata(const PicAudioEngine::Track& track);
 
-    void setAudioOutput(const Fooyin::OutputCreator& output, const QString& device);
-    void applyOutputProfile(const Fooyin::OutputCreator& output, const QString& device, Fooyin::SampleFormat bitdepth,
-                            bool dither, const Fooyin::Engine::DspChains& chain, const QString& preset);
+    void setAudioOutput(const PicAudioEngine::OutputCreator& output, const QString& device);
+    void applyOutputProfile(const PicAudioEngine::OutputCreator& output, const QString& device, PicAudioEngine::SampleFormat bitdepth,
+                            bool dither, const PicAudioEngine::Engine::DspChains& chain, const QString& preset);
     void setOutputDevice(const QString& device);
     void setAutomaticResampling(bool enabled, const QStringList& preferredDspNames);
-    void setAnalysisDataSubscriptions(Fooyin::Engine::AnalysisDataTypes subscriptions);
+    void setAnalysisDataSubscriptions(PicAudioEngine::Engine::AnalysisDataTypes subscriptions);
     void setVisualisationAnalysisEnabled(bool enabled);
-    void updateLiveDspSettings(const Fooyin::Engine::LiveDspSettingsUpdate& update);
+    void updateLiveDspSettings(const PicAudioEngine::Engine::LiveDspSettingsUpdate& update);
 
     bool event(QEvent* event) override;
 
 Q_SIGNALS:
-    void stateChanged(Fooyin::Engine::PlaybackState state);
+    void stateChanged(PicAudioEngine::Engine::PlaybackState state);
     void audiblePauseDrainStarted();
     void audiblePauseDrainCompleted();
-    void trackStatusContextChanged(Fooyin::Engine::TrackStatus status, const Fooyin::Track& track, uint64_t generation,
+    void trackStatusContextChanged(PicAudioEngine::Engine::TrackStatus status, const PicAudioEngine::Track& track, uint64_t generation,
                                    bool seekable);
     void positionChanged(uint64_t positionMs);
     void positionChangedWithContext(uint64_t positionMs, uint64_t trackGeneration, uint64_t timelineEpoch,
@@ -203,23 +190,23 @@ Q_SIGNALS:
     void seekPositionApplied(uint64_t positionMs, uint64_t requestId);
     void bitrateChanged(int bitrate);
     void volumeChanged(double volume);
-    void playbackOutputInfoChanged(const Fooyin::Engine::PlaybackOutputInfo& info);
+    void playbackOutputInfoChanged(const PicAudioEngine::Engine::PlaybackOutputInfo& info);
 
-    void levelReady(const Fooyin::LevelFrame& frame);
-    void pcmReady(const Fooyin::PcmFrame& frame);
+    void levelReady(const PicAudioEngine::LevelFrame& frame);
+    void pcmReady(const PicAudioEngine::PcmFrame& frame);
 
-    void trackAboutToFinish(const Fooyin::Track& track, uint64_t generation);
-    void trackReadyToSwitch(const Fooyin::Track& track, uint64_t generation);
-    void trackBoundaryReached(const Fooyin::Track& track, uint64_t generation, uint64_t remainingOutputMs,
+    void trackAboutToFinish(const PicAudioEngine::Track& track, uint64_t generation);
+    void trackReadyToSwitch(const PicAudioEngine::Track& track, uint64_t generation);
+    void trackBoundaryReached(const PicAudioEngine::Track& track, uint64_t generation, uint64_t remainingOutputMs,
                               bool engineOwnsTransition);
-    void trackChangeRejected(const Fooyin::Engine::PlaybackItem& item);
-    void nextTrackReadiness(const Fooyin::Engine::PlaybackItem& item, bool ready, uint64_t requestId);
+    void trackChangeRejected(const PicAudioEngine::Engine::PlaybackItem& item);
+    void nextTrackReadiness(const PicAudioEngine::Engine::PlaybackItem& item, bool ready, uint64_t requestId);
 
     void finished();
 
     void deviceError(const QString& error);
-    void trackChanged(const Fooyin::Track& track);
-    void trackCommitted(const Fooyin::Engine::TrackCommitContext& context);
+    void trackChanged(const PicAudioEngine::Track& track);
+    void trackCommitted(const PicAudioEngine::Engine::TrackCommitContext& context);
 
 protected:
     void timerEvent(QTimerEvent* event) override;
@@ -569,4 +556,4 @@ private:
     };
     InputBufferingState m_inputBuffering;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

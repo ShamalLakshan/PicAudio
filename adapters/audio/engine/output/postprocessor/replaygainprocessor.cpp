@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "replaygainprocessor.h"
@@ -27,7 +14,7 @@
 
 #include <limits>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 ReplayGainProcessor::ReplayGainProcessor(std::shared_ptr<const SharedSettings> settings)
     : m_settings{std::move(settings)}
     , m_settingsEpoch{0}
@@ -236,4 +223,4 @@ double ReplayGainProcessor::calculateGain() const
                                           });
     return std::pow(10.0, info.gainDb / 20.0);
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

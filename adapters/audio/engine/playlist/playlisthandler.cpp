@@ -1,7 +1,7 @@
 #include <core/playlist/playlisthandler.h>
 #include <core/playlist/playlist.h>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 
 class PlaylistHandlerPrivate {
 public:
@@ -252,4 +252,4 @@ void PlaylistHandler::finishPendingUpdates()
 {
 }
 
-} // namespace Fooyin
+} // namespace PicAudioEngine

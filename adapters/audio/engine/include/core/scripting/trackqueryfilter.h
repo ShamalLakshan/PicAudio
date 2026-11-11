@@ -4,7 +4,7 @@
 #include <QString>
 #include <memory>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 enum class ScriptSearchMode : uint8_t {
     MatchWordBeginnings = 0,
     MatchAnywhere,
@@ -65,4 +65,4 @@ public:
         return filter(search, tracks);
     }
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

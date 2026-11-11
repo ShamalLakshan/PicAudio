@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -30,7 +17,7 @@
 #include <optional>
 #include <vector>
 
-namespace Fooyin::AccurateRip {
+namespace PicAudioEngine::AccurateRip {
 constexpr auto FramesPerSector  = 588;
 constexpr auto SectorsPerSecond = 75;
 constexpr auto LeadInSectors    = 150;
@@ -97,14 +84,14 @@ struct OffsetMatch
     int confidence{0};
 };
 
-FYCORE_EXPORT std::expected<void, QString> validateLayout(const DiscLayout& layout);
-FYCORE_EXPORT std::expected<DiscId, QString> discId(const DiscLayout& layout);
-FYCORE_EXPORT QUrl discUrl(const DiscId& id);
-FYCORE_EXPORT std::expected<std::vector<Pressing>, QString> parseResponse(const QByteArray& data,
+PICAUDIO_ENGINE_EXPORT std::expected<void, QString> validateLayout(const DiscLayout& layout);
+PICAUDIO_ENGINE_EXPORT std::expected<DiscId, QString> discId(const DiscLayout& layout);
+PICAUDIO_ENGINE_EXPORT QUrl discUrl(const DiscId& id);
+PICAUDIO_ENGINE_EXPORT std::expected<std::vector<Pressing>, QString> parseResponse(const QByteArray& data,
                                                                           const DiscId& expected);
-FYCORE_EXPORT std::expected<TrackList, QString> prepareAlbumTracks(const TrackList& tracks);
+PICAUDIO_ENGINE_EXPORT std::expected<TrackList, QString> prepareAlbumTracks(const TrackList& tracks);
 
-class FYCORE_EXPORT Verifier : public ConversionInputObserver
+class PICAUDIO_ENGINE_EXPORT Verifier : public ConversionInputObserver
 {
 public:
     Verifier(DiscLayout layout, std::vector<Pressing> pressings, TrackList tracks);
@@ -140,7 +127,7 @@ private:
 };
 
 //! Collects AccurateRip checksums and exact CD-sector lengths when no physical TOC is available.
-class FYCORE_EXPORT AlbumVerifier : public ConversionInputObserver
+class PICAUDIO_ENGINE_EXPORT AlbumVerifier : public ConversionInputObserver
 {
 public:
     explicit AlbumVerifier(TrackList tracks);
@@ -182,7 +169,7 @@ private:
 };
 
 //! Calculates full AccurateRip checksums after a pressing offset has been identified.
-class FYCORE_EXPORT OffsetVerifier : public ConversionInputObserver
+class PICAUDIO_ENGINE_EXPORT OffsetVerifier : public ConversionInputObserver
 {
 public:
     OffsetVerifier(DiscLayout layout, std::vector<Pressing> pressings, TrackList tracks, int sampleOffset);
@@ -214,4 +201,4 @@ private:
     std::vector<State> m_states;
     mutable std::mutex m_mutex;
 };
-} // namespace Fooyin::AccurateRip
+} // namespace PicAudioEngine::AccurateRip

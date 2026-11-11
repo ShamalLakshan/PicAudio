@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -26,10 +13,10 @@
 
 #ifdef __cpp_lib_move_only_function
 
-namespace Fooyin {
+namespace PicAudioEngine {
 template <typename Sig>
 using MoveOnlyFunction = std::move_only_function<Sig>;
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
 #else
 
@@ -38,7 +25,7 @@ using MoveOnlyFunction = std::move_only_function<Sig>;
 #include <type_traits>
 #include <utility>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 template <typename Signature>
 class MoveOnlyFunction;
 
@@ -137,7 +124,7 @@ void swap(MoveOnlyFunction<Signature>& lhs, MoveOnlyFunction<Signature>& rhs) no
 {
     lhs.swap(rhs);
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
 #endif // __cpp_lib_move_only_function
 
@@ -151,14 +138,14 @@ void swap(MoveOnlyFunction<Signature>& lhs, MoveOnlyFunction<Signature>& rhs) no
 
 #include <atomic>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 template <typename T>
 using AtomicSharedPtr = std::atomic<std::shared_ptr<T>>;
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
 #else
 
-namespace Fooyin {
+namespace PicAudioEngine {
 
 template <typename T>
 class AtomicSharedPtr
@@ -187,6 +174,6 @@ public:
 private:
     std::shared_ptr<T> m_ptr;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
 #endif // __cpp_lib_atomic_shared_ptr

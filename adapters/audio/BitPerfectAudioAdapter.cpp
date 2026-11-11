@@ -36,16 +36,16 @@
 namespace adapters {
 
 struct BitPerfectAudioEngine::Impl {
-  std::shared_ptr<Fooyin::SettingsManager> settings;
-  std::unique_ptr<Fooyin::CoreSettings> coreSettings;
-  std::shared_ptr<Fooyin::AudioLoader> audioLoader;
-  std::unique_ptr<Fooyin::DspRegistry> dspRegistry;
-  std::unique_ptr<Fooyin::PlayerController> playerController;
-  std::unique_ptr<Fooyin::EngineHandler> engineHandler;
-  Fooyin::VisualisationSessionPtr visSession;
+  std::shared_ptr<PicAudioEngine::SettingsManager> settings;
+  std::unique_ptr<PicAudioEngine::CoreSettings> coreSettings;
+  std::shared_ptr<PicAudioEngine::AudioLoader> audioLoader;
+  std::unique_ptr<PicAudioEngine::DspRegistry> dspRegistry;
+  std::unique_ptr<PicAudioEngine::PlayerController> playerController;
+  std::unique_ptr<PicAudioEngine::EngineHandler> engineHandler;
+  PicAudioEngine::VisualisationSessionPtr visSession;
 
   std::string currentFilePath;
-  Fooyin::Track currentTrack;
+  PicAudioEngine::Track currentTrack;
   std::function<void()> endOfTrackCallback;
   AudioBufferCallback audioBufferCallback;
 
@@ -109,31 +109,31 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
   QDir{}.mkpath(configDir);
   QString settingsFile = configDir + QStringLiteral("/engine_settings.ini");
 
-  m_impl->settings = std::make_shared<Fooyin::SettingsManager>(settingsFile);
+  m_impl->settings = std::make_shared<PicAudioEngine::SettingsManager>(settingsFile);
   m_impl->coreSettings =
-      std::make_unique<Fooyin::CoreSettings>(m_impl->settings.get());
+      std::make_unique<PicAudioEngine::CoreSettings>(m_impl->settings.get());
 
-  m_impl->audioLoader = std::make_shared<Fooyin::AudioLoader>();
-  m_impl->dspRegistry = std::make_unique<Fooyin::DspRegistry>();
+  m_impl->audioLoader = std::make_shared<PicAudioEngine::AudioLoader>();
+  m_impl->dspRegistry = std::make_unique<PicAudioEngine::DspRegistry>();
 
   // Register Native In-Process FFmpeg Decoder supporting FLAC, WAV, MP3, AAC,
   // OGG, Opus, ALAC, DSD
   m_impl->audioLoader->addDecoder(
       QStringLiteral("FFmpeg"),
-      []() { return std::make_unique<Fooyin::FFmpegDecoder>(); }, 1000);
+      []() { return std::make_unique<PicAudioEngine::FFmpegDecoder>(); }, 1000);
 
   // Register Readers for metadata and audio probing
   m_impl->audioLoader->addReader(
       QStringLiteral("TagLib"),
-      []() { return std::make_unique<Fooyin::TagLibReader>(); }, 100);
+      []() { return std::make_unique<PicAudioEngine::TagLibReader>(); }, 100);
   m_impl->audioLoader->addReader(
       QStringLiteral("FFmpeg"),
-      []() { return std::make_unique<Fooyin::FFmpegReader>(); }, 1000);
+      []() { return std::make_unique<PicAudioEngine::FFmpegReader>(); }, 1000);
 
   // Initialize PlayerController and EngineHandler
-  m_impl->playerController = std::make_unique<Fooyin::PlayerController>(
+  m_impl->playerController = std::make_unique<PicAudioEngine::PlayerController>(
       m_impl->settings.get(), nullptr);
-  m_impl->engineHandler = std::make_unique<Fooyin::EngineHandler>(
+  m_impl->engineHandler = std::make_unique<PicAudioEngine::EngineHandler>(
       m_impl->audioLoader, m_impl->playerController.get(),
       m_impl->settings.get(), m_impl->dspRegistry.get());
 
@@ -141,27 +141,27 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
 #if defined(PICAUDIO_ENABLE_PIPEWIRE)
   m_impl->engineHandler->addOutput(
       QStringLiteral("Linux PipeWire Lock-Free Client"),
-      []() { return std::make_unique<Fooyin::Pipewire::PipeWireOutput>(); });
+      []() { return std::make_unique<PicAudioEngine::Pipewire::PipeWireOutput>(); });
   m_impl->engineHandler->addOutput(QStringLiteral("PipeWire"), []() {
-    return std::make_unique<Fooyin::Pipewire::PipeWireOutput>();
+    return std::make_unique<PicAudioEngine::Pipewire::PipeWireOutput>();
   });
 #endif
 
 #if defined(PICAUDIO_ENABLE_ALSA)
   m_impl->engineHandler->addOutput(
       QStringLiteral("ALSA Direct Hardware (hw:)"),
-      []() { return std::make_unique<Fooyin::Alsa::AlsaOutput>(); });
+      []() { return std::make_unique<PicAudioEngine::Alsa::AlsaOutput>(); });
   m_impl->engineHandler->addOutput(QStringLiteral("ALSA"), []() {
-    return std::make_unique<Fooyin::Alsa::AlsaOutput>();
+    return std::make_unique<PicAudioEngine::Alsa::AlsaOutput>();
   });
 #endif
 
   m_impl->engineHandler->addOutput(
       QStringLiteral("Qt Multimedia Audio Sink"),
-      []() { return std::make_unique<Fooyin::QtAudioOutput>(); });
+      []() { return std::make_unique<PicAudioEngine::QtAudioOutput>(); });
   m_impl->engineHandler->addOutput(
       QStringLiteral("System Default Output"),
-      []() { return std::make_unique<Fooyin::QtAudioOutput>(); });
+      []() { return std::make_unique<PicAudioEngine::QtAudioOutput>(); });
 
   // Default audio output backend selection
 #if defined(PICAUDIO_ENABLE_PIPEWIRE)
@@ -174,7 +174,7 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
 #endif
   m_impl->activeBackend = defaultBackend.toStdString();
   m_impl->activeDevice = "default";
-  m_impl->settings->set<Fooyin::Settings::Core::AudioOutput>(
+  m_impl->settings->set<PicAudioEngine::Settings::Core::AudioOutput>(
       defaultBackend + QStringLiteral("|default"));
 
   // Initialise output wiring & signal relays
@@ -187,15 +187,15 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
 
   // Connect EngineHandler level & PCM hooks
   QObject::connect(
-      m_impl->engineHandler.get(), &Fooyin::EngineHandler::levelReady,
-      [this](const Fooyin::LevelFrame &frame) {
+      m_impl->engineHandler.get(), &PicAudioEngine::EngineHandler::levelReady,
+      [this](const PicAudioEngine::LevelFrame &frame) {
         float lvl = (frame.channelCount > 0) ? frame.rms[0] : 0.0f;
         m_impl->currentAudioLevel.store(lvl, std::memory_order_relaxed);
       });
 
   QObject::connect(
-      m_impl->engineHandler.get(), &Fooyin::EngineHandler::pcmReady,
-      [this](const Fooyin::PcmFrame &frame) {
+      m_impl->engineHandler.get(), &PicAudioEngine::EngineHandler::pcmReady,
+      [this](const PicAudioEngine::PcmFrame &frame) {
         if (m_impl->audioBufferCallback && frame.frameCount > 0) {
           m_impl->audioBufferCallback(
               frame.samples.data(), static_cast<size_t>(frame.frameCount),
@@ -205,8 +205,8 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
       });
 
   QObject::connect(m_impl->engineHandler.get(),
-                   &Fooyin::EngineHandler::trackBoundaryReached,
-                   [this](const Fooyin::Engine::AboutToFinishContext &) {
+                   &PicAudioEngine::EngineHandler::trackBoundaryReached,
+                   [this](const PicAudioEngine::Engine::AboutToFinishContext &) {
                      if (m_impl->endOfTrackCallback) {
                        m_impl->endOfTrackCallback();
                      }
@@ -221,7 +221,7 @@ bool BitPerfectAudioEngine::load(const std::string &filePath) {
   }
 
   m_impl->currentFilePath = filePath;
-  Fooyin::Track track{QString::fromStdString(filePath)};
+  PicAudioEngine::Track track{QString::fromStdString(filePath)};
 
   // Read metadata & audio specs via AudioLoader reader
   if (auto reader = m_impl->audioLoader->loadReaderForTrack(track);
@@ -271,14 +271,14 @@ void BitPerfectAudioEngine::setVolume(float volume) {
     return;
   }
   double vol = static_cast<double>(std::clamp(volume, 0.0f, 1.0f));
-  m_impl->settings->set<Fooyin::Settings::Core::OutputVolume>(vol);
+  m_impl->settings->set<PicAudioEngine::Settings::Core::OutputVolume>(vol);
 }
 
 float BitPerfectAudioEngine::getVolume() const {
   if (!m_impl || !m_impl->settings) {
     return 1.0f;
   }
-  double vol = m_impl->settings->value<Fooyin::Settings::Core::OutputVolume>();
+  double vol = m_impl->settings->value<PicAudioEngine::Settings::Core::OutputVolume>();
   return static_cast<float>(std::clamp(vol, 0.0, 1.0));
 }
 
@@ -301,7 +301,7 @@ bool BitPerfectAudioEngine::isPlaying() const {
     return false;
   }
   return m_impl->playerController->playState() ==
-         Fooyin::Player::PlayState::Playing;
+         PicAudioEngine::Player::PlayState::Playing;
 }
 
 core::AudioStreamInfo BitPerfectAudioEngine::getStreamInfo() const {
@@ -347,7 +347,7 @@ BitPerfectAudioEngine::getFrequencyBands(size_t bandCount) const {
     return std::vector<float>(bandCount, 0.0f);
   }
 
-  Fooyin::VisualisationSession::SpectrumWindow spec;
+  PicAudioEngine::VisualisationSession::SpectrumWindow spec;
   uint64_t nowMs = m_impl->visSession->currentTimeMs();
   constexpr int fftSize = 1024;
 
@@ -377,7 +377,7 @@ BitPerfectAudioEngine::getWaveformSamples(size_t sampleCount) const {
     return std::vector<float>(sampleCount, 0.0f);
   }
 
-  Fooyin::VisualisationSession::PcmWindow pcm;
+  PicAudioEngine::VisualisationSession::PcmWindow pcm;
   uint64_t nowMs = m_impl->visSession->currentTimeMs();
 
   if (m_impl->visSession->getPcmWindowEndingAt(pcm, nowMs, 50)) {
@@ -415,10 +415,10 @@ void BitPerfectAudioEngine::setAudioBackend(const std::string &backend) {
                       ? QStringLiteral("default")
                       : QString::fromStdString(m_impl->activeDevice);
     m_impl->engineHandler->applyOutputProfile(
-        Fooyin::Engine::OutputProfileRequest{be, dev});
+        PicAudioEngine::Engine::OutputProfileRequest{be, dev});
     if (m_impl->settings) {
       using namespace Qt::StringLiterals;
-      m_impl->settings->set<Fooyin::Settings::Core::AudioOutput>(be + u"|"_s +
+      m_impl->settings->set<PicAudioEngine::Settings::Core::AudioOutput>(be + u"|"_s +
                                                                  dev);
     }
   }
@@ -440,10 +440,10 @@ void BitPerfectAudioEngine::setAudioDevice(const std::string &deviceId) {
     QString dev = deviceId.empty() ? QStringLiteral("default")
                                    : QString::fromStdString(deviceId);
     m_impl->engineHandler->applyOutputProfile(
-        Fooyin::Engine::OutputProfileRequest{be, dev});
+        PicAudioEngine::Engine::OutputProfileRequest{be, dev});
     if (m_impl->settings) {
       using namespace Qt::StringLiterals;
-      m_impl->settings->set<Fooyin::Settings::Core::AudioOutput>(be + u"|"_s +
+      m_impl->settings->set<PicAudioEngine::Settings::Core::AudioOutput>(be + u"|"_s +
                                                                  dev);
     }
   }
@@ -785,7 +785,7 @@ void BitPerfectAudioEngine::setReplayGainMode(int mode) {
   if (m_impl) {
     m_impl->replayGainMode = mode;
     if (m_impl->settings) {
-      m_impl->settings->set<Fooyin::Settings::Core::RGMode>(mode);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::RGMode>(mode);
     }
   }
 }
@@ -800,8 +800,8 @@ void BitPerfectAudioEngine::setReplayGainPreamp(float taggedDb,
     m_impl->replayGainTaggedPreamp = taggedDb;
     m_impl->replayGainUntaggedPreamp = untaggedDb;
     if (m_impl->settings) {
-      m_impl->settings->set<Fooyin::Settings::Core::RGPreAmp>(taggedDb);
-      m_impl->settings->set<Fooyin::Settings::Core::NonRGPreAmp>(untaggedDb);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::RGPreAmp>(taggedDb);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::NonRGPreAmp>(untaggedDb);
     }
   }
 }
@@ -861,7 +861,7 @@ void BitPerfectAudioEngine::setGaplessEnabled(bool enabled) {
   if (m_impl) {
     m_impl->gaplessEnabled = enabled;
     if (m_impl->settings) {
-      m_impl->settings->set<Fooyin::Settings::Core::GaplessPlayback>(enabled);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::GaplessPlayback>(enabled);
     }
   }
 }
@@ -874,7 +874,7 @@ void BitPerfectAudioEngine::setDitherMode(int mode) {
   if (m_impl) {
     m_impl->ditherMode = mode;
     if (m_impl->settings) {
-      m_impl->settings->set<Fooyin::Settings::Core::OutputDither>(mode != 0);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::OutputDither>(mode != 0);
     }
   }
 }
@@ -891,11 +891,11 @@ std::string BitPerfectAudioEngine::getActiveDecoderName() const {
   return "Direct In-Process / FFmpeg Native";
 }
 
-Fooyin::EngineHandler *BitPerfectAudioEngine::engineHandler() const {
+PicAudioEngine::EngineHandler *BitPerfectAudioEngine::engineHandler() const {
   return m_impl ? m_impl->engineHandler.get() : nullptr;
 }
 
-Fooyin::PlayerController *BitPerfectAudioEngine::playerController() const {
+PicAudioEngine::PlayerController *BitPerfectAudioEngine::playerController() const {
   return m_impl ? m_impl->playerController.get() : nullptr;
 }
 

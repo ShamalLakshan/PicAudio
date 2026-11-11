@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include <core/engine/verification/accuraterip.h>
@@ -29,7 +16,7 @@
 
 using namespace Qt::StringLiterals;
 
-namespace Fooyin::AccurateRip {
+namespace PicAudioEngine::AccurateRip {
 namespace {
 uint32_t digitSum(uint32_t value)
 {
@@ -48,7 +35,7 @@ uint32_t readLe32(const QByteArray& data, qsizetype offset)
 
 QString errorMessage(const char* text)
 {
-    return QCoreApplication::translate("Fooyin::AccurateRip", text);
+    return QCoreApplication::translate("PicAudioEngine::AccurateRip", text);
 }
 } // namespace
 
@@ -494,7 +481,7 @@ std::expected<DiscLayout, QString> AlbumVerifier::layout() const
         }
         if(state.position == 0 || state.position % FramesPerSector != 0) {
             return std::unexpected(QCoreApplication::translate(
-                "Fooyin::AccurateRip", "The selected tracks do not form a correct gapless CD rip."));
+                "PicAudioEngine::AccurateRip", "The selected tracks do not form a correct gapless CD rip."));
         }
 
         const uint64_t sectors = state.position / FramesPerSector;
@@ -772,4 +759,4 @@ std::vector<TrackResult> OffsetVerifier::results() const
 
     return result;
 }
-} // namespace Fooyin::AccurateRip
+} // namespace PicAudioEngine::AccurateRip

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "decodercontext.h"
@@ -53,14 +40,14 @@ namespace {
     return delta < streamAnchorMs ? streamAnchorMs - delta : 0;
 }
 
-[[nodiscard]] std::optional<Fooyin::AudioBuffer> trimBufferToTrackWindow(const Fooyin::AudioBuffer& buffer,
+[[nodiscard]] std::optional<PicAudioEngine::AudioBuffer> trimBufferToTrackWindow(const PicAudioEngine::AudioBuffer& buffer,
                                                                          uint64_t windowStartMs, uint64_t windowEndMs)
 {
     if(!buffer.isValid()) {
         return {};
     }
 
-    const Fooyin::AudioFormat format = buffer.format();
+    const PicAudioEngine::AudioFormat format = buffer.format();
     if(!format.isValid()) {
         return {};
     }
@@ -107,11 +94,11 @@ namespace {
 
     const uint64_t trimmedStartMs = chunkStartMs + format.durationForFrames(startFrame);
 
-    return Fooyin::AudioBuffer{inputBytes.subspan(startByte, byteCount), format, trimmedStartMs};
+    return PicAudioEngine::AudioBuffer{inputBytes.subspan(startByte, byteCount), format, trimmedStartMs};
 }
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 DecoderContext::DecoderContext()
     : m_currentPos{0}
     , m_startPos{0}
@@ -638,4 +625,4 @@ void DecoderContext::reset()
     m_lastDecodeNeededMoreInput   = false;
     std::vector<double>{}.swap(m_decodeScratch);
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

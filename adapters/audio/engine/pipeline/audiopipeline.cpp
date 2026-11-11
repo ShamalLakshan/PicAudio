@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "audiopipeline.h"
@@ -41,7 +28,7 @@
 #include <limits>
 #include <vector>
 
-Q_LOGGING_CATEGORY(PIPELINE, "fy.pipeline")
+Q_LOGGING_CATEGORY(PIPELINE, "picaudio.engine.pipeline")
 
 using namespace Qt::StringLiterals;
 
@@ -61,9 +48,9 @@ constexpr auto MasterPrerollMaxMs            = std::chrono::milliseconds{300};
 constexpr auto UnderrunConcealMaxMs          = std::chrono::milliseconds{20};
 constexpr auto MaxMappedPositionRegressionMs = 250;
 constexpr auto SeekPrerollGraceMs            = std::chrono::milliseconds{500};
-constexpr auto CrossfadeFadeCurve            = Fooyin::Engine::FadeCurve::Sine;
+constexpr auto CrossfadeFadeCurve            = PicAudioEngine::Engine::FadeCurve::Sine;
 
-namespace Fooyin {
+namespace PicAudioEngine {
 namespace {
 int processFrameChunkLimit(const AudioFormat& outputFormat)
 {
@@ -2577,4 +2564,4 @@ void AudioPipeline::cleanupOrphanIfDone()
     m_streamRegistry.unregisterStream(orphanId);
     clearOrphanState();
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

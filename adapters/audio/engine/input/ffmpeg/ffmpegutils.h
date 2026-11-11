@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -47,7 +34,7 @@ struct SwrContext;
 #define OLD_CODEC_SUPPORTED_CONFIG (LIBAVCODEC_VERSION_MAJOR < 61)
 #define OLD_FRAME (LIBAVUTIL_VERSION_MAJOR < 58)
 
-FYCORE_EXPORT Q_DECLARE_LOGGING_CATEGORY(FFMPEG)
+PICAUDIO_ENGINE_EXPORT Q_DECLARE_LOGGING_CATEGORY(FFMPEG)
 
 struct IOContextDeleter
 {
@@ -97,13 +84,13 @@ struct AudioFifoDeleter
 };
 using AudioFifoPtr = std::unique_ptr<AVAudioFifo, AudioFifoDeleter>;
 
-namespace Fooyin::Utils {
-FYCORE_EXPORT QString ffmpegErrorString(int error);
-FYCORE_EXPORT void printError(int error);
-FYCORE_EXPORT void printError(const QString& error);
+namespace PicAudioEngine::Utils {
+PICAUDIO_ENGINE_EXPORT QString ffmpegErrorString(int error);
+PICAUDIO_ENGINE_EXPORT void printError(int error);
+PICAUDIO_ENGINE_EXPORT void printError(const QString& error);
 
-FYCORE_EXPORT SampleFormat sampleFormat(AVSampleFormat format, int bps);
-FYCORE_EXPORT AVSampleFormat sampleFormat(SampleFormat format, bool planar = false);
-FYCORE_EXPORT AudioFormat audioFormatFromCodec(AVCodecParameters* codec, AVSampleFormat ctxFormat);
-FYCORE_EXPORT Stream findAudioStream(AVFormatContext* context);
-} // namespace Fooyin::Utils
+PICAUDIO_ENGINE_EXPORT SampleFormat sampleFormat(AVSampleFormat format, int bps);
+PICAUDIO_ENGINE_EXPORT AVSampleFormat sampleFormat(SampleFormat format, bool planar = false);
+PICAUDIO_ENGINE_EXPORT AudioFormat audioFormatFromCodec(AVCodecParameters* codec, AVSampleFormat ctxFormat);
+PICAUDIO_ENGINE_EXPORT Stream findAudioStream(AVFormatContext* context);
+} // namespace PicAudioEngine::Utils

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "ffmpegutils.h"
@@ -31,13 +18,13 @@ extern "C"
 #include <libswresample/swresample.h>
 }
 
-Q_LOGGING_CATEGORY(FFMPEG, "fy.ffmpeg")
+Q_LOGGING_CATEGORY(FFMPEG, "picaudio.engine.ffmpeg")
 
 namespace {
 #if !OLD_CHANNEL_LAYOUT
-Fooyin::AudioFormat::ChannelPosition channelPositionFromAvChannel(AVChannel channel)
+PicAudioEngine::AudioFormat::ChannelPosition channelPositionFromAvChannel(AVChannel channel)
 {
-    using P = Fooyin::AudioFormat::ChannelPosition;
+    using P = PicAudioEngine::AudioFormat::ChannelPosition;
     switch(channel) {
         case AV_CHAN_FRONT_LEFT:
             return P::FrontLeft;
@@ -104,18 +91,18 @@ Fooyin::AudioFormat::ChannelPosition channelPositionFromAvChannel(AVChannel chan
     }
 }
 #else
-void pushLayoutIfSet(Fooyin::AudioFormat::ChannelLayout& layout, uint64_t mask, uint64_t bit,
-                     Fooyin::AudioFormat::ChannelPosition pos)
+void pushLayoutIfSet(PicAudioEngine::AudioFormat::ChannelLayout& layout, uint64_t mask, uint64_t bit,
+                     PicAudioEngine::AudioFormat::ChannelPosition pos)
 {
     if((mask & bit) != 0) {
         layout.push_back(pos);
     }
 }
 
-Fooyin::AudioFormat::ChannelLayout channelLayoutFromMask(uint64_t mask, int expectedChannels)
+PicAudioEngine::AudioFormat::ChannelLayout channelLayoutFromMask(uint64_t mask, int expectedChannels)
 {
-    using P = Fooyin::AudioFormat::ChannelPosition;
-    Fooyin::AudioFormat::ChannelLayout layout;
+    using P = PicAudioEngine::AudioFormat::ChannelPosition;
+    PicAudioEngine::AudioFormat::ChannelLayout layout;
     if(mask == 0 || expectedChannels <= 0) {
         return layout;
     }
@@ -252,7 +239,7 @@ void AudioFifoDeleter::operator()(AVAudioFifo* fifo) const
     }
 }
 
-namespace Fooyin::Utils {
+namespace PicAudioEngine::Utils {
 QString ffmpegErrorString(int error)
 {
     char errStr[AV_ERROR_MAX_STRING_SIZE]{};
@@ -378,4 +365,4 @@ Stream findAudioStream(AVFormatContext* context)
 
     return {};
 }
-} // namespace Fooyin::Utils
+} // namespace PicAudioEngine::Utils

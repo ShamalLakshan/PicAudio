@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -27,7 +14,7 @@
 
 #include <QObject>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class PlayerControllerPrivate;
 class PlaylistHandler;
 class SettingsManager;
@@ -35,7 +22,7 @@ class SettingsManager;
 /*!
  * Handles track playback
  */
-class FYCORE_EXPORT PlayerController : public QObject
+class PICAUDIO_ENGINE_EXPORT PlayerController : public QObject
 {
     Q_OBJECT
 
@@ -129,7 +116,7 @@ public:
     void setCurrentPosition(uint64_t ms);
     void setBitrate(int bitrate);
     void setDecoder(const QString& decoder);
-    void setPlaybackOutputInfo(const Fooyin::Engine::PlaybackOutputInfo& info);
+    void setPlaybackOutputInfo(const PicAudioEngine::Engine::PlaybackOutputInfo& info);
     void setCurrentTrackSeekable(bool seekable);
 
     void changeCurrentTrack(const Track& track);
@@ -190,8 +177,8 @@ public:
     void clearQueue();
 
 Q_SIGNALS:
-    void playStateChanged(Fooyin::Player::PlayState state, Fooyin::Player::PlayState previous);
-    void playModeChanged(Fooyin::Playlist::PlayModes mode);
+    void playStateChanged(PicAudioEngine::Player::PlayState state, PicAudioEngine::Player::PlayState previous);
+    void playModeChanged(PicAudioEngine::Playlist::PlayModes mode);
     void transportPlayRequested();
     void transportPauseRequested();
     void transportStopRequested();
@@ -199,14 +186,14 @@ Q_SIGNALS:
     void positionChanged(uint64_t ms);
     void positionChangedSeconds(uint64_t seconds);
     void bitrateChanged(int bitrate);
-    void playbackOutputInfoChanged(const Fooyin::Engine::PlaybackOutputInfo& info);
+    void playbackOutputInfoChanged(const PicAudioEngine::Engine::PlaybackOutputInfo& info);
     void positionMoved(uint64_t ms);
     void abRepeatRangeChanged();
 
     /*! Emitted when the actual playback track changes. */
-    void currentTrackChanged(const Fooyin::Track& track);
+    void currentTrackChanged(const PicAudioEngine::Track& track);
     /*! Emitted when metadata for the current playback track is refreshed in place. */
-    void currentTrackUpdated(const Fooyin::Track& track);
+    void currentTrackUpdated(const PicAudioEngine::Track& track);
     /*! Emitted when whether the current track can be seeked changes. */
     void currentTrackSeekableChanged(bool seekable);
     /*!
@@ -214,25 +201,25 @@ Q_SIGNALS:
      * Unlike playlistTrackUpdated(), this is not emitted for in-place playlist reference remaps of the same
      * playback item.
      */
-    void playlistTrackChanged(const Fooyin::PlaylistTrack& track);
+    void playlistTrackChanged(const PicAudioEngine::PlaylistTrack& track);
     /*! Emitted when the current playback track's playlist reference changes, including structural remaps. */
-    void playlistTrackUpdated(const Fooyin::PlaylistTrack& track);
-    void trackPlayed(const Fooyin::Track& track);
-    void trackChangeRequested(const Fooyin::Player::TrackChangeRequest& request);
-    void upcomingTrackChanged(const Fooyin::Player::UpcomingTrack& upcomingTrack);
+    void playlistTrackUpdated(const PicAudioEngine::PlaylistTrack& track);
+    void trackPlayed(const PicAudioEngine::Track& track);
+    void trackChangeRequested(const PicAudioEngine::Player::TrackChangeRequest& request);
+    void upcomingTrackChanged(const PicAudioEngine::Player::UpcomingTrack& upcomingTrack);
     void trackEndAutoTransitionsEnabledChanged(bool enabled);
 
-    void tracksQueued(const Fooyin::QueueTracks& tracks, int index);
-    void tracksDequeued(const Fooyin::QueueTracks& tracks);
-    void trackIndexesDequeued(const Fooyin::PlaylistIndexes& indexes);
-    void trackQueueChanged(const Fooyin::QueueTracks& removed, const Fooyin::QueueTracks& added);
-    void playbackQueueModeChanged(Fooyin::PlaybackQueueMode queueMode);
+    void tracksQueued(const PicAudioEngine::QueueTracks& tracks, int index);
+    void tracksDequeued(const PicAudioEngine::QueueTracks& tracks);
+    void trackIndexesDequeued(const PicAudioEngine::PlaylistIndexes& indexes);
+    void trackQueueChanged(const PicAudioEngine::QueueTracks& removed, const PicAudioEngine::QueueTracks& added);
+    void playbackQueueModeChanged(PicAudioEngine::PlaybackQueueMode queueMode);
 
-    void playbackSnapshotChanged(const Fooyin::Player::PlaybackSnapshot& snapshot);
-    void playbackQueuePositionChanged(Fooyin::PlaybackQueueItemId currentItemId);
-    void stopAfterQueueItemChanged(Fooyin::PlaybackQueueItemId queueItemId);
+    void playbackSnapshotChanged(const PicAudioEngine::Player::PlaybackSnapshot& snapshot);
+    void playbackQueuePositionChanged(PicAudioEngine::PlaybackQueueItemId currentItemId);
+    void stopAfterQueueItemChanged(PicAudioEngine::PlaybackQueueItemId queueItemId);
 
 private:
     std::unique_ptr<PlayerControllerPrivate> p;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

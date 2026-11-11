@@ -8,7 +8,7 @@
 #include <QMediaDevices>
 #include <memory>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 
 class QtAudioOutput : public AudioOutput
 {
@@ -47,4 +47,4 @@ private:
     int m_bufferSizeFrames{4096};
 };
 
-} // namespace Fooyin
+} // namespace PicAudioEngine

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "ffmpeginput.h"
@@ -64,7 +51,7 @@ constexpr auto ApeTagFooterSize           = 32;
 
 using namespace std::chrono_literals;
 
-namespace Fooyin {
+namespace PicAudioEngine {
 namespace {
 enum class TagType : uint8_t
 {
@@ -572,15 +559,15 @@ bool parseStandardTag(Track& track, TagType tagType, const TagPolicy& policy, co
         return true;
     }
     if(key == "GENRE"_L1) {
-        track.setGenres(splitStandardField(tagType, policy, QString::fromLatin1(Fooyin::Tag::Genre), values));
+        track.setGenres(splitStandardField(tagType, policy, QString::fromLatin1(PicAudioEngine::Tag::Genre), values));
         return true;
     }
     if(isAnyTag(key, {"COMPOSER"_L1, "TCOM"_L1})) {
-        track.setComposers(splitStandardField(tagType, policy, QString::fromLatin1(Fooyin::Tag::Composer), values));
+        track.setComposers(splitStandardField(tagType, policy, QString::fromLatin1(PicAudioEngine::Tag::Composer), values));
         return true;
     }
     if(key == "PERFORMER"_L1) {
-        track.setPerformers(splitStandardField(tagType, policy, QString::fromLatin1(Fooyin::Tag::Performer), values));
+        track.setPerformers(splitStandardField(tagType, policy, QString::fromLatin1(PicAudioEngine::Tag::Performer), values));
         return true;
     }
     if(key == "COMMENT"_L1) {
@@ -1756,7 +1743,7 @@ FFmpegDecoder::~FFmpegDecoder() = default;
 
 QStringList FFmpegDecoder::extensions() const
 {
-    const FySettings settings;
+    const PicAudioSettings settings;
     return fileExtensions(settings.value(Settings::Core::Internal::FFmpegAllExtensions).toBool());
 }
 
@@ -1999,7 +1986,7 @@ void FFmpegReader::setReadCancellationToken(std::stop_token token)
 
 QStringList FFmpegReader::extensions() const
 {
-    const FySettings settings;
+    const PicAudioSettings settings;
     return fileExtensions(settings.value(Settings::Core::Internal::FFmpegAllExtensions).toBool());
 }
 
@@ -2168,4 +2155,4 @@ bool FFmpegReader::writeTrack(const AudioSource& /*source*/, const Track& /*trac
 {
     return false;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

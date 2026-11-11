@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -28,7 +15,7 @@
 #include <span>
 #include <vector>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 /*!
  * PCM sample storage type used by engine buffers and output negotiation.
  */
@@ -52,7 +39,7 @@ enum class SampleFormat : uint8_t
  * Conversion helpers (`bytesForDuration`, `framesForBytes`, etc.) clamp on
  * overflow where needed instead of wrapping.
  */
-class FYCORE_EXPORT AudioFormat
+class PICAUDIO_ENGINE_EXPORT AudioFormat
 {
 public:
     enum class ChannelPosition : uint8_t
@@ -144,4 +131,4 @@ private:
     bool m_hasChannelLayout;
     std::array<ChannelPosition, MaxChannels> m_channelLayout;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

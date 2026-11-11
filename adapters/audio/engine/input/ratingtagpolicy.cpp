@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "ratingtagpolicy.h"
@@ -27,12 +14,12 @@
 
 using namespace Qt::StringLiterals;
 
-namespace Fooyin {
+namespace PicAudioEngine {
 namespace {
 constexpr std::array RatingScaleTable{
     RatingScaleDescriptor{
         .scale             = RatingScale::Automatic,
-        .label             = QT_TRANSLATE_NOOP("Fooyin", "Automatic detection"),
+        .label             = QT_TRANSLATE_NOOP("PicAudioEngine", "Automatic detection"),
         .availableForRead  = true,
         .availableForWrite = false,
     },
@@ -63,11 +50,11 @@ constexpr std::array RatingScaleTable{
 };
 
 constexpr std::array PopmMappingTable{
-    PopmMappingDescriptor{.mapping = PopmMapping::Default, .label = QT_TRANSLATE_NOOP("Fooyin", "Default")},
+    PopmMappingDescriptor{.mapping = PopmMapping::Default, .label = QT_TRANSLATE_NOOP("PicAudioEngine", "Default")},
     PopmMappingDescriptor{.mapping = PopmMapping::CommonFiveStar,
-                          .label   = QT_TRANSLATE_NOOP("Fooyin", "Five star compatibility")},
+                          .label   = QT_TRANSLATE_NOOP("PicAudioEngine", "Five star compatibility")},
     PopmMappingDescriptor{.mapping = PopmMapping::LinearByte,
-                          .label   = QT_TRANSLATE_NOOP("Fooyin", "Raw 0–255 byte scale")},
+                          .label   = QT_TRANSLATE_NOOP("PicAudioEngine", "Raw 0–255 byte scale")},
 };
 
 QString normalisedConfigKey(QString value)
@@ -188,7 +175,7 @@ PopmMapping popmMappingFromString(QString mapping)
 
 RatingTagPolicy ratingTagPolicy()
 {
-    const FySettings settings;
+    const PicAudioSettings settings;
     return {
         .readTag   = settings.value(RatingSettings::ReadTag, QLatin1StringView{RatingSettings::DefaultAutomatic})
                          .toString()
@@ -445,4 +432,4 @@ int ratingToPopm(float rating, PopmMapping mapping)
 
     return 255;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

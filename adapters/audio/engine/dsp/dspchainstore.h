@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -28,13 +15,13 @@
 #include <cstdint>
 #include <unordered_map>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class DspNode;
 class DspRegistry;
 class EngineHandler;
 class SettingsManager;
 
-class FYCORE_EXPORT DspChainStore : public QObject
+class PICAUDIO_ENGINE_EXPORT DspChainStore : public QObject
 {
     Q_OBJECT
 
@@ -55,10 +42,10 @@ public:
     bool setDspEnabled(Engine::DspChainScope scope, uint64_t instanceId, bool enabled, QObject* source = nullptr);
 
 Q_SIGNALS:
-    void activeChainChanged(const Fooyin::Engine::DspChains& chain);
-    void liveDspSettingsChanged(Fooyin::Engine::DspChainScope scope, uint64_t instanceId, const QByteArray& settings,
+    void activeChainChanged(const PicAudioEngine::Engine::DspChains& chain);
+    void liveDspSettingsChanged(PicAudioEngine::Engine::DspChainScope scope, uint64_t instanceId, const QByteArray& settings,
                                 bool persisted, QObject* source);
-    void dspEnabledChanged(Fooyin::Engine::DspChainScope scope, uint64_t instanceId, bool enabled, QObject* source);
+    void dspEnabledChanged(PicAudioEngine::Engine::DspChainScope scope, uint64_t instanceId, bool enabled, QObject* source);
 
 private:
     [[nodiscard]] uint64_t nextInstanceId();
@@ -79,4 +66,4 @@ private:
     uint64_t m_nextInstanceId;
     std::unordered_map<uint64_t, uint64_t> m_liveRevisionByKey;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

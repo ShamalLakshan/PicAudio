@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include <utils/stringutils.h>
@@ -73,7 +60,7 @@ bool canDecode(const QByteArray& encoding, const QByteArray& content)
 }
 } // namespace
 
-namespace Fooyin::Utils {
+namespace PicAudioEngine::Utils {
 QString readMultiLineString(const QJsonValue& value)
 {
     if(value.isString()) {
@@ -476,4 +463,4 @@ int similarityRatio(const QString& first, const QString& second, Qt::CaseSensiti
     return static_cast<int>(similarity);
 }
 
-} // namespace Fooyin::Utils
+} // namespace PicAudioEngine::Utils

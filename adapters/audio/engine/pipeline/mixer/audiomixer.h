@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -35,7 +22,7 @@
 #include <span>
 #include <vector>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class MixerOutput;
 
 /*!
@@ -64,7 +51,7 @@ class MixerOutput;
  * - Input format is the expected per-stream PCM format before per-track DSP.
  * - Output format is the post per-track DSP format consumed by master DSP/output.
  */
-class FYCORE_EXPORT AudioMixer
+class PICAUDIO_ENGINE_EXPORT AudioMixer
 {
 public:
     using TrackProcessorFactory = std::function<std::unique_ptr<TrackProcessor>()>;
@@ -392,4 +379,4 @@ private:
     std::vector<TrackProcessorFactory> m_trackProcessorFactories;
     std::unique_ptr<MixerOutput> m_output;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

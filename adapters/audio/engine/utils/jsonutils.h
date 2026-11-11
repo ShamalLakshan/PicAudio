@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -26,7 +13,7 @@
 
 #include <functional>
 
-namespace Fooyin::Utils {
+namespace PicAudioEngine::Utils {
 using JsonArrayItemIdentity = std::function<QString(const QJsonValue&)>;
 
 /**
@@ -39,7 +26,7 @@ using JsonArrayItemIdentity = std::function<QString(const QJsonValue&)>;
  * Identified arrays are matched by identity and ordered according to @p second, with items added only in @p first
  * appended. If an identity is empty or duplicated, the conflicting array resolves to @p second.
  */
-[[nodiscard]] FYUTILS_EXPORT QJsonValue mergeJsonThreeWay(const QJsonValue& base, const QJsonValue& first,
+[[nodiscard]] PICAUDIO_UTILS_EXPORT QJsonValue mergeJsonThreeWay(const QJsonValue& base, const QJsonValue& first,
                                                           const QJsonValue& second,
                                                           const JsonArrayItemIdentity& arrayItemIdentity = {});
-} // namespace Fooyin::Utils
+} // namespace PicAudioEngine::Utils

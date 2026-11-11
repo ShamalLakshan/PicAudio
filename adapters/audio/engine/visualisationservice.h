@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -31,7 +18,7 @@
 #include <span>
 #include <vector>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class EngineHandler;
 class VisualisationBackend;
 class VisualisationSessionPrivate;
@@ -50,7 +37,7 @@ class VisualisationServicePrivate;
  * produced, use `EngineController::levelReady` / `EngineController::pcmReady`
  * instead.
  */
-class FYCORE_EXPORT VisualisationSession
+class PICAUDIO_ENGINE_EXPORT VisualisationSession
 {
 public:
     enum class SpectrumWindowFunction : uint8_t
@@ -178,11 +165,11 @@ private:
     std::unique_ptr<VisualisationSessionPrivate> p;
 };
 
-FYCORE_EXPORT float spectrumWindowGain(VisualisationSession::SpectrumWindowFunction windowFunction, float phase);
+PICAUDIO_ENGINE_EXPORT float spectrumWindowGain(VisualisationSession::SpectrumWindowFunction windowFunction, float phase);
 
 using VisualisationSessionPtr = std::shared_ptr<VisualisationSession>;
 
-class FYCORE_EXPORT VisualisationService : public QObject
+class PICAUDIO_ENGINE_EXPORT VisualisationService : public QObject
 {
     Q_OBJECT
 
@@ -205,4 +192,4 @@ private:
 
     std::unique_ptr<VisualisationServicePrivate> p;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

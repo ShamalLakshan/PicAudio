@@ -1,25 +1,12 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "monotostereodsp.h"
 
-namespace Fooyin {
+namespace PicAudioEngine {
 QString MonoToStereoDsp::name() const
 {
     return QStringLiteral("Convert mono to stereo");
@@ -27,7 +14,7 @@ QString MonoToStereoDsp::name() const
 
 QString MonoToStereoDsp::id() const
 {
-    return QStringLiteral("fooyin.dsp.monotostereo");
+    return QStringLiteral("picaudio.engine.dsp.monotostereo");
 }
 
 AudioFormat MonoToStereoDsp::outputFormat(const AudioFormat& input) const
@@ -114,4 +101,4 @@ void MonoToStereoDsp::process(ProcessingBufferList& chunks)
         }
     }
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

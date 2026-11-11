@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -26,7 +13,7 @@
 #include <core/track.h>
 #include <utils/datastream.h>
 
-namespace Fooyin::Engine {
+namespace PicAudioEngine::Engine {
 Q_NAMESPACE
 
 //! High-level transport state.
@@ -341,18 +328,18 @@ struct OutputProfileRequest
     QString dspPreset;
 };
 
-} // namespace Fooyin::Engine
+} // namespace PicAudioEngine::Engine
 
-Q_DECLARE_OPERATORS_FOR_FLAGS(Fooyin::Engine::RGProcessing)
-Q_DECLARE_OPERATORS_FOR_FLAGS(Fooyin::Engine::AnalysisDataTypes)
-Q_DECLARE_METATYPE(Fooyin::Engine::TrackStatusContext)
-Q_DECLARE_METATYPE(Fooyin::Engine::AboutToFinishContext)
-Q_DECLARE_METATYPE(Fooyin::Engine::PlaybackItem)
-Q_DECLARE_METATYPE(Fooyin::Engine::TrackCommitContext)
-Q_DECLARE_METATYPE(Fooyin::Engine::PlaybackOutputInfo)
-Q_DECLARE_METATYPE(Fooyin::Engine::AnalysisDataTypes)
-Q_DECLARE_METATYPE(Fooyin::LevelFrame)
-Q_DECLARE_METATYPE(Fooyin::PcmFrame)
-Q_DECLARE_METATYPE(Fooyin::Engine::LiveDspSettingsUpdate)
-Q_DECLARE_METATYPE(Fooyin::Engine::OutputDeviceProfiles)
-Q_DECLARE_METATYPE(Fooyin::Engine::OutputProfileRequest)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::Engine::RGProcessing)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::Engine::AnalysisDataTypes)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::TrackStatusContext)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::AboutToFinishContext)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::PlaybackItem)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::TrackCommitContext)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::PlaybackOutputInfo)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::AnalysisDataTypes)
+Q_DECLARE_METATYPE(PicAudioEngine::LevelFrame)
+Q_DECLARE_METATYPE(PicAudioEngine::PcmFrame)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::LiveDspSettingsUpdate)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::OutputDeviceProfiles)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::OutputProfileRequest)

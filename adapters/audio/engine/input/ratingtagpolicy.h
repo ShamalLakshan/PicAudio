@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -27,7 +14,7 @@
 #include <optional>
 #include <span>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 namespace RatingSettings {
 constexpr auto ReadTag              = "Rating/ReadTag";
 constexpr auto ReadScale            = "Rating/ReadScale";
@@ -80,7 +67,7 @@ struct PopmMappingDescriptor
     const char* label;
 };
 
-struct FYCORE_EXPORT RatingTagPolicy
+struct PICAUDIO_ENGINE_EXPORT RatingTagPolicy
 {
     QString readTag;
     RatingScale readScale{RatingScale::Automatic};
@@ -99,18 +86,18 @@ struct FYCORE_EXPORT RatingTagPolicy
     [[nodiscard]] QString effectiveWriteTag() const;
 };
 
-[[nodiscard]] FYCORE_EXPORT std::span<const RatingScaleDescriptor> ratingScaleDescriptors();
-[[nodiscard]] FYCORE_EXPORT std::span<const PopmMappingDescriptor> popmMappingDescriptors();
-[[nodiscard]] FYCORE_EXPORT QString ratingScaleKey(RatingScale scale);
-[[nodiscard]] FYCORE_EXPORT QString popmMappingKey(PopmMapping mapping);
-[[nodiscard]] FYCORE_EXPORT RatingScale ratingScaleFromString(QString scale);
-[[nodiscard]] FYCORE_EXPORT PopmMapping popmMappingFromString(QString mapping);
-[[nodiscard]] FYCORE_EXPORT RatingTagPolicy ratingTagPolicy();
-[[nodiscard]] FYCORE_EXPORT std::optional<float> normalisedTextRating(const QString& rawRating, RatingScale scale,
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT std::span<const RatingScaleDescriptor> ratingScaleDescriptors();
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT std::span<const PopmMappingDescriptor> popmMappingDescriptors();
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT QString ratingScaleKey(RatingScale scale);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT QString popmMappingKey(PopmMapping mapping);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT RatingScale ratingScaleFromString(QString scale);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT PopmMapping popmMappingFromString(QString mapping);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT RatingTagPolicy ratingTagPolicy();
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT std::optional<float> normalisedTextRating(const QString& rawRating, RatingScale scale,
                                                                       bool ratingTagFallback);
-[[nodiscard]] FYCORE_EXPORT QString formatTextRating(float rating, RatingScale scale);
-[[nodiscard]] FYCORE_EXPORT float asfSharedUserRatingToRating(int rating);
-[[nodiscard]] FYCORE_EXPORT int ratingToAsfSharedUserRating(float rating);
-[[nodiscard]] FYCORE_EXPORT float popmToRating(int popm, PopmMapping mapping);
-[[nodiscard]] FYCORE_EXPORT int ratingToPopm(float rating, PopmMapping mapping);
-} // namespace Fooyin
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT QString formatTextRating(float rating, RatingScale scale);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT float asfSharedUserRatingToRating(int rating);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT int ratingToAsfSharedUserRating(float rating);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT float popmToRating(int popm, PopmMapping mapping);
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT int ratingToPopm(float rating, PopmMapping mapping);
+} // namespace PicAudioEngine

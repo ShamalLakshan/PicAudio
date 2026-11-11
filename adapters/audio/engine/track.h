@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -35,7 +22,7 @@
 #include <map>
 #include <memory>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class Track;
 class TrackPrivate;
 class TrackMetadataStore;
@@ -55,7 +42,7 @@ using TrackIds  = std::vector<int>;
  * Metadata which is not explicitly handled is accessed using Track::extraTags.
  * @note this class is implicitly shared.
  */
-class FYCORE_EXPORT Track
+class PICAUDIO_ENGINE_EXPORT Track
 {
 public:
     struct TrackHash
@@ -266,7 +253,7 @@ public:
     //! True for segments that can be played by continuing the same decoded stream.
     [[nodiscard]] bool isSameStreamSegment() const;
 
-    //! Archive paths use fooyin's unpack:// URL format.
+    //! Archive paths use the engine's unpack:// URL format.
     static bool isArchivePath(const QString& path);
     static bool isRemotePath(const QString& path);
     //! True for a valid custom URI, excluding local, archive, and HTTP(S).
@@ -465,8 +452,8 @@ private:
     QSharedDataPointer<TrackPrivate> p;
 };
 
-FYCORE_EXPORT size_t qHash(const Track& track);
-FYCORE_EXPORT void mergeTrackStats(Track& track, const Track& updatedTrack, Track::Stats stats);
+PICAUDIO_ENGINE_EXPORT size_t qHash(const Track& track);
+PICAUDIO_ENGINE_EXPORT void mergeTrackStats(Track& track, const Track& updatedTrack, Track::Stats stats);
 
 struct CoverImage
 {
@@ -481,10 +468,10 @@ struct TrackCoverData
     TrackCovers coverData;
 };
 
-[[nodiscard]] FYCORE_EXPORT Track prepareOpusRGWriteTrack(const Track& track, OpusRGWriteMode mode);
-} // namespace Fooyin
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT Track prepareOpusRGWriteTrack(const Track& track, OpusRGWriteMode mode);
+} // namespace PicAudioEngine
 
-Q_DECLARE_METATYPE(Fooyin::TrackList)
-Q_DECLARE_METATYPE(Fooyin::TrackIds)
-Q_DECLARE_METATYPE(Fooyin::Track::Stats)
-Q_DECLARE_OPERATORS_FOR_FLAGS(Fooyin::Track::Stats)
+Q_DECLARE_METATYPE(PicAudioEngine::TrackList)
+Q_DECLARE_METATYPE(PicAudioEngine::TrackIds)
+Q_DECLARE_METATYPE(PicAudioEngine::Track::Stats)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::Track::Stats)

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -33,7 +20,7 @@
 
 class QObject;
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class AudioFormat;
 class DecodingControllerPrivate;
 
@@ -44,7 +31,7 @@ class DecodingControllerPrivate;
  * worker. AudioEngine interacts through commands and thread-safe snapshots;
  * decoded PCM is written directly to AudioStream's ring buffer.
  */
-class FYCORE_EXPORT DecodingController
+class PICAUDIO_ENGINE_EXPORT DecodingController
 {
 public:
     struct DecodeResult
@@ -137,4 +124,4 @@ public:
 private:
     std::unique_ptr<DecodingControllerPrivate> p;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

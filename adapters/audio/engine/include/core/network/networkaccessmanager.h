@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Fooyin {
+namespace PicAudioEngine {
 
 class NetworkAccessManager
 {
@@ -13,4 +13,4 @@ public:
     };
 };
 
-} // namespace Fooyin
+} // namespace PicAudioEngine

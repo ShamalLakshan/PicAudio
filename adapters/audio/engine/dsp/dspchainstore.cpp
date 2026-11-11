@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "dspchainstore.h"
@@ -37,7 +24,7 @@ constexpr auto ActivePresetKey = "DSP/ActivePreset";
 constexpr auto ChainVersion    = 1;
 
 namespace {
-using namespace Fooyin::Engine;
+using namespace PicAudioEngine::Engine;
 
 QByteArray serialiseChain(const DspChains& chain)
 {
@@ -119,7 +106,7 @@ DspChains deserialiseChain(const QByteArray& data)
 }
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 DspChainStore::DspChainStore(SettingsManager* settings, DspRegistry* registry, QObject* parent)
     : QObject{parent}
     , m_settings{settings}
@@ -386,4 +373,4 @@ DspChains DspChainStore::normaliseChain(const Engine::DspChains& chain)
 
     return normalised;
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

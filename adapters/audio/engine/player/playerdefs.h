@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -29,8 +16,8 @@
 
 #include <optional>
 
-namespace Fooyin::Player {
-Q_NAMESPACE_EXPORT(FYCORE_EXPORT)
+namespace PicAudioEngine::Player {
+Q_NAMESPACE_EXPORT(PICAUDIO_ENGINE_EXPORT)
 
 enum class PlayState : uint8_t
 {
@@ -54,7 +41,7 @@ enum class AdvanceReason : uint8_t
 };
 Q_ENUM_NS(AdvanceReason)
 
-struct FYCORE_EXPORT ABRepeatRange
+struct PICAUDIO_ENGINE_EXPORT ABRepeatRange
 {
     std::optional<uint64_t> start;
     std::optional<uint64_t> end;
@@ -63,13 +50,13 @@ struct FYCORE_EXPORT ABRepeatRange
     bool operator==(const ABRepeatRange&) const = default;
 };
 
-struct FYCORE_EXPORT TrackChangeContext
+struct PICAUDIO_ENGINE_EXPORT TrackChangeContext
 {
     AdvanceReason reason{AdvanceReason::Unknown};
     bool userInitiated{false};
 };
 
-struct FYCORE_EXPORT TrackChangeRequest
+struct PICAUDIO_ENGINE_EXPORT TrackChangeRequest
 {
     PlaylistTrack track;
     TrackChangeContext context;
@@ -78,7 +65,7 @@ struct FYCORE_EXPORT TrackChangeRequest
     uint64_t itemId{0};
 };
 
-struct FYCORE_EXPORT UpcomingTrack
+struct PICAUDIO_ENGINE_EXPORT UpcomingTrack
 {
     PlaylistTrack track;
     bool isQueueTrack{false};
@@ -86,7 +73,7 @@ struct FYCORE_EXPORT UpcomingTrack
     uint64_t itemId{0};
 };
 
-struct FYCORE_EXPORT PlaybackSnapshot
+struct PICAUDIO_ENGINE_EXPORT PlaybackSnapshot
 {
     PlayState playState{PlayState::Stopped};
     Track track;
@@ -100,10 +87,10 @@ struct FYCORE_EXPORT PlaybackSnapshot
     bool isQueueTrack{false};
     PlaybackQueueItemId queueItemId{0};
 };
-} // namespace Fooyin::Player
+} // namespace PicAudioEngine::Player
 
-Q_DECLARE_METATYPE(Fooyin::Player::AdvanceReason)
-Q_DECLARE_METATYPE(Fooyin::Player::TrackChangeContext)
-Q_DECLARE_METATYPE(Fooyin::Player::TrackChangeRequest)
-Q_DECLARE_METATYPE(Fooyin::Player::UpcomingTrack)
-Q_DECLARE_METATYPE(Fooyin::Player::PlaybackSnapshot)
+Q_DECLARE_METATYPE(PicAudioEngine::Player::AdvanceReason)
+Q_DECLARE_METATYPE(PicAudioEngine::Player::TrackChangeContext)
+Q_DECLARE_METATYPE(PicAudioEngine::Player::TrackChangeRequest)
+Q_DECLARE_METATYPE(PicAudioEngine::Player::UpcomingTrack)
+Q_DECLARE_METATYPE(PicAudioEngine::Player::PlaybackSnapshot)

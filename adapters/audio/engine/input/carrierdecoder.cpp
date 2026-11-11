@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "carrierdecoder.h"
@@ -33,7 +20,7 @@ extern "C"
 #include <cstring>
 #include <limits>
 
-Q_LOGGING_CATEGORY(CARRIER_DECODER, "fy.audio.carrier")
+Q_LOGGING_CATEGORY(CARRIER_DECODER, "picaudio.engine.audio.carrier")
 
 using namespace Qt::StringLiterals;
 
@@ -42,10 +29,10 @@ constexpr auto MinimumProbeScore           = AVPROBE_SCORE_EXTENSION + 1;
 constexpr auto MaximumCarrierDrainAttempts = 16;
 
 namespace {
-bool canContainCarrier(const Fooyin::AudioSource& source, const Fooyin::AudioFormat& format)
+bool canContainCarrier(const PicAudioEngine::AudioSource& source, const PicAudioEngine::AudioFormat& format)
 {
     // Specific to DTS-FLAC for now
-    return !source.remoteStreamDevice && format.sampleFormat() == Fooyin::SampleFormat::S16
+    return !source.remoteStreamDevice && format.sampleFormat() == PicAudioEngine::SampleFormat::S16
         && format.channelCount() == 2;
 }
 
@@ -69,7 +56,7 @@ const AVInputFormat* probeCarrier(const QByteArray& data)
 }
 } // namespace
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class DecodedAudioDevice final : public QIODevice
 {
 public:
@@ -481,4 +468,4 @@ void CarrierDecoder::interruptRead()
         p->secondary->requestAbort();
     }
 }
-} // namespace Fooyin
+} // namespace PicAudioEngine

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include <core/engine/audioconverter.h>
@@ -29,9 +16,9 @@
 #include <utility>
 
 namespace {
-using ChannelMap = std::array<int, Fooyin::AudioFormat::MaxChannels>;
+using ChannelMap = std::array<int, PicAudioEngine::AudioFormat::MaxChannels>;
 
-ChannelMap buildChannelMap(const Fooyin::AudioFormat& inFormat, const Fooyin::AudioFormat& outFormat)
+ChannelMap buildChannelMap(const PicAudioEngine::AudioFormat& inFormat, const PicAudioEngine::AudioFormat& outFormat)
 {
     ChannelMap map;
     map.fill(-1);
@@ -47,7 +34,7 @@ ChannelMap buildChannelMap(const Fooyin::AudioFormat& inFormat, const Fooyin::Au
         return map;
     }
 
-    using Pos = Fooyin::AudioFormat::ChannelPosition;
+    using Pos = PicAudioEngine::AudioFormat::ChannelPosition;
 
     std::array<int, 256> posToIn;
     posToIn.fill(-1);
@@ -74,7 +61,7 @@ ChannelMap buildChannelMap(const Fooyin::AudioFormat& inFormat, const Fooyin::Au
 }
 
 template <typename InputType, typename OutputType, typename Func>
-void convert(const Fooyin::AudioFormat& inputFormat, const std::byte* input, const Fooyin::AudioFormat& outputFormat,
+void convert(const PicAudioEngine::AudioFormat& inputFormat, const std::byte* input, const PicAudioEngine::AudioFormat& outputFormat,
              std::byte* output, int frames, const ChannelMap& channelMap, const Func& conversionFunc)
 {
     const int inBps  = inputFormat.bytesPerSample();
@@ -87,7 +74,7 @@ void convert(const Fooyin::AudioFormat& inputFormat, const std::byte* input, con
         return;
     }
 
-    std::array<ptrdiff_t, Fooyin::AudioFormat::MaxChannels> mappedInOffsets;
+    std::array<ptrdiff_t, PicAudioEngine::AudioFormat::MaxChannels> mappedInOffsets;
     mappedInOffsets.fill(-1);
 
     for(size_t outChannel{0}; outChannel < outChannels; ++outChannel) {
@@ -287,20 +274,20 @@ double convertDoubleToDouble(double inSample)
 }
 
 template <typename In, typename Out, typename F>
-bool doConvert(const Fooyin::AudioFormat& inFmt, const std::byte* in, const Fooyin::AudioFormat& outFmt, std::byte* out,
+bool doConvert(const PicAudioEngine::AudioFormat& inFmt, const std::byte* in, const PicAudioEngine::AudioFormat& outFmt, std::byte* out,
                int frames, const ChannelMap& ch, F&& f)
 {
     convert<In, Out>(inFmt, in, outFmt, out, frames, ch, std::forward<F>(f));
     return true;
 }
 
-using DispatchFn = bool (*)(const Fooyin::AudioFormat&, const std::byte*, const Fooyin::AudioFormat&, std::byte*, int,
+using DispatchFn = bool (*)(const PicAudioEngine::AudioFormat&, const std::byte*, const PicAudioEngine::AudioFormat&, std::byte*, int,
                             const ChannelMap&, bool);
 
 template <typename In, typename Out, auto ConvFunc>
 constexpr DispatchFn cell() noexcept
 {
-    return +[](const Fooyin::AudioFormat& inFmt, const std::byte* in, const Fooyin::AudioFormat& outFmt, std::byte* out,
+    return +[](const PicAudioEngine::AudioFormat& inFmt, const std::byte* in, const PicAudioEngine::AudioFormat& outFmt, std::byte* out,
                int frames, const ChannelMap& ch, bool /*dither*/) -> bool {
         convert<In, Out>(inFmt, in, outFmt, out, frames, ch, ConvFunc);
         return true;
@@ -310,7 +297,7 @@ constexpr DispatchFn cell() noexcept
 template <typename In, typename Out, auto NoDither, auto Dithered>
 constexpr DispatchFn cellDither() noexcept
 {
-    return +[](const Fooyin::AudioFormat& inFmt, const std::byte* in, const Fooyin::AudioFormat& outFmt, std::byte* out,
+    return +[](const PicAudioEngine::AudioFormat& inFmt, const std::byte* in, const PicAudioEngine::AudioFormat& outFmt, std::byte* out,
                int frames, const ChannelMap& ch, bool dither) -> bool {
         convert<In, Out>(inFmt, in, outFmt, out, frames, ch, dither ? Dithered : NoDither);
         return true;
@@ -321,9 +308,9 @@ constexpr DispatchFn cellDither() noexcept
 enum class Lane : uint8_t { U8, S16, S32, F32, F64, Count };
 // clang-format on
 
-constexpr int laneIndex(Fooyin::SampleFormat f) noexcept
+constexpr int laneIndex(PicAudioEngine::SampleFormat f) noexcept
 {
-    using SF = Fooyin::SampleFormat;
+    using SF = PicAudioEngine::SampleFormat;
     switch(f) {
         case SF::U8:
             return 0;
@@ -341,7 +328,7 @@ constexpr int laneIndex(Fooyin::SampleFormat f) noexcept
     }
 }
 
-bool convertFormat(const Fooyin::AudioFormat& inFormat, const std::byte* input, const Fooyin::AudioFormat& outFormat,
+bool convertFormat(const PicAudioEngine::AudioFormat& inFormat, const std::byte* input, const PicAudioEngine::AudioFormat& outFormat,
                    std::byte* output, int frames, bool dither)
 {
     const ChannelMap channels = buildChannelMap(inFormat, outFormat);
@@ -393,7 +380,7 @@ bool convertFormat(const Fooyin::AudioFormat& inFormat, const std::byte* input, 
 }
 } // namespace
 
-namespace Fooyin::Audio {
+namespace PicAudioEngine::Audio {
 
 AudioBuffer convert(const AudioBuffer& buffer, const AudioFormat& outputFormat, bool dither)
 {
@@ -421,4 +408,4 @@ bool convert(const AudioFormat& inputFormat, const std::byte* input, const Audio
 
     return convertFormat(inputFormat, input, outputFormat, output, frames, dither);
 }
-} // namespace Fooyin::Audio
+} // namespace PicAudioEngine::Audio

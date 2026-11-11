@@ -3,7 +3,7 @@
 #include <QDir>
 #include <QCoreApplication>
 
-namespace Fooyin::Core {
+namespace PicAudioEngine::Core {
 
 QString settingsPath()
 {
@@ -35,4 +35,4 @@ QString translationsPath()
     return QStringLiteral(":/i18n");
 }
 
-} // namespace Fooyin::Core
+} // namespace PicAudioEngine::Core

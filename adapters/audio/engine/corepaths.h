@@ -4,11 +4,11 @@
 #include <QString>
 #include <QStringList>
 
-namespace Fooyin::Core {
-FYCORE_EXPORT QString settingsPath();
-FYCORE_EXPORT QString statePath();
-FYCORE_EXPORT QString playlistsPath();
-FYCORE_EXPORT QStringList pluginPaths();
-FYCORE_EXPORT QString userPluginsPath();
-FYCORE_EXPORT QString translationsPath();
-} // namespace Fooyin::Core
+namespace PicAudioEngine::Core {
+PICAUDIO_ENGINE_EXPORT QString settingsPath();
+PICAUDIO_ENGINE_EXPORT QString statePath();
+PICAUDIO_ENGINE_EXPORT QString playlistsPath();
+PICAUDIO_ENGINE_EXPORT QStringList pluginPaths();
+PICAUDIO_ENGINE_EXPORT QString userPluginsPath();
+PICAUDIO_ENGINE_EXPORT QString translationsPath();
+} // namespace PicAudioEngine::Core

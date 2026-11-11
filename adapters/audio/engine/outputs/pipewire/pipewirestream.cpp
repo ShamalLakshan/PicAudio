@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #include "pipewirestream.h"
@@ -48,14 +35,14 @@ int pw_stream_get_time_n(struct pw_stream* stream, struct pw_time* time, size_t 
 #endif
 } // namespace
 
-namespace Fooyin::Pipewire {
+namespace PicAudioEngine::Pipewire {
 PipewireStream::PipewireStream(PipewireCore* core, const AudioFormat& format, const int latencyFrames,
                                const QString& device)
     : m_channelCount{static_cast<uint32_t>(std::max(1, format.channelCount()))}
 {
     struct pw_properties* props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback",
-                                                    PW_KEY_MEDIA_ROLE, "Music", PW_KEY_APP_ID, "fooyin",
-                                                    PW_KEY_APP_ICON_NAME, "fooyin", PW_KEY_APP_NAME, "fooyin", nullptr);
+                                                    PW_KEY_MEDIA_ROLE, "Music", PW_KEY_APP_ID, "picaudio",
+                                                    PW_KEY_APP_ICON_NAME, "picaudio", PW_KEY_APP_NAME, "PicAudio", nullptr);
 
     pw_properties_setf(props, PW_KEY_NODE_RATE, "1/%u", format.sampleRate());
     if(latencyFrames > 0 && format.sampleRate() > 0) {
@@ -170,4 +157,4 @@ void PipewireStream::addListener(const pw_stream_events& streamEvents, void* dat
 {
     pw_stream_add_listener(m_stream.get(), &m_streamListener, &streamEvents, data);
 }
-} // namespace Fooyin::Pipewire
+} // namespace PicAudioEngine::Pipewire

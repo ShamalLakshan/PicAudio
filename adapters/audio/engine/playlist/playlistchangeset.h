@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2026, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -26,13 +13,13 @@
 #include <optional>
 #include <unordered_set>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 /*!
  * Represents a single track move within a playlist patch.
  * The move is applied against the current playlist state at the time the
  * operation is executed.
  */
-struct FYCORE_EXPORT PlaylistTrackMove
+struct PICAUDIO_ENGINE_EXPORT PlaylistTrackMove
 {
     /** Stable playlist entry identity of the track to move. */
     UId entryId;
@@ -49,7 +36,7 @@ struct FYCORE_EXPORT PlaylistTrackMove
  * Represents a contiguous group of tracks to insert into a playlist patch.
  * @note @c index is the destination playlist index before the insertion is applied.
  */
-struct FYCORE_EXPORT PlaylistTrackInsertion
+struct PICAUDIO_ENGINE_EXPORT PlaylistTrackInsertion
 {
     /** Destination playlist index for the first inserted track. */
     int index{-1};
@@ -74,7 +61,7 @@ struct FYCORE_EXPORT PlaylistTrackInsertion
  * If @c requiresReset is set, callers should ignore the incremental fields and
  * rebuild the playlist model from scratch instead.
  */
-struct FYCORE_EXPORT PlaylistChangeset
+struct PICAUDIO_ENGINE_EXPORT PlaylistChangeset
 {
     /** Playlist entries to remove from the pre-change playlist. */
     std::vector<UId> removedEntries;
@@ -107,11 +94,11 @@ using TrackEntryIdSet = std::unordered_set<UId, UId::UIdHash>;
  * @param updatedTrackEntries Optional set of matched entry ids that should be
  * treated as metadata updates even if the old and new track objects compare equal.
  */
-[[nodiscard]] FYCORE_EXPORT std::optional<PlaylistChangeset>
+[[nodiscard]] PICAUDIO_ENGINE_EXPORT std::optional<PlaylistChangeset>
 buildPlaylistChangeset(const PlaylistTrackList& oldTracks, const PlaylistTrackList& newTracks,
                        const TrackEntryIdSet& updatedTrackEntries = {});
-} // namespace Fooyin
+} // namespace PicAudioEngine
 
-Q_DECLARE_METATYPE(Fooyin::PlaylistTrackMove)
-Q_DECLARE_METATYPE(Fooyin::PlaylistTrackInsertion)
-Q_DECLARE_METATYPE(Fooyin::PlaylistChangeset)
+Q_DECLARE_METATYPE(PicAudioEngine::PlaylistTrackMove)
+Q_DECLARE_METATYPE(PicAudioEngine::PlaylistTrackInsertion)
+Q_DECLARE_METATYPE(PicAudioEngine::PlaylistChangeset)

@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -26,7 +13,7 @@
 #include <QStringList>
 #include <memory>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 class SettingsManager;
 class DbConnectionPool;
 using DbConnectionPoolPtr = std::shared_ptr<DbConnectionPool>;
@@ -54,7 +41,7 @@ enum class ReplayGainType : uint8_t
 };
 
 namespace Settings::Core::Internal {
-Q_NAMESPACE_EXPORT(FYCORE_EXPORT)
+Q_NAMESPACE_EXPORT(PICAUDIO_ENGINE_EXPORT)
 
 constexpr auto PlaylistSaveMetadata              = "Playlist/SaveMetadata";
 constexpr auto PlaylistSavePathType              = "Playlist/SavePathType";
@@ -91,10 +78,10 @@ constexpr auto DefaultRemoteOpenTimeoutMs = 8000;
 
 constexpr auto DefaultAutoCrossfadeAlbumScript = "$if(%album%,%albumartist%|%date%|%album%,)";
 
-FYCORE_EXPORT QStringList defaultFFmpegPriorityExtensions();
-FYCORE_EXPORT QStringList defaultReaderProbeAllExtensions();
-FYCORE_EXPORT bool shouldProbeAllReadersForFile(const QString& file);
-FYCORE_EXPORT QStringList defaultOutputResamplerPreference();
+PICAUDIO_ENGINE_EXPORT QStringList defaultFFmpegPriorityExtensions();
+PICAUDIO_ENGINE_EXPORT QStringList defaultReaderProbeAllExtensions();
+PICAUDIO_ENGINE_EXPORT bool shouldProbeAllReadersForFile(const QString& file);
+PICAUDIO_ENGINE_EXPORT QStringList defaultOutputResamplerPreference();
 
 enum CoreInternalSettings : uint32_t
 {
@@ -133,7 +120,7 @@ enum CoreInternalSettings : uint32_t
 Q_ENUM_NS(CoreInternalSettings)
 } // namespace Settings::Core::Internal
 
-class FYCORE_EXPORT CoreSettings
+class PICAUDIO_ENGINE_EXPORT CoreSettings
 {
 public:
     explicit CoreSettings(SettingsManager* settingsManager, DbConnectionPoolPtr dbPool = {});
@@ -142,4 +129,4 @@ public:
 private:
     SettingsManager* m_settings;
 };
-} // namespace Fooyin
+} // namespace PicAudioEngine

@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace Fooyin {
+namespace PicAudioEngine {
 
 namespace {
 QAudioFormat::SampleFormat toQtSampleFormat(SampleFormat fmt)
@@ -182,4 +182,4 @@ void QtAudioOutput::setDevice(const QString& device)
     m_deviceName = device;
 }
 
-} // namespace Fooyin
+} // namespace PicAudioEngine

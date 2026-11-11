@@ -1,20 +1,7 @@
 ﻿/*
- * Fooyin
- * Copyright © 2023, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -28,8 +15,8 @@
 #include <set>
 #include <vector>
 
-namespace Fooyin {
-class FYUTILS_EXPORT UId : public QUuid
+namespace PicAudioEngine {
+class PICAUDIO_UTILS_EXPORT UId : public QUuid
 {
 public:
     struct UIdHash
@@ -48,7 +35,7 @@ public:
     [[nodiscard]] bool isValid() const;
 };
 
-class FYUTILS_EXPORT Id
+class PICAUDIO_UTILS_EXPORT Id
 {
 public:
     struct IdHash
@@ -78,17 +65,17 @@ public:
     Id append(uintptr_t addr);
 
 private:
-    friend FYUTILS_EXPORT QDataStream& operator<<(QDataStream& stream, const Id& id);
-    friend FYUTILS_EXPORT QDataStream& operator>>(QDataStream& stream, Id& id);
+    friend PICAUDIO_UTILS_EXPORT QDataStream& operator<<(QDataStream& stream, const Id& id);
+    friend PICAUDIO_UTILS_EXPORT QDataStream& operator>>(QDataStream& stream, Id& id);
 
     uint32_t m_id;
     QString m_name;
 };
-FYUTILS_EXPORT size_t qHash(const Id& id);
+PICAUDIO_UTILS_EXPORT size_t qHash(const Id& id);
 
 using IdList = std::vector<Id>;
 using IdSet  = std::set<Id>;
 
-FYUTILS_EXPORT QDataStream& operator<<(QDataStream& stream, const IdSet& ids);
-FYUTILS_EXPORT QDataStream& operator>>(QDataStream& stream, IdSet& ids);
-} // namespace Fooyin
+PICAUDIO_UTILS_EXPORT QDataStream& operator<<(QDataStream& stream, const IdSet& ids);
+PICAUDIO_UTILS_EXPORT QDataStream& operator>>(QDataStream& stream, IdSet& ids);
+} // namespace PicAudioEngine

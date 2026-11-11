@@ -2,11 +2,11 @@
 
 #include <QtCore/qlogging.h>
 
-namespace Fooyin::MessageHandler {
+namespace PicAudioEngine::MessageHandler {
 
 using Level = QtMsgType;
 
 inline void setLevel(Level /*level*/) {}
 inline Level level() { return QtInfoMsg; }
 
-} // namespace Fooyin::MessageHandler
+} // namespace PicAudioEngine::MessageHandler

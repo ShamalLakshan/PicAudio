@@ -1,20 +1,7 @@
 /*
- * Fooyin
- * Copyright © 2024, Luke Taylor <luket@pm.me>
- *
- * Fooyin is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Fooyin is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
  */
 
 #pragma once
@@ -30,33 +17,33 @@
 
 class QTreeView;
 
-namespace Fooyin::Utils {
+namespace PicAudioEngine::Utils {
 using IndexRangeList = std::vector<QModelIndexList>;
 
-FYUTILS_EXPORT IndexRangeList getIndexRanges(const QModelIndexList& indexes);
-FYUTILS_EXPORT bool sortModelIndexes(const QModelIndex& index1, const QModelIndex& index2);
+PICAUDIO_UTILS_EXPORT IndexRangeList getIndexRanges(const QModelIndexList& indexes);
+PICAUDIO_UTILS_EXPORT bool sortModelIndexes(const QModelIndex& index1, const QModelIndex& index2);
 
-FYUTILS_EXPORT void recursiveDataChanged(QAbstractItemModel* model, const QModelIndex& parent,
+PICAUDIO_UTILS_EXPORT void recursiveDataChanged(QAbstractItemModel* model, const QModelIndex& parent,
                                          const QList<int>& roles = {});
 
 using ModelIndexKey = std::function<QString(const QModelIndex&)>;
 
-FYUTILS_EXPORT QString modelIndexPath(const QModelIndex& index);
-FYUTILS_EXPORT QStringList saveExpansionState(const QTreeView* view);
-FYUTILS_EXPORT QStringList saveExpansionState(const QTreeView* view, const ModelIndexKey& keyForIndex);
-FYUTILS_EXPORT QStringList updateExpansionState(const QTreeView* view, const QStringList& currentState);
-FYUTILS_EXPORT QStringList updateExpansionState(const QTreeView* view, const QStringList& currentState,
+PICAUDIO_UTILS_EXPORT QString modelIndexPath(const QModelIndex& index);
+PICAUDIO_UTILS_EXPORT QStringList saveExpansionState(const QTreeView* view);
+PICAUDIO_UTILS_EXPORT QStringList saveExpansionState(const QTreeView* view, const ModelIndexKey& keyForIndex);
+PICAUDIO_UTILS_EXPORT QStringList updateExpansionState(const QTreeView* view, const QStringList& currentState);
+PICAUDIO_UTILS_EXPORT QStringList updateExpansionState(const QTreeView* view, const QStringList& currentState,
                                                 const ModelIndexKey& keyForIndex);
-FYUTILS_EXPORT void restoreExpansionState(QTreeView* view, const QStringList& expandedIndexes);
-FYUTILS_EXPORT void restoreExpansionState(QTreeView* view, const QStringList& expandedIndexes,
+PICAUDIO_UTILS_EXPORT void restoreExpansionState(QTreeView* view, const QStringList& expandedIndexes);
+PICAUDIO_UTILS_EXPORT void restoreExpansionState(QTreeView* view, const QStringList& expandedIndexes,
                                           const ModelIndexKey& keyForIndex);
 
-FYUTILS_EXPORT QStringList saveCollapsedExpansionState(const QTreeView* view);
-FYUTILS_EXPORT QStringList saveCollapsedExpansionState(const QTreeView* view, const ModelIndexKey& keyForIndex);
-FYUTILS_EXPORT QStringList updateCollapsedExpansionState(const QTreeView* view, const QStringList& currentState);
-FYUTILS_EXPORT QStringList updateCollapsedExpansionState(const QTreeView* view, const QStringList& currentState,
+PICAUDIO_UTILS_EXPORT QStringList saveCollapsedExpansionState(const QTreeView* view);
+PICAUDIO_UTILS_EXPORT QStringList saveCollapsedExpansionState(const QTreeView* view, const ModelIndexKey& keyForIndex);
+PICAUDIO_UTILS_EXPORT QStringList updateCollapsedExpansionState(const QTreeView* view, const QStringList& currentState);
+PICAUDIO_UTILS_EXPORT QStringList updateCollapsedExpansionState(const QTreeView* view, const QStringList& currentState,
                                                          const ModelIndexKey& keyForIndex);
-FYUTILS_EXPORT void restoreCollapsedExpansionState(QTreeView* view, const QStringList& collapsedIndexes);
-FYUTILS_EXPORT void restoreCollapsedExpansionState(QTreeView* view, const QStringList& collapsedIndexes,
+PICAUDIO_UTILS_EXPORT void restoreCollapsedExpansionState(QTreeView* view, const QStringList& collapsedIndexes);
+PICAUDIO_UTILS_EXPORT void restoreCollapsedExpansionState(QTreeView* view, const QStringList& collapsedIndexes,
                                                    const ModelIndexKey& keyForIndex);
-} // namespace Fooyin::Utils
+} // namespace PicAudioEngine::Utils
