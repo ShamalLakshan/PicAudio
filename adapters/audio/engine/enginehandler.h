@@ -1,0 +1,236 @@
+/*
+ * Fooyin
+ * Copyright © 2026, Luke Taylor <luket@pm.me>
+ *
+ * Fooyin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Fooyin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include "core/playback/playbackstatestore.h"
+
+#include <core/engine/enginecontroller.h>
+#include <core/engine/enginedefs.h>
+#include <core/engine/visualisationservice.h>
+#include <core/player/playerdefs.h>
+
+#include <QBasicTimer>
+#include <QMetaMethod>
+#include <QMetaObject>
+#include <QObject>
+#include <QThread>
+
+#include <chrono>
+#include <map>
+#include <memory>
+#include <optional>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+
+namespace Fooyin {
+class AudioEngine;
+class AudioLoader;
+class DspRegistry;
+class PlayerController;
+class SettingsManager;
+
+using OutputNames = std::vector<QString>;
+template <typename Method>
+concept EngineCommandMethod = std::is_member_function_pointer_v<Method>;
+
+/*!
+ * Bridge between PlayerController-facing actions and AudioEngine internals.
+ *
+ * Responsibilities:
+ * - register/select output backends and devices,
+ * - forward playback operations and DSP chain updates,
+ * - fan out engine state/errors through EngineController signals.
+ */
+class EngineHandler : public EngineController
+{
+    Q_OBJECT
+
+public:
+    explicit EngineHandler(std::shared_ptr<AudioLoader> audioLoader, PlayerController* playerController,
+                           SettingsManager* settings, DspRegistry* dspRegistry, QObject* parent = nullptr);
+    ~EngineHandler() override;
+
+    //! Initialise outputs/settings wiring and connect engine signal relays.
+    void setup();
+
+    //! Queue next-track prep and return request id + immediate readiness snapshot.
+    [[nodiscard]] Engine::NextTrackPrepareRequest prepareNextTrackForPlayback(const Track& track);
+    //! Arm an already-prepared crossfade transition on the engine without changing UI track context.
+    void armPreparedCrossfadeTransition(const Track& track, uint64_t generation);
+    //! Arm an already-prepared gapless transition on the engine without changing UI track context.
+    void armPreparedGaplessTransition(const Track& track, uint64_t generation);
+
+    //! Get current engine playback state
+    [[nodiscard]] Engine::PlaybackState engineState() const override;
+
+    //! Get all registered output names
+    [[nodiscard]] OutputNames getAllOutputs() const override;
+
+    //! Get devices for a specific output
+    [[nodiscard]] OutputDevices getOutputDevices(const QString& output) const override;
+
+    void applyOutputProfile(const Engine::OutputProfileRequest& request) override;
+
+    [[nodiscard]] VisualisationService* visualisationService() const override;
+
+    //! Register an audio output
+    void addOutput(const QString& name, OutputCreator output) override;
+
+    void setDspChain(const Engine::DspChains& chain, const QString& preset = {});
+    void updateLiveDspSettings(const Engine::LiveDspSettingsUpdate& update);
+    void updateCurrentTrackMetadata(const Track& track);
+
+    void restorePosition(uint64_t positionMs, bool pause) const;
+
+protected:
+    void connectNotify(const QMetaMethod& signal) override;
+    void disconnectNotify(const QMetaMethod& signal) override;
+    void timerEvent(QTimerEvent* event) override;
+
+private:
+    struct StartupRestoreState
+    {
+        Player::PlayState playState{Player::PlayState::Stopped};
+        uint64_t positionMs{0};
+        std::optional<uint64_t> timeListenedMs;
+    };
+
+    struct CurrentOutput
+    {
+        QString name;
+        QString device;
+    };
+
+    struct PositionContext
+    {
+        uint64_t trackGeneration{0};
+        uint64_t seekRequestId{0};
+        uint64_t timelineEpoch{0};
+    };
+
+    template <EngineCommandMethod Method, typename... Args>
+    void dispatchCommand(Method method, Args&&... args) const
+    {
+        auto params = std::make_tuple(std::decay_t<Args>(std::forward<Args>(args))...);
+
+        QMetaObject::invokeMethod(
+            m_engine,
+            [engine = m_engine, method, params = std::move(params)]() mutable {
+                std::apply(
+                    [engine, method](auto&&... unpackedArgs) {
+                        (engine->*method)(std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
+                    },
+                    std::move(params));
+            },
+            Qt::QueuedConnection);
+    }
+
+    void publishEvent(const Engine::PlaybackItem& item, bool ready, uint64_t requestId);
+    void handleStateChange(Engine::PlaybackState state);
+    void handleTrackChangeRequest(const Player::TrackChangeRequest& request);
+    void handleTrackChangeRejected(const Engine::PlaybackItem& item);
+    void handleUpcomingTrackChanged(const Player::UpcomingTrack& upcomingTrack);
+    [[nodiscard]] bool hasAutoTrackEndTransitionEnabled() const;
+    [[nodiscard]] bool hasDistinctUpcomingTrack() const;
+    void noteEngineOwnedTransition(const Track& track, uint64_t generation);
+    void handleTrackBoundaryReached(const Track& track, uint64_t generation, uint64_t remainingOutputMs,
+                                    bool engineOwnsTransition);
+    void armEndAdvanceWatchdog(const Track& track, uint64_t generation);
+    void handleEndAdvanceWatchdogTimeout();
+    void resumeControllerNaturalEndAdvance(const char* reason);
+    void clearPendingBoundaryAdvance();
+    void tryPendingBoundaryAdvance();
+    void clearEngineOwnedTransition();
+    void handleEngineTrackChanged(const Track& track);
+    void handleTrackCommitted(const Engine::TrackCommitContext& context);
+    void handleTrackStatus(Engine::TrackStatus status, const Track& track, uint64_t generation, bool seekable);
+
+    void requestPlay() const;
+    void requestPause() const;
+    void requestStop() const;
+
+    [[nodiscard]] uint64_t nextPrepareRequestId();
+    [[nodiscard]] Engine::NextTrackPrepareRequest requestPrepareNextTrack(const Track& track);
+    void requestArmPreparedCrossfadeTransition(const Engine::PlaybackItem& item, uint64_t generation);
+    void requestCommitPreparedCrossfadeTransition(const Engine::PlaybackItem& item, bool manualChange);
+    void requestArmPreparedGaplessTransition(const Engine::PlaybackItem& item, uint64_t generation);
+    void requestCommitPreparedGaplessTransition(const Engine::PlaybackItem& item, bool manualChange);
+
+    void changeOutput(const QString& output);
+    void updateVolume(double volume);
+    void updatePosition(uint64_t ms) const;
+    void dispatchSeek(uint64_t positionMs);
+    void handlePositionSample(uint64_t positionMs, uint64_t trackGeneration, uint64_t timelineEpoch,
+                              uint64_t seekRequestId);
+    void handlePositionContext(uint64_t trackGeneration, uint64_t timelineEpoch, uint64_t seekRequestId);
+    void handleSeekApplied(uint64_t positionMs, uint64_t requestId);
+    void clearPositionAcceptanceFloor();
+    [[nodiscard]] static bool contextLess(const PositionContext& lhs, const PositionContext& rhs);
+    void advancePositionContextWatermark(const PositionContext& context);
+    void updateAnalysisRelays();
+    void handleNextTrackReadiness(const Engine::PlaybackItem& item, bool ready, uint64_t requestId);
+    [[nodiscard]] bool cachedNextTrackReadyFor(const Engine::PlaybackItem& item) const;
+    void clearNextTrackReadiness();
+    [[nodiscard]] std::optional<StartupRestoreState> readStartupRestoreState() const;
+    void applyStartupRestore(const StartupRestoreState& restore);
+    void clearStartupRestore();
+
+    void savePlaybackState() const;
+
+    PlayerController* m_playerController;
+    SettingsManager* m_settings;
+
+    QThread m_engineThread;
+    std::unique_ptr<VisualisationService> m_visualisationService;
+    AudioEngine* m_engine;
+
+    std::map<QString, OutputCreator> m_outputs;
+    CurrentOutput m_currentOutput;
+    QMetaObject::Connection m_levelReadyRelayConnection;
+    QMetaObject::Connection m_pcmReadyRelayConnection;
+    bool m_levelReadyRelayConnected;
+    bool m_pcmReadyRelayConnected;
+
+    std::optional<Player::TrackChangeRequest> m_pendingTrackChange;
+    std::optional<uint64_t> m_pendingTrackChangeGeneration;
+    Player::UpcomingTrack m_upcomingTrack;
+    uint64_t m_currentTrackItemId;
+    Track m_engineOwnedTransitionTrack;
+    uint64_t m_engineOwnedTransitionItemId;
+    uint64_t m_engineOwnedTransitionGen;
+    bool m_endAdvanceSuppressed;
+    std::chrono::steady_clock::time_point m_endAdvanceSuppressedSince;
+    QBasicTimer m_endAdvanceWatchdog;
+    Track m_pendingBoundaryAdvanceTrack;
+    uint64_t m_pendingBoundaryAdvanceGen;
+    bool m_pendingBoundaryAdvanceReady;
+    Track m_latestTrackMetadata;
+
+    Engine::PlaybackItem m_lastPreparedNextTrack;
+    bool m_lastPreparedNextTrackReady;
+    uint64_t m_nextPrepareTrackRequestId;
+    uint64_t m_nextSeekRequestId;
+    PositionContext m_positionContextWatermark;
+    std::optional<PositionContext> m_positionAcceptanceFloor;
+    std::optional<StartupRestoreState> m_pendingStartupRestore;
+    std::optional<uint64_t> m_pendingStartupRestoreItemId;
+};
+} // namespace Fooyin

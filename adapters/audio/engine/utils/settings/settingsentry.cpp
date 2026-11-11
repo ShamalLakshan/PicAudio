@@ -1,0 +1,123 @@
+/*
+ * Fooyin
+ * Copyright © 2023, Luke Taylor <luket@pm.me>
+ *
+ * Fooyin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Fooyin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#include <utils/settings/settingsentry.h>
+
+namespace Fooyin {
+SettingsEntry::SettingsEntry(QString key, const QVariant& value, QObject* parent)
+    : SettingsEntry{std::move(key), value, Settings::Variant, parent}
+{ }
+
+SettingsEntry::SettingsEntry(QString key, const QVariant& value, Settings::Type type, QObject* parent)
+    : QObject{parent}
+    , m_key{std::move(key)}
+    , m_type{type}
+    , m_value{value}
+    , m_defaultValue{value}
+    , m_isTemporary{false}
+    , m_wasChanged{false}
+{ }
+
+QString SettingsEntry::key() const
+{
+    return m_key;
+}
+
+Settings::Type SettingsEntry::type() const
+{
+    return m_type;
+}
+
+QVariant SettingsEntry::value() const
+{
+    return m_value;
+}
+
+QVariant SettingsEntry::defaultValue() const
+{
+    return m_defaultValue;
+}
+
+bool SettingsEntry::isTemporary() const
+{
+    return m_isTemporary;
+}
+
+bool SettingsEntry::wasChanged() const
+{
+    return m_wasChanged;
+}
+
+bool SettingsEntry::setValue(const QVariant& value)
+{
+    if(std::exchange(m_value, value) != value) {
+        m_wasChanged = true;
+        return true;
+    }
+
+    return false;
+}
+
+bool SettingsEntry::setValueSilently(const QVariant& value)
+{
+    return std::exchange(m_value, value) != value;
+}
+
+void SettingsEntry::setIsTemporary(bool isTemporary)
+{
+    m_isTemporary = isTemporary;
+}
+
+void SettingsEntry::notifySubscribers(const QVariant& value)
+{
+    switch(m_type) {
+        case(Settings::Variant):
+            Q_EMIT settingChangedVariant(value);
+            break;
+        case(Settings::Bool):
+            Q_EMIT settingChangedBool(value.toBool());
+            break;
+        case(Settings::Float):
+            Q_EMIT settingChangedFloat(value.toFloat());
+            break;
+        case(Settings::Double):
+            Q_EMIT settingChangedDouble(value.toDouble());
+            break;
+        case(Settings::Int):
+            Q_EMIT settingChangedInt(value.toInt());
+            break;
+        case(Settings::String):
+            Q_EMIT settingChangedString(value.toString());
+            break;
+        case(Settings::StringList):
+            Q_EMIT settingChangedStringList(value.toStringList());
+            break;
+        case(Settings::ByteArray):
+            Q_EMIT settingChangedByteArray(value.toByteArray());
+            break;
+    }
+}
+
+bool SettingsEntry::reset()
+{
+    return std::exchange(m_value, m_defaultValue) != m_defaultValue;
+}
+} // namespace Fooyin
+
+#include "moc_settingsentry.cpp"

@@ -1,0 +1,42 @@
+/*
+ * Fooyin
+ * Copyright © 2023, Luke Taylor <luket@pm.me>
+ *
+ * Fooyin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Fooyin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include <core/engine/audiooutput.h>
+
+#include <QtPlugin>
+
+namespace Fooyin {
+/*!
+ * Plugin interface for registering audio output backends.
+ */
+class OutputPlugin
+{
+public:
+    virtual ~OutputPlugin() = default;
+
+    //! Unique backend name shown in settings/UI.
+    [[nodiscard]] virtual QString name() const = 0;
+    //! Factory that creates backend instances.
+    [[nodiscard]] virtual OutputCreator creator() const = 0;
+};
+} // namespace Fooyin
+
+Q_DECLARE_INTERFACE(Fooyin::OutputPlugin, "org.fooyin.fooyin.plugin.engine.output")

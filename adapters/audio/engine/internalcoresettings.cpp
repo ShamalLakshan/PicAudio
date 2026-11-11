@@ -1,0 +1,224 @@
+/*
+ * Fooyin
+ * Copyright © 2024, Luke Taylor <luket@pm.me>
+ *
+ * Fooyin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Fooyin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#include "internalcoresettings.h"
+
+#include "corepaths.h"
+#include "version.h"
+
+#include <core/coresettings.h>
+#include <core/engine/audioformat.h>
+#include <core/engine/enginedefs.h>
+#include <core/network/networkaccessmanager.h>
+#include <core/player/playbackqueue.h>
+#include <utils/logging/messagehandler.h>
+#include <utils/settings/settingsmanager.h>
+
+#include <QFileInfo>
+
+using namespace Qt::StringLiterals;
+
+constexpr auto LogLevel = "LogLevel";
+
+namespace Fooyin {
+FySettings::FySettings(QObject* parent)
+    : QSettings{Core::settingsPath(), IniFormat, parent}
+{ }
+
+FyStateSettings::FyStateSettings(QObject* parent)
+    : QSettings{Core::statePath(), IniFormat, parent}
+{ }
+
+namespace Settings::Core::Internal {
+QStringList defaultFFmpegPriorityExtensions()
+{
+    return {u"m4a"_s, u"m4b"_s, u"mp4"_s, u"mka"_s, u"mkv"_s};
+}
+
+QStringList defaultReaderProbeAllExtensions()
+{
+    return defaultFFmpegPriorityExtensions();
+}
+
+bool shouldProbeAllReadersForFile(const QString& file)
+{
+    const QString ext = QFileInfo{file}.suffix().toLower();
+    if(ext.isEmpty()) {
+        return false;
+    }
+
+    const FySettings settings;
+    const QVariant value         = settings.contains(ReaderProbeAllExtensions)
+                                     ? settings.value(ReaderProbeAllExtensions)
+                                     : settings.value(FFmpegPriorityExtensions, defaultReaderProbeAllExtensions());
+    const QStringList extensions = value.toStringList();
+    return std::ranges::any_of(extensions,
+                               [&ext](const QString& extension) { return extension.trimmed().toLower() == ext; });
+}
+
+QStringList defaultOutputResamplerPreference()
+{
+    return {u"Resampler (SoX)"_s, u"Resampler (FFmpeg)"_s};
+}
+} // namespace Settings::Core::Internal
+
+namespace {
+void setupProxyAccount(SettingsManager* /*settingsManager*/, DbConnectionPoolPtr /*dbPool*/)
+{
+}
+} // namespace
+
+CoreSettings::CoreSettings(SettingsManager* settingsManager, DbConnectionPoolPtr dbPool)
+    : m_settings{settingsManager}
+{
+    using namespace Settings::Core;
+
+    qRegisterMetaType<Engine::FadingValues>("FadingValues");
+    qRegisterMetaType<Engine::CrossfadingValues>("CrossfadingValues");
+    qRegisterMetaType<Engine::FadeSpec>("FadeSpec");
+    qRegisterMetaType<Engine::OutputDeviceProfiles>("OutputDeviceProfiles");
+
+    m_settings->createTempSetting<FirstRun>(true);
+    m_settings->createTempSetting<Version>(QString::fromLatin1(FOOYIN_VERSION));
+    m_settings->createSetting<PlayMode>(0, QString::fromLatin1(PlayModeKey));
+    m_settings->createSetting<AutoRefresh>(false, u"Library/AutoRefresh"_s);
+    m_settings->createSetting<LibrarySortScript>(
+        u"%albumartist% - %year% - %album% - $num(%disc%,5) - $num(%track%,5) - %title%"_s, u"Library/SortScript"_s);
+    m_settings->createSetting<Settings::Core::AudioOutput>(QString{}, u"Engine/AudioOutput"_s);
+    m_settings->createSetting<OutputVolume>(1.0, u"Engine/OutputVolume"_s);
+    m_settings->createSetting<VolumeControlEnabled>(true, u"Engine/VolumeControlEnabled"_s);
+    m_settings->createSetting<OutputBitDepth>(static_cast<int>(SampleFormat::Unknown), u"Engine/OutputBitDepth"_s);
+    m_settings->createSetting<OutputDither>(false, u"Engine/OutputDither"_s);
+    m_settings->createSetting<RewindPreviousTrack>(false, u"Playlist/RewindPreviousTrack"_s);
+    m_settings->createSetting<GaplessPlayback>(true, u"Engine/GaplessPlayback"_s);
+    m_settings->createSetting<Language>(QString{}, u"Language"_s);
+    m_settings->createSetting<BufferLength>(4000, u"Engine/BufferLength"_s);
+    m_settings->createSetting<OpenFilesPlaylist>(u"Default"_s, u"Playlist/OpenFilesPlaylist"_s);
+    m_settings->createSetting<OpenFilesSendTo>(true, u"Playlist/OpenFilesSendToPlaylist"_s);
+    m_settings->createSetting<SaveRatingToMetadata>(false, u"Library/SaveRatingToFile"_s);
+    m_settings->createSetting<SavePlaycountToMetadata>(false, u"Library/SavePlaycountToFile"_s);
+    m_settings->createSetting<PlayedThreshold>(0.5, u"Playback/PlayedThreshold"_s);
+    m_settings->createSetting<PlayedThresholdTime>(240000, u"Playback/PlayedThresholdTime"_s);
+    m_settings->createSetting<ExternalSortScript>(u"%filepath%"_s, u"Library/ExternalSortScript"_s);
+    m_settings->createSetting<LibraryViewPlaylistSortScript>(QString{}, u"Library/LibraryViewPlaylistSortScript"_s);
+    m_settings->createTempSetting<Shutdown>(false);
+    m_settings->createSetting<StopAfterCurrent>(false, u"Playback/StopAfterCurrent"_s);
+    m_settings->createSetting<RGMode>(0, u"Engine/ReplayGainMode"_s);
+    m_settings->createSetting<RGType>(static_cast<int>(ReplayGainType::Track), u"Engine/ReplayGainType"_s);
+    m_settings->createSetting<Internal::ReplayGainLastActiveMode>(static_cast<int>(Engine::ApplyGain),
+                                                                  u"Engine/ReplayGainLastActiveMode"_s);
+    m_settings->createSetting<RGPreAmp>(0.0F, u"Engine/ReplayGainPreAmp"_s);
+    m_settings->createSetting<NonRGPreAmp>(0.0F, u"Engine/NonReplayGainPreAmp"_s);
+    m_settings->createSetting<UseVariousForCompilations>(false, u"Library/UseVariousArtistsForCompilations"_s);
+    m_settings->createSetting<ShuffleAlbumsGroupScript>(u"%albumartist% - %date% - %album%"_s,
+                                                        u"Playback/ShuffleAlbumsGroupScript"_s);
+    m_settings->createSetting<ShuffleAlbumsSortScript>(u"%disc% - %track% - %title%"_s,
+                                                       u"Playback/ShuffleAlbumsSortScript"_s);
+    m_settings->createTempSetting<ActiveTrack>(QVariant{});
+    m_settings->createTempSetting<ActiveTrackId>(-2);
+    m_settings->createSetting<FollowPlaybackQueue>(false, u"Playback/FollowPlaybackQueue"_s);
+    m_settings->createSetting<StopIfActivePlaylistDeleted>(false, u"Playback/StopIfActivePlaylistDeleted"_s);
+    m_settings->createSetting<ResetStopAfterCurrent>(false, u"Playback/ResetStopAfterCurrent"_s);
+    m_settings->createSetting<PreserveTimestamps>(false, u"Tagging/PreserveTimestamps"_s);
+    m_settings->createSetting<PlaylistSkipMissing>(true, u"Playlist/SkipMissing"_s);
+    m_settings->createSetting<PlaybackQueueStopWhenFinished>(false, u"Playback/PlaybackQueueStopWhenFinished"_s);
+    m_settings->createSetting<ClearPlaybackQueueOnStartup>(false, u"Playback/ClearPlaybackQueueOnStartup"_s);
+    m_settings->createSetting<Settings::Core::PlaybackQueueMode>(
+        static_cast<int>(PlaybackQueueMode::PlaylistWithOverrides), u"Playback/PlaybackQueueMode"_s);
+    m_settings->createSetting<PlaybackQueueHistoryLimit>(5, u"Playback/PlaybackQueueHistoryLimit"_s);
+    m_settings->createSetting<PlaybackQueuePlayNowAction>(static_cast<int>(PlayNowAction::AllTracks),
+                                                          u"Playback/PlaybackQueuePlayNowAction"_s);
+    m_settings->createSetting<OverwriteRatingOnReload>(false, u"Library/OverwriteRatingOnReload"_s);
+    m_settings->createSetting<OverwritePlaycountOnReload>(false, u"Library/OverwritePlaycountOnReload"_s);
+    m_settings->createSetting<OpenFileAddDirectory>(false, u"Playlist/OpenFileAddDirectory"_s);
+    m_settings->createSetting<AddFoldersIgnorePlaylists>(true, u"Playlist/AddFoldersIgnorePlaylists"_s);
+    m_settings->createSetting<PlaylistPreventDuplicates>(false, u"Playlist/PreventDuplicates"_s);
+
+    m_settings->createSetting<Internal::MonitorLibraryDirectories>(false, u"Library/MonitorLibraries"_s);
+    m_settings->createSetting<Internal::MonitorTrackFiles>(false, u"Library/MonitorTrackFiles"_s);
+    m_settings->createSetting<Internal::PlaylistSkipUnavailable>(false, u"Playlist/SkipUnavailable"_s);
+    m_settings->createTempSetting<Internal::MuteVolume>(m_settings->value<OutputVolume>());
+    m_settings->createSetting<Internal::DisabledPlugins>(QStringList{}, u"Plugins/Disabled"_s);
+    m_settings->createSetting<Internal::EngineFading>(false, u"Engine/Fading"_s);
+    m_settings->createSetting<Internal::FadingValues>(QVariant::fromValue(Engine::FadingValues{}),
+                                                      u"Engine/FadingValues"_s);
+    m_settings->createSetting<Internal::EngineCrossfading>(false, u"Engine/Crossfading"_s);
+    m_settings->createSetting<Internal::CrossfadingValues>(QVariant::fromValue(Engine::CrossfadingValues{}),
+                                                           u"Engine/CrossfadingValues"_s);
+    m_settings->createSetting<Internal::VBRUpdateInterval>(1000, u"Engine/VBRUpdateInterval"_s);
+    m_settings->createSetting<Internal::ProxyMode>(static_cast<int>(NetworkAccessManager::Mode::None),
+                                                   u"Networking/ProxyMode"_s);
+    m_settings->createSetting<Internal::ProxyType>(static_cast<int>(QNetworkProxy::HttpProxy),
+                                                   u"Networking/ProxyType"_s);
+    m_settings->createSetting<Internal::ProxyHost>(u""_s, u"Networking/ProxyHost"_s);
+    m_settings->createSetting<Internal::ProxyPort>(8080, u"Networking/ProxyPort"_s);
+    m_settings->createSetting<Internal::ProxyAuth>(false, u"Networking/ProxyAuth"_s);
+
+    m_settings->createTempSetting<Internal::ProxyUsername>(QString{});
+    m_settings->createTempSetting<Internal::ProxyPassword>(QString{});
+    setupProxyAccount(m_settings, std::move(dbPool));
+
+    m_settings->createSetting<Internal::DecodeLowWatermarkRatio>(0.50, u"Engine/DecodeLowWatermarkRatio"_s);
+    m_settings->createSetting<Internal::DecodeHighWatermarkRatio>(0.95, u"Engine/DecodeHighWatermarkRatio"_s);
+    m_settings->createSetting<Internal::CrossfadeSwitchPolicy>(
+        static_cast<int>(Engine::CrossfadeSwitchPolicy::OverlapStart), u"Playback/CrossfadeSwitchPolicy"_s);
+    m_settings->createSetting<Internal::SkipSameAlbumCrossfade>(false, u"Playback/SkipSameAlbumCrossfade"_s);
+    m_settings->createSetting<Internal::AutoCrossfadeAlbumScript>(
+        QString::fromLatin1(Internal::DefaultAutoCrossfadeAlbumScript), u"Playback/AutoCrossfadeAlbumScript"_s);
+    m_settings->createSetting<Internal::OutputDeviceProfiles>(QVariant::fromValue(Engine::OutputDeviceProfiles{}),
+                                                              u"Engine/OutputDeviceProfiles"_s);
+    m_settings->createSetting<Internal::OpusHeaderWriteMode>(static_cast<int>(OpusRGWriteMode::Album),
+                                                             u"ReplayGain/OpusHeaderWriteMode"_s);
+    m_settings->createSetting<Internal::RemoteReadAheadKb>(Internal::DefaultRemoteReadAheadKb,
+                                                           u"Engine/RemoteReadAheadKb"_s);
+    m_settings->createSetting<Internal::RemoteBufferLengthMs>(6000, u"Engine/RemoteBufferLengthMs"_s);
+    m_settings->createSetting<Internal::RemotePrebufferMs>(Internal::DefaultRemotePrebufferMs,
+                                                           u"Engine/RemotePrebufferMs"_s);
+    m_settings->createSetting<Internal::RemoteOpenTimeoutMs>(Internal::DefaultRemoteOpenTimeoutMs,
+                                                             u"Engine/RemoteOpenTimeoutMs"_s);
+    m_settings->createSetting<Internal::OutputAutoResample>(true, u"Engine/OutputAutoResample"_s);
+    m_settings->createSetting<Internal::OutputResamplerPreference>(Internal::defaultOutputResamplerPreference(),
+                                                                   u"Engine/OutputResamplerPreference"_s);
+
+    m_settings->set<FirstRun>(!QFileInfo::exists(Core::settingsPath()));
+
+    const int rgMode = m_settings->value<RGMode>();
+    if(rgMode != Engine::NoProcessing) {
+        m_settings->set<Internal::ReplayGainLastActiveMode>(rgMode);
+    }
+    m_settings->subscribe<RGMode>(m_settings, [settings = m_settings](int mode) {
+        if(mode != Engine::NoProcessing) {
+            settings->set<Internal::ReplayGainLastActiveMode>(mode);
+        }
+    });
+
+    auto logLevel = m_settings->fileValue(LogLevel, QtInfoMsg);
+    bool newLogFormat{false};
+    int level = logLevel.toInt(&newLogFormat);
+    if(!newLogFormat) {
+        level = QtInfoMsg;
+    }
+    MessageHandler::setLevel(static_cast<MessageHandler::Level>(level));
+}
+
+CoreSettings::~CoreSettings()
+{
+    m_settings->fileSet(LogLevel, static_cast<int>(MessageHandler::level()));
+}
+} // namespace Fooyin

@@ -1,0 +1,78 @@
+/*
+ * Fooyin
+ * Copyright © 2026, Luke Taylor <luket@pm.me>
+ *
+ * Fooyin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Fooyin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include "fycore_export.h"
+
+#include <QString>
+
+#include <chrono>
+#include <optional>
+#include <stop_token>
+
+namespace Fooyin {
+struct NetworkStreamMetadata
+{
+    QString streamName;
+    QString streamGenre;
+    QString streamTitle;
+    QString streamUrl;
+    QString title;
+    QString artist;
+    QString album;
+    int bitrateKbps{0};
+    quint64 revision{0};
+};
+
+struct RemoteFileInfo
+{
+    qint64 size{-1};
+    //! Modification time in milliseconds since epoch, or zero when unknown.
+    quint64 modifiedTime{0};
+};
+
+//! Optional file properties
+// TODO: Add to RemoteStreamDevice for 1.0
+class FYCORE_EXPORT RemoteFileDevice
+{
+public:
+    virtual ~RemoteFileDevice() = default;
+
+    [[nodiscard]] virtual RemoteFileInfo remoteFileInfo() const = 0;
+};
+
+class FYCORE_EXPORT RemoteStreamDevice
+{
+public:
+    static constexpr auto ReadWaitTimeout = std::chrono::milliseconds{50};
+
+    virtual ~RemoteStreamDevice() = default;
+
+    [[nodiscard]] virtual bool readWouldBlock() const         = 0;
+    [[nodiscard]] virtual qsizetype bufferedByteCount() const = 0;
+    virtual void setNonBlockingReadsEnabled(bool enabled)     = 0;
+    virtual void setReconnectOnFinishedEnabled(bool enabled);
+
+    virtual void setReadCancellationToken(std::stop_token token) = 0;
+
+    [[nodiscard]] virtual bool shouldExposePathToDecoder() const;
+    [[nodiscard]] virtual std::optional<NetworkStreamMetadata> remoteStreamMetadata() const;
+};
+} // namespace Fooyin

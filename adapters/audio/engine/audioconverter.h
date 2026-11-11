@@ -1,0 +1,49 @@
+/*
+ * Fooyin
+ * Copyright © 2024, Luke Taylor <luket@pm.me>
+ *
+ * Fooyin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Fooyin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include "fycore_export.h"
+
+#include <core/engine/audiobuffer.h>
+
+namespace Fooyin {
+class AudioFormat;
+
+namespace Audio {
+/*!
+ * Convert an AudioBuffer to @p outputFormat.
+ *
+ * Handles sample-format conversion and channel-layout remap/mix as needed.
+ * When @p dither is true, TPDF dither is applied for float->S16 conversion.
+ * Returns an invalid buffer on conversion failure.
+ */
+FYCORE_EXPORT AudioBuffer convert(const AudioBuffer& buffer, const AudioFormat& outputFormat, bool dither = false);
+
+/*!
+ * Convert interleaved raw samples between formats.
+ *
+ * When @p dither is true, TPDF dither is applied for float->S16 conversion.
+ * @p output must have enough space for the converted sample count.
+ */
+FYCORE_EXPORT bool convert(const AudioFormat& inputFormat, const std::byte* input, const AudioFormat& outputFormat,
+                           std::byte* output, int frameCount, bool dither = false);
+
+} // namespace Audio
+} // namespace Fooyin

@@ -1,0 +1,39 @@
+/*
+ * Fooyin
+ * Copyright © 2026, Luke Taylor <luket@pm.me>
+ *
+ * Fooyin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Fooyin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Fooyin.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#pragma once
+
+#include "playcounttagpolicy.h"
+#include "ratingtagpolicy.h"
+
+#include "fycore_export.h"
+#include "internalcoresettings.h"
+
+namespace Fooyin {
+struct FYCORE_EXPORT TagPolicy
+{
+    RatingTagPolicy rating;
+    PlaycountTagPolicy playcount;
+    bool splitId3v23SemicolonSeparatedTags{false};
+    Id3v2WriteVersion id3v2WriteVersion{Id3v2WriteVersion::V4};
+    Mp3TagWritingScheme mp3TagWritingScheme{Mp3TagWritingScheme::Id3v2AndId3v1};
+};
+
+[[nodiscard]] FYCORE_EXPORT TagPolicy tagPolicy();
+} // namespace Fooyin

@@ -77,6 +77,8 @@ if(Qt6DBus_FOUND)
     add_compile_definitions(PICAUDIO_ENABLE_DBUS)
 endif()
 
+add_subdirectory(audio/engine)
+
 # UI, Theming, Data, Audio & Desktop Adapters
 qt_add_library(ui_adapter STATIC
     ui_qt/QtBridge.hpp
@@ -222,6 +224,7 @@ qt_add_qml_module(ui_adapter
 
 target_link_libraries(ui_adapter PUBLIC
     player_core
+    picaudio_engine
     picaudio_sdk
     Qt6::Quick
     Qt6::QuickControls2
@@ -248,6 +251,17 @@ target_include_directories(ui_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/metadata
     ${CMAKE_CURRENT_SOURCE_DIR}/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/audio
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/control
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/decode
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/dsp
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/output
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/pipeline
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/outputs
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/player
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/playlist
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/utils
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp/clap/include
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/wasapi
