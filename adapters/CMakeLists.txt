@@ -89,6 +89,12 @@ qt_add_library(ui_adapter STATIC
     ui_qt/models/AlbumListModel.cpp
     ui_qt/models/TrackListModel.hpp
     ui_qt/models/TrackListModel.cpp
+    ui_qt/models/TabListModel.hpp
+    ui_qt/models/TabListModel.cpp
+    ui_qt/models/LayoutModel.hpp
+    ui_qt/models/LayoutModel.cpp
+    ui_qt/models/ViewRegistryModel.hpp
+    ui_qt/models/ViewRegistryModel.cpp
     ui_qt/providers/AlbumArtImageProvider.hpp
     ui_qt/providers/AlbumArtImageProvider.cpp
     metadata/TagLibMetadataAdapter.hpp
@@ -212,10 +218,23 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/views/AlbumDetailView.qml
         ui_qt/qml/views/ColumnBrowserView.qml
         ui_qt/qml/views/TrackTableView.qml
+        ui_qt/qml/views/AlbumCoversGridView.qml
+        ui_qt/qml/views/AlbumAndTracksView.qml
+        ui_qt/qml/views/ArtistsGridView.qml
+        ui_qt/qml/views/JukeboxView.qml
+        ui_qt/qml/views/ThumbnailBrowserView.qml
+        ui_qt/qml/views/LibraryExplorerView.qml
+        ui_qt/qml/views/MainWorkspaceHost.qml
         ui_qt/qml/views/ViewSubToolbar.qml
         ui_qt/qml/menubar/AppMenuBar.qml
         ui_qt/qml/toolbar/TopToolbar.qml
         ui_qt/qml/navigation/LeftSidebar.qml
+        ui_qt/qml/navigation/TabsBar.qml
+        ui_qt/qml/components/FloatingWindow.qml
+        ui_qt/qml/components/JumpBar.qml
+        ui_qt/qml/dialogs/ArrangePanelsDialog.qml
+        ui_qt/qml/dialogs/ViewConfigDialog.qml
+        ui_qt/qml/dialogs/ConfirmDropDialog.qml
         ui_qt/qml/inspector/RightInspectorPanel.qml
         ui_qt/qml/player/PlayerDeck.qml
         ui_qt/qml/player/MiniPlayer.qml

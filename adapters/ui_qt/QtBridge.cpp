@@ -48,6 +48,52 @@ QtBridge::QtBridge(core::PlayerService &player, core::LibraryService &library,
   m_queueTrackModel = new TrackListModel(&m_library.getDatabasePort(), this);
   m_historyTrackModel = new TrackListModel(&m_library.getDatabasePort(), this);
 
+  m_tabService = std::make_unique<core::TabService>();
+  QString configDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+  QDir().mkpath(configDir);
+  QString tabSessionPath = configDir + "/tab_session.json";
+  m_tabService->loadFromFile(tabSessionPath.toStdString());
+
+  m_tabModel = new TabListModel(m_tabService.get(), this);
+  m_layoutModel = new LayoutModel(this);
+  m_viewRegistryModel = new ViewRegistryModel(this);
+
+  // Wire tab switch to layout overrides and data source scoping
+  connect(m_tabModel, &TabListModel::tabSwitched, this,
+          [this](int /*oldIndex*/, int /*newIndex*/, const QString &sourceId,
+                 const QString &viewId) {
+            applyTabSource(sourceId);
+            if (m_viewRegistryModel && m_layoutModel) {
+              QVariantMap overrides =
+                  m_viewRegistryModel->getPanelOverrides(viewId);
+              m_layoutModel->applyLayoutOverrides(overrides);
+            }
+          });
+
+  // Wire layout preset changes to active tab view recommendations
+  connect(
+      m_layoutModel, &LayoutModel::presetApplied, this,
+      [this](const QString & /*presetId*/, const QString &recommendedViewId) {
+        if (m_tabModel && !recommendedViewId.isEmpty()) {
+          if (!m_tabModel->isActiveTabLocked()) {
+            m_tabModel->updateActiveView(recommendedViewId);
+          }
+        }
+      });
+
+  // Apply initial layout overrides and source scoping for active tab
+  if (m_tabModel) {
+    applyTabSource(m_tabModel->activeSourceId());
+    if (m_viewRegistryModel && m_layoutModel) {
+      QString initialViewId = m_tabModel->activeViewId();
+      if (!initialViewId.isEmpty()) {
+        m_layoutModel->applyLayoutOverrides(
+            m_viewRegistryModel->getPanelOverrides(initialViewId));
+      }
+    }
+  }
+
   m_waveformExtractor = std::make_unique<adapters::WaveformExtractor>();
 
   m_mediaDevices = new QMediaDevices(this);
@@ -96,6 +142,11 @@ QtBridge::QtBridge(core::PlayerService &player, core::LibraryService &library,
 }
 
 QtBridge::~QtBridge() {
+  if (m_tabService) {
+    QString configDir =
+        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    m_tabService->saveToFile((configDir + "/tab_session.json").toStdString());
+  }
   savePlaybackSession();
   saveViewLayoutSettings();
   saveColumnSettings();
@@ -768,6 +819,166 @@ void QtBridge::showAllTracks() {
   emit viewLayoutChanged();
   emit filtersReset();
   emit hiResFilterChanged();
+}
+
+void QtBridge::applyTabSource(const QString &sourceId) {
+  QString cleanSource = sourceId.trimmed();
+  if (cleanSource.isEmpty() || cleanSource == "library://music") {
+    m_activePlaylistName.clear();
+    m_activeNavSection = 0;
+    m_albumModel->resetAllFilters();
+    m_trackModel->resetAllFilters();
+    m_trackModel->loadAllTracks();
+    m_albumModel->reload();
+    refreshLibraryStats();
+    emit playlistsChanged();
+    emit viewLayoutChanged();
+    emit filtersReset();
+    return;
+  }
+
+  if (cleanSource.startsWith("folder://") ||
+      cleanSource.startsWith("file://")) {
+    QString folderPath = cleanSource;
+    if (folderPath.startsWith("folder://")) {
+      folderPath = folderPath.mid(9);
+    } else if (folderPath.startsWith("file://")) {
+      folderPath = folderPath.mid(7);
+    }
+    QUrl url = QUrl::fromUserInput(folderPath);
+    if (url.isLocalFile()) {
+      folderPath = url.toLocalFile();
+    }
+    folderPath = QDir::cleanPath(folderPath);
+
+    QDir dir(folderPath);
+    if (dir.exists()) {
+      auto all = m_library.getTracks();
+      std::vector<core::Track> folderTracks;
+      std::string prefix = folderPath.toStdString();
+      for (const auto &t : all) {
+        if (t.filePath.rfind(prefix, 0) == 0) {
+          folderTracks.push_back(t);
+        }
+      }
+
+      if (folderTracks.empty()) {
+        m_library.scanDirectory(folderPath.toStdString());
+        all = m_library.getTracks();
+        for (const auto &t : all) {
+          if (t.filePath.rfind(prefix, 0) == 0) {
+            folderTracks.push_back(t);
+          }
+        }
+      }
+
+      m_trackModel->resetAllFilters();
+      m_albumModel->resetAllFilters();
+      m_trackModel->setTracks(folderTracks);
+      m_albumModel->setAlbumsFromTracks(folderTracks);
+      m_activePlaylistName.clear();
+      m_activeNavSection = 2;
+      refreshLibraryStats();
+      emit playlistsChanged();
+      emit viewLayoutChanged();
+      emit filtersReset();
+      return;
+    }
+  }
+
+  if (cleanSource.startsWith("playlist://")) {
+    QString plName = cleanSource.mid(11);
+    openPlaylist(plName);
+    return;
+  }
+
+  if (cleanSource == "library://favorites" ||
+      cleanSource == "playlist://Favorites") {
+    auto all = m_library.getTracks();
+    std::vector<core::Track> favTracks;
+    for (const auto &t : all) {
+      if (t.isFavorite) {
+        favTracks.push_back(t);
+      }
+    }
+    m_trackModel->resetAllFilters();
+    m_albumModel->resetAllFilters();
+    m_trackModel->setTracks(favTracks);
+    m_albumModel->setAlbumsFromTracks(favTracks);
+    m_activePlaylistName = "Favorites";
+    m_activeNavSection = 6;
+    refreshLibraryStats();
+    emit playlistsChanged();
+    emit viewLayoutChanged();
+    emit filtersReset();
+    return;
+  }
+
+  if (cleanSource == "library://history") {
+    auto history = m_historyTrackModel ? m_historyTrackModel->tracks()
+                                       : std::vector<core::Track>{};
+    if (history.empty()) {
+      auto histPairs = m_library.getDatabasePort().getListeningHistory(100);
+      for (const auto &pair : histPairs) {
+        history.push_back(pair.first);
+      }
+    }
+    m_trackModel->resetAllFilters();
+    m_albumModel->resetAllFilters();
+    m_trackModel->setTracks(history);
+    m_albumModel->setAlbumsFromTracks(history);
+    m_activePlaylistName.clear();
+    m_activeNavSection = 7;
+    refreshLibraryStats();
+    emit playlistsChanged();
+    emit viewLayoutChanged();
+    emit filtersReset();
+    return;
+  }
+
+  if (cleanSource == "library://inbox") {
+    auto all = m_library.getTracks();
+    std::vector<core::Track> inboxTracks;
+    for (const auto &t : all) {
+      if (t.rating == 0 && t.playCount == 0) {
+        inboxTracks.push_back(t);
+      }
+    }
+    if (inboxTracks.empty())
+      inboxTracks = all;
+    m_trackModel->resetAllFilters();
+    m_albumModel->resetAllFilters();
+    m_trackModel->setTracks(inboxTracks);
+    m_albumModel->setAlbumsFromTracks(inboxTracks);
+    m_activePlaylistName.clear();
+    m_activeNavSection = 8;
+    refreshLibraryStats();
+    emit playlistsChanged();
+    emit viewLayoutChanged();
+    emit filtersReset();
+    return;
+  }
+
+  if (cleanSource == "library://now_playing") {
+    const auto &qTracks = m_player.getQueue();
+    m_trackModel->resetAllFilters();
+    m_albumModel->resetAllFilters();
+    m_trackModel->setTracks(qTracks);
+    m_albumModel->setAlbumsFromTracks(qTracks);
+    m_activePlaylistName.clear();
+    m_activeNavSection = 4;
+    refreshLibraryStats();
+    emit playlistsChanged();
+    emit viewLayoutChanged();
+    emit filtersReset();
+    return;
+  }
+}
+
+void QtBridge::applyLayoutPreset(const QString &presetId) {
+  if (m_layoutModel) {
+    m_layoutModel->applyPreset(presetId);
+  }
 }
 
 void QtBridge::openAlbumDetails(const QString &albumTitle,

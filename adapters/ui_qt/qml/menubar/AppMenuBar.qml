@@ -27,9 +27,9 @@ RowLayout {
     signal requestToggleFullscreen()
     signal requestToggleMiniPlayer()
     signal requestHideWindow()
-    signal requestSwitchViewMode(int mode)
     signal requestToggleEqualizer()
     signal requestLibraryHealth()
+    signal requestArrangePanels()
 
     // Two-way UI state properties
     property bool showLeftPanel: true
@@ -38,7 +38,6 @@ RowLayout {
     property int rightPanelTab: 0
     property bool showEqualizer: false
     property bool showStatusBar: true
-    property int mainViewMode: 1
     property bool isMiniPlayer: false
     property bool isFullscreen: false
 
@@ -271,36 +270,48 @@ RowLayout {
             }
             MenuSeparator {}
             Menu {
-                title: "View Modes"
+                title: "View Modes (Active Tab)"
                 MenuItem {
-                    text: "Track Details Table (Alt+1)"
+                    text: "Tracks Table"
                     checkable: true
-                    checked: root.mainViewMode === 1
-                    onTriggered: root.requestSwitchViewMode(1)
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "tracks_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "tracks"))
+                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("tracks_default") }
                 }
                 MenuItem {
-                    text: "Album Grid (Alt+2)"
+                    text: "Album Covers Grid"
                     checkable: true
-                    checked: root.mainViewMode === 0
-                    onTriggered: root.requestSwitchViewMode(0)
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "covers_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "covers"))
+                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("covers_default") }
                 }
                 MenuItem {
-                    text: "Album Details & Tracks (Alt+3)"
+                    text: "Album & Tracks"
                     checkable: true
-                    checked: root.mainViewMode === 2
-                    onTriggered: root.requestSwitchViewMode(2)
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "album_and_tracks_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "album_and_tracks"))
+                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("album_and_tracks_default") }
                 }
                 MenuItem {
-                    text: "Now Playing View (Alt+4)"
+                    text: "Artists Grid"
                     checkable: true
-                    checked: root.mainViewMode === 4
-                    onTriggered: root.requestSwitchViewMode(4)
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "artists_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "artists"))
+                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("artists_default") }
                 }
                 MenuItem {
-                    text: "Listening History (Alt+5)"
+                    text: "Now Playing View"
                     checkable: true
-                    checked: root.mainViewMode === 3
-                    onTriggered: root.requestSwitchViewMode(3)
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "now_playing_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "now_playing"))
+                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("now_playing_default") }
+                }
+                MenuItem {
+                    text: "Jukebox Presentation"
+                    checkable: true
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "jukebox_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "jukebox"))
+                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("jukebox_default") }
+                }
+                MenuItem {
+                    text: "Listening History"
+                    checkable: true
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "history_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "history"))
+                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("history_default") }
                 }
                 MenuSeparator {}
                 MenuItem {
@@ -309,6 +320,44 @@ RowLayout {
                     checked: bridge.groupAlbumsByTitle
                     onTriggered: bridge.setGroupAlbumsByTitle(!bridge.groupAlbumsByTitle)
                 }
+            }
+            MenuSeparator {}
+            Menu {
+                title: "Layout Presets"
+                MenuItem {
+                    text: "Studio (Pro Workspace)"
+                    checkable: true
+                    checked: bridge.layoutModel && bridge.layoutModel.currentPreset === "studio"
+                    onTriggered: bridge.applyLayoutPreset("studio")
+                }
+                MenuItem {
+                    text: "Showcase (Art Gallery)"
+                    checkable: true
+                    checked: bridge.layoutModel && bridge.layoutModel.currentPreset === "showcase"
+                    onTriggered: bridge.applyLayoutPreset("showcase")
+                }
+                MenuItem {
+                    text: "Catalog (Multi-Pane Explorer)"
+                    checkable: true
+                    checked: bridge.layoutModel && bridge.layoutModel.currentPreset === "catalog"
+                    onTriggered: bridge.applyLayoutPreset("catalog")
+                }
+                MenuItem {
+                    text: "Stage (Immersive Player)"
+                    checkable: true
+                    checked: bridge.layoutModel && bridge.layoutModel.currentPreset === "stage"
+                    onTriggered: bridge.applyLayoutPreset("stage")
+                }
+                MenuItem {
+                    text: "Streamlined (Minimal)"
+                    checkable: true
+                    checked: bridge.layoutModel && bridge.layoutModel.currentPreset === "compact"
+                    onTriggered: bridge.applyLayoutPreset("compact")
+                }
+            }
+            MenuItem {
+                text: "Arrange Panels & Docking Zones..."
+                onTriggered: root.requestArrangePanels()
             }
             MenuItem {
                 text: (root.isMiniPlayer ? "Restore Full Player" : "Mini-Player Mode") + " (Ctrl+Shift+M / F10)"
@@ -387,6 +436,84 @@ RowLayout {
                 MenuItem {
                     text: "Manage Themes..."
                     onTriggered: root.requestPreferences(1)
+                }
+            }
+        }
+    }
+
+    // Tabs Menu Button
+    Rectangle {
+        width: tabsMenuText.implicitWidth + 14
+        height: 22
+        radius: 3
+        color: tabsMenuMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+        Text {
+            id: tabsMenuText
+            anchors.centerIn: parent
+            text: "Tabs"
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.textSecondary
+        }
+        MouseArea {
+            id: tabsMenuMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tabsMenu.open()
+        }
+        Menu {
+            id: tabsMenu
+            y: parent.height
+            MenuItem {
+                text: "New Tab (Ctrl+T)"
+                onTriggered: { if (bridge.tabModel) bridge.tabModel.openTab("library://music", "Music") }
+            }
+            MenuItem {
+                text: "Close Tab (Ctrl+W)"
+                enabled: bridge.tabModel && bridge.tabModel.tabCount > 1
+                onTriggered: { if (bridge.tabModel) bridge.tabModel.closeTab(bridge.tabModel.activeTabIndex, false) }
+            }
+            MenuItem {
+                text: "Close Other Tabs"
+                enabled: bridge.tabModel && bridge.tabModel.tabCount > 1
+                onTriggered: { if (bridge.tabModel) bridge.tabModel.closeOtherTabs(bridge.tabModel.activeTabIndex) }
+            }
+            MenuItem {
+                text: "Reopen Closed Tab (Ctrl+Shift+T)"
+                enabled: bridge.tabModel && bridge.tabModel.canReopenClosedTab
+                onTriggered: { if (bridge.tabModel) bridge.tabModel.reopenLastClosedTab() }
+            }
+            MenuItem {
+                text: "Duplicate Tab"
+                onTriggered: { if (bridge.tabModel) bridge.tabModel.duplicateTab(bridge.tabModel.activeTabIndex) }
+            }
+            MenuSeparator {}
+            MenuItem {
+                text: (bridge.tabModel && bridge.tabModel.activeLockMode === 0) ? "Lock Tab" : "Unlock Tab"
+                onTriggered: {
+                    if (bridge.tabModel) {
+                        if (bridge.tabModel.activeLockMode === 0) {
+                            bridge.tabModel.setTabLockMode(bridge.tabModel.activeTabIndex, 1)
+                        } else {
+                            bridge.tabModel.unlockTab(bridge.tabModel.activeTabIndex)
+                        }
+                    }
+                }
+            }
+            MenuItem {
+                text: (bridge.tabModel && bridge.tabModel.activeIsPinned) ? "Unpin Tab" : "Pin Tab"
+                onTriggered: {
+                    if (bridge.tabModel) {
+                        bridge.tabModel.setTabPinned(bridge.tabModel.activeTabIndex, !bridge.tabModel.activeIsPinned)
+                    }
+                }
+            }
+            MenuItem {
+                text: "Set as Root Lock (Lock to Current Location)"
+                onTriggered: {
+                    if (bridge.tabModel) {
+                        bridge.tabModel.setTabRootLock(bridge.tabModel.activeTabIndex, bridge.tabModel.activeSourceId)
+                    }
                 }
             }
         }

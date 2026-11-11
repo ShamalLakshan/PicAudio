@@ -89,6 +89,7 @@ class ThemeLoader : public QObject {
   Q_PROPERTY(QString surface READ surface NOTIFY themeChanged)
   Q_PROPERTY(QString surfaceElevated READ surfaceElevated NOTIFY themeChanged)
   Q_PROPERTY(QString panelBorder READ panelBorder NOTIFY themeChanged)
+  Q_PROPERTY(QString border READ panelBorder NOTIFY themeChanged)
   Q_PROPERTY(QString accent READ accent NOTIFY themeChanged)
   Q_PROPERTY(QString accentHover READ accentHover NOTIFY themeChanged)
   Q_PROPERTY(QString textPrimary READ textPrimary NOTIFY themeChanged)
@@ -116,6 +117,7 @@ class ThemeLoader : public QObject {
   Q_PROPERTY(int spacingLarge READ spacingLarge NOTIFY themeChanged)
   Q_PROPERTY(int cornerRadiusSmall READ cornerRadiusSmall NOTIFY themeChanged)
   Q_PROPERTY(int cornerRadiusMedium READ cornerRadiusMedium NOTIFY themeChanged)
+  Q_PROPERTY(int cardCornerRadius READ cardCornerRadius NOTIFY themeChanged)
   Q_PROPERTY(int panelPadding READ panelPadding NOTIFY themeChanged)
 
   // UI Scale / Density
@@ -193,6 +195,9 @@ public:
     return m_tokens.cornerRadiusSmall;
   }
   [[nodiscard]] int cornerRadiusMedium() const {
+    return m_tokens.cornerRadiusMedium;
+  }
+  [[nodiscard]] int cardCornerRadius() const {
     return m_tokens.cornerRadiusMedium;
   }
   [[nodiscard]] int panelPadding() const {

@@ -8,7 +8,6 @@ Rectangle {
 
     property int activeNavSection: 0
     property string activePlaylistName: ""
-    property int mainViewMode: 1
     property bool physicalFoldersExpanded: true
 
     signal navSectionSelected(int nav, int mode)
@@ -94,6 +93,7 @@ Rectangle {
                 Repeater {
                     model: [
                         { title: "All Music Tracks", count: bridge.totalTracks, icon: "table", nav: 0, mode: 1 },
+                        { title: "Inbox (Staging)", count: "", icon: "queue", nav: 8, mode: 1 },
                         { title: "Albums", count: bridge.totalAlbums, icon: "grid", nav: 1, mode: 0 },
                         { title: "Artists", count: bridge.artistsList.length, icon: "disc", nav: 2, mode: 1 },
                         { title: "Genres", count: bridge.genresList.length, icon: "music", nav: 3, mode: 1 },
@@ -140,7 +140,22 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
+                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+                            onClicked: (mouse) => {
+                                var sourceUri = "library://music";
+                                if (modelData.nav === 1) sourceUri = "library://albums";
+                                else if (modelData.nav === 2) sourceUri = "library://artists";
+                                else if (modelData.nav === 3) sourceUri = "library://genres";
+                                else if (modelData.nav === 6) sourceUri = "playlist://Favorites";
+                                else if (modelData.nav === 7) sourceUri = "library://history";
+                                else if (modelData.nav === 8) sourceUri = "library://inbox";
+
+                                if (mouse.button === Qt.MiddleButton) {
+                                    bridge.tabModel.routeNavigatorClick(sourceUri, modelData.title, true);
+                                    return;
+                                }
+
+                                bridge.tabModel.routeNavigatorClick(sourceUri, modelData.title, false);
                                 root.activeNavSection = modelData.nav;
                                 if (modelData.nav === 0) {
                                     bridge.showAllTracks();
@@ -179,25 +194,30 @@ Rectangle {
                 }
 
                 Rectangle {
+                    id: npItem
                     Layout.fillWidth: true
                     Layout.preferredHeight: 26
-                    color: (root.activeNavSection === 4 && root.mainViewMode === 4) ? Theme.selection : (npMouse.containsMouse ? Theme.surfaceElevated : "transparent")
+                    property bool isNpActive: bridge.tabModel && (bridge.tabModel.activeSourceId === "library://now_playing" || bridge.tabModel.activeViewId === "now_playing_default")
+                    color: isNpActive ? Theme.selection : (npMouse.containsMouse ? Theme.surfaceElevated : "transparent")
 
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 16
                         anchors.rightMargin: 10
                         spacing: 8
-                        VectorIcon { name: "disc"; width: 11; height: 11; color: (root.activeNavSection === 4 && root.mainViewMode === 4) ? Theme.accent : Theme.textMuted }
-                        Text { text: "Now Playing"; font.pixelSize: Theme.fontSizeSmall; color: (root.activeNavSection === 4 && root.mainViewMode === 4) ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true }
+                        VectorIcon { name: "disc"; width: 11; height: 11; color: npItem.isNpActive ? Theme.accent : Theme.textMuted }
+                        Text { text: "Now Playing"; font.pixelSize: Theme.fontSizeSmall; color: npItem.isNpActive ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true }
                     }
                     MouseArea {
                         id: npMouse
                         anchors.fill: parent
                         hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root.requestSwitchToNowPlaying();
+                        onClicked: (mouse) => {
+                            var forceNew = (mouse.button === Qt.MiddleButton);
+                            bridge.tabModel.routeNavigatorClick("library://now_playing", "Now Playing", forceNew);
+                            bridge.tabModel.updateActiveView("now_playing_default");
                         }
                     }
                 }
@@ -250,11 +270,17 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                             onClicked: (mouse) => {
                                 if (mouse.button === Qt.RightButton) {
                                     root.requestPlaylistContextMenu(modelData, bridge.isSmartPlaylist(modelData));
+                                } else if (mouse.button === Qt.MiddleButton) {
+                                    bridge.tabModel.routeNavigatorClick("playlist://" + modelData, modelData, true);
+                                    root.activeNavSection = 5;
+                                    root.playlistSelected(modelData);
+                                    bridge.openPlaylist(modelData);
                                 } else {
+                                    bridge.tabModel.routeNavigatorClick("playlist://" + modelData, modelData, false);
                                     root.activeNavSection = 5;
                                     root.playlistSelected(modelData);
                                     bridge.openPlaylist(modelData);
@@ -388,12 +414,14 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                             onClicked: (mouse) => {
                                 if (mouse.button === Qt.RightButton) {
                                     root.requestFolderContextMenu(modelData);
+                                } else if (mouse.button === Qt.MiddleButton) {
+                                    bridge.tabModel.routeNavigatorClick("folder://" + modelData, modelData, true);
                                 } else {
-                                    bridge.openFolder(modelData, false);
+                                    bridge.tabModel.routeNavigatorClick("folder://" + modelData, modelData, false);
                                 }
                             }
                             ToolTip.visible: folderItemMouse.containsMouse
@@ -467,12 +495,14 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                                 onClicked: (mouse) => {
                                     if (mouse.button === Qt.RightButton) {
                                         root.requestFolderContextMenu(modelData.path);
+                                    } else if (mouse.button === Qt.MiddleButton) {
+                                        bridge.tabModel.routeNavigatorClick("folder://" + modelData.path, modelData.name || modelData.path, true);
                                     } else {
-                                        bridge.openFolder(modelData.path, false);
+                                        bridge.tabModel.routeNavigatorClick("folder://" + modelData.path, modelData.name || modelData.path, false);
                                     }
                                 }
                                 ToolTip.visible: dirNodeMouse.containsMouse

@@ -47,11 +47,18 @@ void TrackListModel::loadAlbumTracks(const QString &albumTitle,
   m_allTracks.clear();
   m_filteredTracks.clear();
   m_selectedIndices.clear();
+  m_searchQuery.clear();
+  m_filterText.clear();
+  m_genreFilter.clear();
+  m_artistFilter.clear();
+  m_albumFilter.clear();
+  m_letterFilter.clear();
+  m_hiResOnly = false;
   if (m_dbPort) {
     m_allTracks = m_dbPort->getTracksByAlbum(albumTitle.toStdString(),
                                              albumArtist.toStdString());
   }
-  applyFilter();
+  m_filteredTracks = m_allTracks;
   endResetModel();
   emit countChanged();
   emit selectionChanged();

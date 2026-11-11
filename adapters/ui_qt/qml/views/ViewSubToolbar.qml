@@ -6,13 +6,12 @@ import ".."
 Rectangle {
     id: root
 
-    property int mainViewMode: 1
     property bool showColumnBrowser: false
     property string activeLetterFilter: "All"
 
-    signal requestSwitchViewMode(int mode)
     signal toggleColumnBrowser()
     signal letterFilterSelected(string letter)
+    signal requestCustomizeView()
 
     Layout.fillWidth: true
     Layout.preferredHeight: 34
@@ -26,85 +25,109 @@ Rectangle {
         anchors.rightMargin: 10
         spacing: 10
 
-        // View Mode Toggle Icons
+        // In-Tab View Mode Switcher
         RowLayout {
             spacing: 2
             Layout.alignment: Qt.AlignVCenter
 
-            Rectangle {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 24
-                Layout.leftMargin: 1
-                Layout.rightMargin: 1
-                width: 28
-                height: 24
-                radius: Theme.cornerRadiusSmall
-                color: root.mainViewMode === 1 ? Theme.selection : (vm1Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                border.color: root.mainViewMode === 1 ? Theme.accent : "transparent"
-                VectorIcon { anchors.centerIn: parent; name: "table"; width: 12; height: 12; color: root.mainViewMode === 1 ? Theme.accent : Theme.textMuted }
-                MouseArea {
-                    id: vm1Mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: root.requestSwitchViewMode(1)
+            Repeater {
+                model: [
+                    { id: "tracks_default", name: "Tracks Table", icon: "table", tooltip: "Tracks Table View" },
+                    { id: "covers_default", name: "Album Covers", icon: "grid", tooltip: "Album Covers Grid View" },
+                    { id: "album_and_tracks_default", name: "Album & Tracks", icon: "album_tracks", tooltip: "Album & Tracks View" },
+                    { id: "artists_default", name: "Artists", icon: "library", tooltip: "Artists Grid View" },
+                    { id: "now_playing_default", name: "Now Playing", icon: "disc", tooltip: "Now Playing View" },
+                    { id: "jukebox_default", name: "Jukebox", icon: "volume", tooltip: "Jukebox Presentation View" },
+                    { id: "history_default", name: "History", icon: "history", tooltip: "Listening History View" }
+                ]
+
+                delegate: Rectangle {
+                    id: vmBtn
+                    property bool isCurrent: bridge.tabModel && (bridge.tabModel.activeViewId === modelData.id || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === bridge.viewRegistry.getBaseRendererType(modelData.id)))
+
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 24
+                    Layout.leftMargin: 1
+                    Layout.rightMargin: 1
+                    width: 28
+                    height: 24
+                    radius: Theme.cornerRadiusSmall
+                    color: isCurrent ? Theme.selection : (vmMouse.containsMouse ? Theme.surfaceElevated : "transparent")
+                    border.color: isCurrent ? Theme.accent : "transparent"
+
+                    VectorIcon {
+                        anchors.centerIn: parent
+                        name: modelData.icon
+                        width: 12
+                        height: 12
+                        color: vmBtn.isCurrent ? Theme.accent : Theme.textMuted
+                    }
+
+                    MouseArea {
+                        id: vmMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (bridge.tabModel) {
+                                bridge.tabModel.updateActiveView(modelData.id);
+                            }
+                        }
+                    }
+
+                    ToolTip.visible: vmMouse.containsMouse
+                    ToolTip.text: modelData.tooltip
                 }
-                ToolTip.visible: vm1Mouse.containsMouse
-                ToolTip.text: "Track Details Table (Alt+1)"
             }
 
+            // View modes dropdown (custom views + config)
             Rectangle {
-                Layout.preferredWidth: 28
+                Layout.preferredWidth: 18
                 Layout.preferredHeight: 24
-                Layout.leftMargin: 1
-                Layout.rightMargin: 1
-                width: 28
-                height: 24
                 radius: Theme.cornerRadiusSmall
-                color: root.mainViewMode === 0 ? Theme.selection : (vm0Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                border.color: root.mainViewMode === 0 ? Theme.accent : "transparent"
-                VectorIcon { anchors.centerIn: parent; name: "grid"; width: 12; height: 12; color: root.mainViewMode === 0 ? Theme.accent : Theme.textMuted }
-                MouseArea {
-                    id: vm0Mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: root.requestSwitchViewMode(0)
-                }
-                ToolTip.visible: vm0Mouse.containsMouse
-                ToolTip.text: "Album Grid View (Alt+2)"
-            }
+                color: moreViewsMouse.containsMouse ? Theme.surfaceElevated : "transparent"
 
-            Rectangle {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 24
-                Layout.leftMargin: 1
-                Layout.rightMargin: 1
-                width: 28
-                height: 24
-                radius: Theme.cornerRadiusSmall
-                color: root.mainViewMode === 2 ? Theme.selection : (vm2Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                border.color: root.mainViewMode === 2 ? Theme.accent : "transparent"
-                VectorIcon { anchors.centerIn: parent; name: "album_tracks"; width: 12; height: 12; color: root.mainViewMode === 2 ? Theme.accent : Theme.textMuted }
-                MouseArea {
-                    id: vm2Mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: root.requestSwitchViewMode(2)
+                Text {
+                    anchors.centerIn: parent
+                    text: "▾"
+                    font.pixelSize: 10
+                    color: Theme.textMuted
                 }
-                ToolTip.visible: vm2Mouse.containsMouse
-                ToolTip.text: "Album Details & Tracks (Alt+3)"
-            }
 
-            Rectangle {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 24
-                Layout.leftMargin: 1
-                Layout.rightMargin: 1
-                width: 28
-                height: 24
-                radius: Theme.cornerRadiusSmall
-                color: root.mainViewMode === 4 ? Theme.selection : (vm4Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                border.color: root.mainViewMode === 4 ? Theme.accent : "transparent"
-                VectorIcon { anchors.centerIn: parent; name: "disc"; width: 12; height: 12; color: root.mainViewMode === 4 ? Theme.accent : Theme.textMuted }
                 MouseArea {
-                    id: vm4Mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: root.requestSwitchViewMode(4)
+                    id: moreViewsMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: viewsMenu.popup()
                 }
-                ToolTip.visible: vm4Mouse.containsMouse
-                ToolTip.text: "Now Playing View (Alt+4)"
+
+                ToolTip.visible: moreViewsMouse.containsMouse
+                ToolTip.text: qsTr("More Views & Custom Views...")
+
+                Menu {
+                    id: viewsMenu
+                    Instantiator {
+                        model: bridge.viewRegistry ? bridge.viewRegistry.getAllViews() : []
+                        onObjectAdded: (index, object) => viewsMenu.insertItem(index, object)
+                        onObjectRemoved: (index, object) => viewsMenu.removeItem(object)
+                        delegate: MenuItem {
+                            text: modelData.name
+                            checkable: true
+                            checked: bridge.tabModel && bridge.tabModel.activeViewId === modelData.viewId
+                            onTriggered: {
+                                if (bridge.tabModel) {
+                                    bridge.tabModel.updateActiveView(modelData.viewId);
+                                }
+                            }
+                        }
+                    }
+                    MenuSeparator {}
+                    MenuItem {
+                        text: qsTr("Customize Workspace View...")
+                        onTriggered: root.requestCustomizeView()
+                    }
+                }
             }
         }
 
@@ -263,14 +286,16 @@ Rectangle {
         Text {
             text: {
                 var suffix = bridge.hiResOnly ? " (Hi-Res)" : "";
-                if (root.mainViewMode === 0) {
-                    return bridge.albumModel.count + " albums" + suffix;
-                } else if (root.mainViewMode === 2) {
+                var vId = bridge.tabModel ? bridge.tabModel.activeViewId : "";
+                var baseType = bridge.viewRegistry ? bridge.viewRegistry.getBaseRendererType(vId) : "tracks";
+                if (baseType === "covers") {
+                    return (bridge.albumModel ? bridge.albumModel.rowCount() : 0) + " albums" + suffix;
+                } else if (baseType === "album_and_tracks") {
                     return (bridge.selectedAlbumTrackCount > 0 ? (bridge.selectedAlbumTrackCount + " tracks • " + bridge.selectedAlbumDuration) : "Album Details");
-                } else if (root.mainViewMode === 3) {
-                    return bridge.historyTrackModel.count + " played";
+                } else if (baseType === "history") {
+                    return (bridge.historyTrackModel ? bridge.historyTrackModel.rowCount() : 0) + " played";
                 }
-                return bridge.trackModel.count + " tracks" + suffix;
+                return (bridge.trackModel ? bridge.trackModel.rowCount() : 0) + " tracks" + suffix;
             }
             font.pixelSize: 10
             color: bridge.hiResOnly ? Theme.accent : Theme.textMuted

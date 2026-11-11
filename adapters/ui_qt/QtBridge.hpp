@@ -16,8 +16,12 @@
 #include "core/services/LibraryService.hpp"
 #include "core/services/PlayerService.hpp"
 #include "core/services/QueueService.hpp"
+#include "core/services/TabService.hpp"
 #include "models/AlbumListModel.hpp"
+#include "models/LayoutModel.hpp"
+#include "models/TabListModel.hpp"
 #include "models/TrackListModel.hpp"
+#include "models/ViewRegistryModel.hpp"
 #include "theming/ThemeLoader.hpp"
 
 namespace adapters {
@@ -51,6 +55,9 @@ class QtBridge : public QObject {
       TrackListModel *albumDetailTrackModel READ albumDetailTrackModel CONSTANT)
   Q_PROPERTY(TrackListModel *queueTrackModel READ queueTrackModel CONSTANT)
   Q_PROPERTY(TrackListModel *historyTrackModel READ historyTrackModel CONSTANT)
+  Q_PROPERTY(TabListModel *tabModel READ tabModel CONSTANT)
+  Q_PROPERTY(LayoutModel *layoutModel READ layoutModel CONSTANT)
+  Q_PROPERTY(ViewRegistryModel *viewRegistry READ viewRegistry CONSTANT)
 
   // Theming
   Q_PROPERTY(adapters::ThemeLoader *theme READ theme CONSTANT)
@@ -396,6 +403,11 @@ public:
   [[nodiscard]] TrackListModel *historyTrackModel() const {
     return m_historyTrackModel;
   }
+  [[nodiscard]] TabListModel *tabModel() const { return m_tabModel; }
+  [[nodiscard]] LayoutModel *layoutModel() const { return m_layoutModel; }
+  [[nodiscard]] ViewRegistryModel *viewRegistry() const {
+    return m_viewRegistryModel;
+  }
   [[nodiscard]] bool canUndo() const { return !m_undoStack.empty(); }
   [[nodiscard]] bool canRedo() const { return !m_redoStack.empty(); }
   [[nodiscard]] QString undoActionName() const;
@@ -656,11 +668,18 @@ public:
   Q_INVOKABLE void toggleHiResFilter();
   Q_INVOKABLE void resetFilters();
   Q_INVOKABLE void showAllTracks();
+  Q_INVOKABLE void applyTabSource(const QString &sourceId);
+  Q_INVOKABLE void applyLayoutPreset(const QString &presetId);
   Q_INVOKABLE void openAlbumDetails(const QString &albumTitle,
                                     const QString &albumArtist);
+  Q_INVOKABLE void selectAlbum(const QString &albumTitle,
+                               const QString &albumArtist) {
+    openAlbumDetails(albumTitle, albumArtist);
+  }
   Q_INVOKABLE void playAlbum(const QString &albumTitle,
                              const QString &albumArtist);
   Q_INVOKABLE void playTrack(const QString &trackId);
+  Q_INVOKABLE void playTrackNow(const QString &trackId) { playTrack(trackId); }
   Q_INVOKABLE void playTrackAtIndex(int index);
   Q_INVOKABLE void playTrackFromDetail(int index);
   Q_INVOKABLE void playQueueTrack(int index);
@@ -1342,6 +1361,10 @@ private:
   TrackListModel *m_albumDetailTrackModel{nullptr};
   TrackListModel *m_queueTrackModel{nullptr};
   TrackListModel *m_historyTrackModel{nullptr};
+  std::unique_ptr<core::TabService> m_tabService;
+  TabListModel *m_tabModel{nullptr};
+  LayoutModel *m_layoutModel{nullptr};
+  ViewRegistryModel *m_viewRegistryModel{nullptr};
 
   std::vector<UndoCommand> m_undoStack;
   std::vector<UndoCommand> m_redoStack;

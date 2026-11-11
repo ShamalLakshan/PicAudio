@@ -34,8 +34,6 @@ ApplicationWindow {
     property bool isMiniPlayer: false
     property real normalWidth: 1400
     property real normalHeight: 840
-    property int mainViewMode: bridge.activeWorkspaceViewMode // 0: Album Grid, 1: Track Details Table, 2: Album & Tracks View, 3: Listening History, 4: Now Playing View
-    property int previousViewMode: 0
     property int activeNavSection: bridge.activeNavSection // 0: All Tracks, 1: Albums, 2: Artists, 3: Genres, 4: Now Playing, 5: Playlist
     property string activeLetterFilter: "All"
     property string selectedGenreFilter: "All"
@@ -46,7 +44,6 @@ ApplicationWindow {
     onShowLeftPanelChanged: bridge.showLeftPanel = showLeftPanel
     onShowRightPanelChanged: bridge.showRightPanel = showRightPanel
     onShowColumnBrowserChanged: bridge.showColumnBrowser = showColumnBrowser
-    onMainViewModeChanged: bridge.activeWorkspaceViewMode = mainViewMode
     onActiveNavSectionChanged: bridge.activeNavSection = activeNavSection
     onActivePlaylistNameChanged: bridge.activePlaylistName = activePlaylistName
 
@@ -82,7 +79,6 @@ ApplicationWindow {
         root.showLeftPanel = bridge.showLeftPanel;
         root.showRightPanel = bridge.showRightPanel;
         root.showColumnBrowser = bridge.showColumnBrowser;
-        root.mainViewMode = bridge.activeWorkspaceViewMode;
         root.activeNavSection = bridge.activeNavSection;
         root.activePlaylistName = bridge.activePlaylistName;
         if (root.activePlaylistName && root.activePlaylistName.length > 0) {
@@ -108,7 +104,6 @@ ApplicationWindow {
         bridge.showLeftPanel = root.showLeftPanel;
         bridge.showRightPanel = root.showRightPanel;
         bridge.showColumnBrowser = root.showColumnBrowser;
-        bridge.activeWorkspaceViewMode = root.mainViewMode;
         bridge.activeNavSection = root.activeNavSection;
         bridge.activePlaylistName = root.activePlaylistName;
         bridge.savePlaybackSession();
@@ -133,8 +128,8 @@ ApplicationWindow {
         var selIds = bridge.trackModel.getSelectedTrackIds();
         if (selIds.length > 0) {
             bridge.playSelectionNow(selIds);
-        } else if (trackTableView.currentIndex >= 0) {
-            bridge.playTrackAtIndex(trackTableView.currentIndex);
+        } else if (bridge.trackModel.count > 0) {
+            bridge.playTrackAtIndex(0);
         }
     }
 
@@ -151,44 +146,14 @@ ApplicationWindow {
                 }
             }
         }
-        if (mainViewMode !== 2) {
-            previousViewMode = mainViewMode;
+        if (bridge.tabModel) {
+            bridge.tabModel.updateActiveView("album_and_tracks_default");
         }
-        mainViewMode = 2;
-        activeNavSection = 1;
     }
 
     function switchToNowPlaying() {
-        if (mainViewMode !== 4) {
-            previousViewMode = mainViewMode;
-        }
-        mainViewMode = 4;
-        activeNavSection = 4;
-    }
-
-    function switchViewMode(mode) {
-        if (mode === 2) {
-            switchToExpandedView();
-            return;
-        }
-        if (mode === 4) {
-            switchToNowPlaying();
-            return;
-        }
-        if (mainViewMode === 2 || mainViewMode === 4) {
-            previousViewMode = mainViewMode;
-        }
-        mainViewMode = mode;
-        if (mode === 1) {
-            activeNavSection = 0;
-            activePlaylistName = "";
-            if (bridge.trackModel.count === 0 && bridge.totalTracks > 0) {
-                bridge.trackModel.loadAllTracks();
-            }
-        } else if (mode === 0) {
-            activeNavSection = 1;
-        } else if (mode === 3) {
-            bridge.refreshHistory();
+        if (bridge.tabModel) {
+            bridge.tabModel.updateActiveView("now_playing_default");
         }
     }
 
@@ -272,6 +237,22 @@ ApplicationWindow {
 
     ChannelMatrixDialog {
         id: channelMatrixDialog
+    }
+
+    ArrangePanelsDialog {
+        id: arrangePanelsDialogInstance
+    }
+
+    ViewConfigDialog {
+        id: viewConfigDialogInstance
+    }
+
+    ConfirmDropDialog {
+        id: confirmDropDialogInstance
+    }
+
+    FloatingWindow {
+        id: floatingWindowInstance
     }
 
     AboutDialog {
@@ -741,11 +722,13 @@ ApplicationWindow {
         }
     }
     Shortcut { sequence: "Ctrl+5"; onActivated: showEqualizer = !showEqualizer }
-    Shortcut { sequence: "Alt+1"; onActivated: switchViewMode(1) }
-    Shortcut { sequence: "Alt+2"; onActivated: switchViewMode(0) }
-    Shortcut { sequence: "Alt+3"; onActivated: switchViewMode(2) }
-    Shortcut { sequence: "Alt+4"; onActivated: switchViewMode(4) }
-    Shortcut { sequence: "Alt+5"; onActivated: switchViewMode(3) }
+    Shortcut { sequence: "Alt+1"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("tracks_default") } }
+    Shortcut { sequence: "Alt+2"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("covers_default") } }
+    Shortcut { sequence: "Alt+3"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("album_and_tracks_default") } }
+    Shortcut { sequence: "Alt+4"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("artists_default") } }
+    Shortcut { sequence: "Alt+5"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("now_playing_default") } }
+    Shortcut { sequence: "Alt+6"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("jukebox_default") } }
+    Shortcut { sequence: "Alt+7"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("history_default") } }
     Shortcut { sequence: "Ctrl+Shift+M"; onActivated: toggleMiniPlayer() }
     Shortcut { sequence: "F10"; onActivated: toggleMiniPlayer() }
     Shortcut { sequence: "F11"; onActivated: toggleFullscreen() }
@@ -834,7 +817,6 @@ ApplicationWindow {
                     rightPanelTab: root.rightPanelTab
                     showEqualizer: root.showEqualizer
                     showStatusBar: root.showStatusBar
-                    mainViewMode: root.mainViewMode
                     isMiniPlayer: root.isMiniPlayer
                     isFullscreen: root.visibility === Window.FullScreen
 
@@ -876,6 +858,7 @@ ApplicationWindow {
                         }
                     }
                     onRequestLibraryHealth: libraryHealthDialog.open()
+                    onRequestArrangePanels: arrangePanelsDialogInstance.open()
                     onRequestImportPlaylist: importPlaylistDialog.open()
                     onRequestSleepTimer: sleepTimerDialog.open()
                     onRequestShortcuts: shortcutsDialog.open()
@@ -886,7 +869,6 @@ ApplicationWindow {
                     onRequestToggleFullscreen: root.toggleFullscreen()
                     onRequestToggleMiniPlayer: root.toggleMiniPlayer()
                     onRequestHideWindow: root.hide()
-                    onRequestSwitchViewMode: (mode) => root.switchViewMode(mode)
                 }
 
                 Item { Layout.fillWidth: true }
@@ -899,16 +881,43 @@ ApplicationWindow {
         // Toolbar
         TopToolbar {
             id: topToolbar
-            mainViewMode: root.mainViewMode
             showLeftPanel: root.showLeftPanel
             showRightPanel: root.showRightPanel
-            onRequestSwitchViewMode: (mode) => root.switchViewMode(mode)
-            onRequestSwitchToExpandedView: root.switchToExpandedView()
-            onRequestSwitchToNowPlaying: root.switchToNowPlaying()
             onRequestOpenFolderDialog: folderDialog.open()
             onRequestPreferences: preferencesDialog.open()
+            onRequestArrangePanels: arrangePanelsDialogInstance.open()
+            onRequestCustomizeView: viewConfigDialogInstance.open()
             onToggleLeftPanel: root.showLeftPanel = !root.showLeftPanel
             onToggleRightPanel: root.showRightPanel = !root.showRightPanel
+        }
+
+        // 1px divider
+        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+
+        // Tabs Bar Header Component (Issue #74)
+        TabsBar {
+            id: headerTabsBar
+            Layout.fillWidth: true
+        }
+
+        // 1px divider
+        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+
+        // Top Panel Zone (Issue #72)
+        Rectangle {
+            id: topPanelZone
+            Layout.fillWidth: true
+            Layout.preferredHeight: bridge.layoutModel.topPanelHeight
+            visible: bridge.layoutModel.effectiveTopPanelVisible
+            color: Theme.surface
+            border.color: Theme.panelBorder
+            border.width: 1
+            clip: true
+
+            WaveVisualizer {
+                anchors.fill: parent
+                anchors.margins: 4
+            }
         }
 
         // 1px divider
@@ -924,11 +933,9 @@ ApplicationWindow {
             LeftSidebar {
                 activeNavSection: root.activeNavSection
                 activePlaylistName: root.activePlaylistName
-                mainViewMode: root.mainViewMode
                 visible: root.showLeftPanel
                 onNavSectionSelected: (nav, mode) => {
                     root.activeNavSection = nav;
-                    root.mainViewMode = mode;
                     if (nav !== 5 && nav !== 6) {
                         root.activePlaylistName = "";
                     } else if (nav === 6) {
@@ -938,7 +945,6 @@ ApplicationWindow {
                 onPlaylistSelected: (name) => {
                     root.activeNavSection = 5;
                     root.activePlaylistName = name;
-                    root.mainViewMode = 1;
                 }
                 onRequestSwitchToNowPlaying: {
                     root.activePlaylistName = "";
@@ -994,6 +1000,14 @@ ApplicationWindow {
                 }
             }
 
+            // Left Main Panel (Zone 4)
+            ThumbnailBrowserView {
+                id: leftMainPanelZone
+                Layout.preferredWidth: bridge.layoutModel.leftMainPanelWidth
+                Layout.fillHeight: true
+                visible: bridge.layoutModel.effectiveLeftMainPanelVisible
+            }
+
             // Center panel
             Rectangle {
                 Layout.fillWidth: true
@@ -1006,169 +1020,78 @@ ApplicationWindow {
 
                     // Sub-toolbar
                     ViewSubToolbar {
-                        mainViewMode: root.mainViewMode
-                        showColumnBrowser: root.showColumnBrowser
+                        showColumnBrowser: bridge.layoutModel ? bridge.layoutModel.columnBrowserVisible : false
                         activeLetterFilter: root.activeLetterFilter
-                        onRequestSwitchViewMode: (mode) => root.switchViewMode(mode)
-                        onToggleColumnBrowser: root.showColumnBrowser = !root.showColumnBrowser
+                        onToggleColumnBrowser: {
+                            if (bridge.layoutModel) {
+                                bridge.layoutModel.columnBrowserVisible = !bridge.layoutModel.columnBrowserVisible;
+                            }
+                        }
                         onLetterFilterSelected: (letter) => {
                             root.activeLetterFilter = letter;
                             bridge.filterByLetter(letter);
+                            if (bridge.tabModel) {
+                                bridge.tabModel.updateActiveJumpBarLetter(letter);
+                            }
                         }
+                        onRequestCustomizeView: viewConfigDialogInstance.open()
                     }
 
-                    // Category filter browser (Genre, Artist, Album)
-                    ColumnBrowserView {
-                        showBrowser: root.showColumnBrowser
-                        selectedGenreFilter: root.selectedGenreFilter
-                        selectedArtistFilter: root.selectedArtistFilter
-                        onGenreFilterChanged: (genre) => root.selectedGenreFilter = genre
-                        onArtistFilterChanged: (artist) => root.selectedArtistFilter = artist
+                    // Main workspace host (dynamically renders active tab view)
+                    MainWorkspaceHost {
+                        id: mainWorkspaceHost
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        onRequestColumnHeaderContextMenu: (colKey, colTitle) => {
+                            columnHeaderContextMenu.targetColumnKey = colKey;
+                            columnHeaderContextMenu.targetColumnTitle = colTitle;
+                            columnHeaderContextMenu.popup();
+                        }
+                        onRequestViewportContextMenu: {
+                            viewportContextMenu.popup();
+                        }
+                        onRequestTrackContextMenu: (targetTracks, targetTrack, targetFilePath, targetTitle, targetArtist, isPlView, plName) => {
+                            trackContextMenu.targetTracks = targetTracks;
+                            trackContextMenu.targetTrack = targetTrack;
+                            trackContextMenu.targetFilePath = targetFilePath;
+                            trackContextMenu.targetTitle = targetTitle;
+                            trackContextMenu.targetArtist = targetArtist;
+                            trackContextMenu.isPlaylistView = isPlView;
+                            trackContextMenu.currentPlaylistName = plName;
+                            trackContextMenu.popup();
+                        }
                         onRequestAlbumContextMenu: (title, artist) => {
                             albumContextMenu.targetAlbumTitle = title;
                             albumContextMenu.targetAlbumArtist = artist;
                             albumContextMenu.popup();
                         }
-                        onRequestSwitchToExpandedView: (title, artist) => {
-                            root.switchToExpandedView(title, artist);
+                        onRequestExpandAlbum: (album, artist) => {
+                            root.switchToExpandedView(album, artist);
                         }
                     }
+                }
+            }
 
-                    // Resizable splitter divider: 3-Column Filter Browser height
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 5
-                        visible: root.showColumnBrowser
+            // Right Main Panel (Zone 6)
+            Rectangle {
+                id: rightMainPanelZone
+                Layout.preferredWidth: bridge.layoutModel.rightMainPanelWidth
+                Layout.fillHeight: true
+                visible: bridge.layoutModel.effectiveRightMainPanelVisible
+                color: Theme.surface
+                border.color: Theme.panelBorder
+                border.width: 1
+                clip: true
 
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: parent.width
-                            height: 1
-                            color: colSplitMouse.containsMouse ? Theme.accent : Theme.panelBorder
-                        }
-
-                        MouseArea {
-                            id: colSplitMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.SplitVCursor
-                            property real startRootY: 0
-                            property int startHeight: 0
-                            onPressed: (mouse) => {
-                                var pt = mapToItem(root.contentItem, mouse.x, mouse.y);
-                                startRootY = pt.y;
-                                startHeight = bridge.columnBrowserHeight;
-                            }
-                            onPositionChanged: (mouse) => {
-                                if (pressed) {
-                                    var pt = mapToItem(root.contentItem, mouse.x, mouse.y);
-                                    var delta = pt.y - startRootY;
-                                    bridge.columnBrowserHeight = Math.max(80, Math.min(300, Math.round(startHeight + delta)));
-                                }
-                            }
-                            onDoubleClicked: bridge.columnBrowserHeight = 121
-                        }
-                    }
-
-                    // Track table view
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: mainViewMode === 1
-
-                        TrackTableView {
-                            id: trackTableView
-                            anchors.fill: parent
-                            isPlaylistView: activeNavSection === 5
-                            activePlaylistName: root.activePlaylistName
-                            onRequestColumnHeaderContextMenu: (colKey, colTitle) => {
-                                columnHeaderContextMenu.targetColumnKey = colKey;
-                                columnHeaderContextMenu.targetColumnTitle = colTitle;
-                                columnHeaderContextMenu.popup();
-                            }
-                            onRequestViewportContextMenu: {
-                                viewportContextMenu.popup();
-                            }
-                            onRequestTrackContextMenu: (targetTracks, targetTrack, targetFilePath, targetTitle, targetArtist, isPlView, plName) => {
-                                trackContextMenu.targetTracks = targetTracks;
-                                trackContextMenu.targetTrack = targetTrack;
-                                trackContextMenu.targetFilePath = targetFilePath;
-                                trackContextMenu.targetTitle = targetTitle;
-                                trackContextMenu.targetArtist = targetArtist;
-                                trackContextMenu.isPlaylistView = isPlView;
-                                trackContextMenu.currentPlaylistName = plName;
-                                trackContextMenu.popup();
-                            }
-                            onRequestExpandAlbum: (album, artist) => {
-                                root.switchToExpandedView(album, artist);
-                            }
-                        }
-
-                    }
-
-                    // Album grid view
-                    AlbumGridView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: mainViewMode === 0
-                        onAlbumSelected: (title, artist) => root.switchToExpandedView(title, artist)
-                        onRequestAlbumContextMenu: (title, artist) => {
-                            albumContextMenu.targetAlbumTitle = title;
-                            albumContextMenu.targetAlbumArtist = artist;
-                            albumContextMenu.popup();
-                        }
-                    }
-
-                    // Album details view
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: mainViewMode === 2
-
-                        AlbumDetailView {
-                            anchors.fill: parent
-                            previousViewMode: root.previousViewMode
-                            onRequestSwitchViewMode: (mode) => root.switchViewMode(mode)
-                            onRequestSwitchToExpandedView: (title, artist) => root.switchToExpandedView(title, artist)
-                            onRequestAlbumContextMenu: (title, artist) => {
-                                albumContextMenu.targetAlbumTitle = title;
-                                albumContextMenu.targetAlbumArtist = artist;
-                                albumContextMenu.popup();
-                            }
-                            onRequestTrackContextMenu: (trk) => {
-                                trackContextMenu.targetTracks = [trk];
-                                trackContextMenu.targetTrack = trk;
-                                trackContextMenu.targetFilePath = trk.filePath;
-                                trackContextMenu.targetTitle = trk.title;
-                                trackContextMenu.targetArtist = trk.artist;
-                                trackContextMenu.isPlaylistView = false;
-                                trackContextMenu.currentPlaylistName = "";
-                                trackContextMenu.popup();
-                            }
-                        }
-                    }
-
-                    // Listening History View
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: mainViewMode === 3
-
-                        HistoryView {
-                            anchors.fill: parent
-                        }
-                    }
-
-                    // Now Playing View
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: mainViewMode === 4
-
-                        NowPlayingView {
-                            anchors.fill: parent
-                        }
-                    }
+                Text {
+                    anchors.centerIn: parent
+                    anchors.margins: 12
+                    width: parent.width - 24
+                    text: (bridge.currentTrackLyrics && bridge.currentTrackLyrics.length > 0) ? bridge.currentTrackLyrics : qsTr("Lyrics / Track Details")
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
                 }
             }
 

@@ -6,20 +6,18 @@ import ".."
 Rectangle {
     id: root
 
-    property int mainViewMode: 1
     property bool showLeftPanel: true
     property bool showRightPanel: true
 
     property alias isSearchActiveFocus: searchTextInput.activeFocus
     property alias searchText: searchTextInput.text
 
-    signal requestSwitchViewMode(int mode)
-    signal requestSwitchToExpandedView()
-    signal requestSwitchToNowPlaying()
     signal requestOpenFolderDialog()
     signal requestPreferences()
     signal toggleLeftPanel()
     signal toggleRightPanel()
+    signal requestArrangePanels()
+    signal requestCustomizeView()
 
     function focusSearch() {
         searchTextInput.forceActiveFocus();
@@ -41,70 +39,58 @@ Rectangle {
         anchors.rightMargin: 12
         spacing: 12
 
-        // Navigation Tabs
-        RowLayout {
-            spacing: 2
+        // Active Workspace / Tab Breadcrumb Badge
+        Rectangle {
+            Layout.preferredHeight: 28
+            Layout.preferredWidth: tabBadgeLayout.implicitWidth + 20
+            Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: 2
+            Layout.rightMargin: 2
+            radius: Theme.cornerRadiusSmall
+            color: Theme.surfaceElevated
+            border.color: Theme.panelBorder
+            border.width: 1
+            clip: true
 
-            Repeater {
-                model: [
-                    { name: "ALL TRACKS", icon: "table", mode: 1 },
-                    { name: "ALBUMS", icon: "grid", mode: 0 },
-                    { name: "EXPANDED", icon: "album_tracks", mode: 2 },
-                    { name: "NOW PLAYING", icon: "disc", mode: 4 }
-                ]
+            RowLayout {
+                id: tabBadgeLayout
+                anchors.centerIn: parent
+                spacing: 6
 
-                delegate: Rectangle {
-                    property bool isTabActive: root.mainViewMode === modelData.mode
-
-                    Layout.preferredWidth: tabRowLayout.implicitWidth + 22
-                    Layout.preferredHeight: 30
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.leftMargin: 2
-                    Layout.rightMargin: 2
-                    radius: Theme.cornerRadiusSmall
-                    color: isTabActive ? Theme.selection : (tabMouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                    border.color: isTabActive ? Theme.panelBorder : "transparent"
-                    border.width: 1
-                    clip: true
-
-                    RowLayout {
-                        id: tabRowLayout
-                        anchors.centerIn: parent
-                        spacing: 6
-
-                        VectorIcon {
-                            name: modelData.icon
-                            width: 12
-                            height: 12
-                            color: isTabActive ? Theme.accent : Theme.textMuted
-                        }
-
-                        Text {
-                            text: modelData.name
-                            font.pixelSize: 11
-                            font.bold: true
-                            font.letterSpacing: 0.8
-                            color: isTabActive ? Theme.textPrimary : Theme.textSecondary
-                        }
+                VectorIcon {
+                    name: {
+                        var src = bridge.tabModel ? bridge.tabModel.activeSourceId : "";
+                        if (src.indexOf("folder://") === 0) return "folder";
+                        if (src.indexOf("playlist://") === 0) return "disc";
+                        if (src.indexOf("history") !== -1) return "history";
+                        if (src.indexOf("favorites") !== -1) return "heart";
+                        return "library";
                     }
+                    width: 12
+                    height: 12
+                    color: Theme.accent
+                }
 
-                    MouseArea {
-                        id: tabMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (modelData.mode === 1) {
-                                root.requestSwitchViewMode(1);
-                            } else if (modelData.mode === 0) {
-                                root.requestSwitchViewMode(0);
-                            } else if (modelData.mode === 2) {
-                                root.requestSwitchToExpandedView();
-                            } else if (modelData.mode === 4) {
-                                root.requestSwitchToNowPlaying();
-                            }
-                        }
-                    }
+                Text {
+                    text: bridge.tabModel ? bridge.tabModel.activeTitle : "Music"
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: Theme.textPrimary
+                    elide: Text.ElideRight
+                    Layout.maximumWidth: 160
+                }
+
+                Text {
+                    visible: bridge.tabModel && bridge.tabModel.activeIsPinned
+                    text: "📌"
+                    font.pixelSize: 9
+                }
+
+                Text {
+                    visible: bridge.tabModel && bridge.tabModel.activeLockMode > 0
+                    text: bridge.tabModel.activeLockMode === 2 ? "🔒R" : "🔒"
+                    font.pixelSize: 9
+                    color: Theme.accent
                 }
             }
         }
@@ -321,6 +307,58 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.toggleRightPanel()
                 }
+            }
+
+            // Arrange Panels Button
+            Rectangle {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                radius: Theme.cornerRadiusSmall
+                color: arrangePanelsMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                border.color: Theme.panelBorder
+                Text {
+                    anchors.centerIn: parent
+                    text: "☵"
+                    font.pixelSize: 14
+                    color: Theme.textSecondary
+                }
+                MouseArea {
+                    id: arrangePanelsMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.requestArrangePanels()
+                }
+                ToolTip.visible: arrangePanelsMouse.containsMouse
+                ToolTip.text: qsTr("Panels Configuration (\"Arrange Panels\")")
+            }
+
+            // Customize View Button
+            Rectangle {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.leftMargin: 1
+                Layout.rightMargin: 1
+                radius: Theme.cornerRadiusSmall
+                color: viewConfigMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                border.color: Theme.panelBorder
+                Text {
+                    anchors.centerIn: parent
+                    text: "⚙"
+                    font.pixelSize: 14
+                    color: Theme.textSecondary
+                }
+                MouseArea {
+                    id: viewConfigMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.requestCustomizeView()
+                }
+                ToolTip.visible: viewConfigMouse.containsMouse
+                ToolTip.text: qsTr("Customize Workspace View...")
             }
 
             // Settings Button (Ctrl+,)
