@@ -1,0 +1,1 @@
+../../coresettings.h

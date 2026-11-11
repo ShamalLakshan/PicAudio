@@ -1,0 +1,10 @@
+{
+    "Name" : "PipeWire",
+    "Version" : "${PICAUDIO_ENGINE_VERSION}",
+    "Author" : "PicAudio Team",
+    "Copyright" : "Based on Fooyin (Copyright © 2023, Luke Taylor <luket@pm.me>)",
+    "License" : [ "Licensed under the GNU General Public License version 3." ],
+    "Category" : "Audio.Output",
+    "Description" : "Adds PipeWire as an audio output",
+    "Url" : "https://github.com/ShamalLakshan/PicAudio"
+}

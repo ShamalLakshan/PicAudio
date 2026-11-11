@@ -340,7 +340,7 @@ Dialog {
                                     font.pixelSize: Theme.fontSizeSmall
                                     font.bold: true
                                     font.family: Theme.fontFamily
-                                    color: (diag && diag.bufferFillPercentage < 15.0) ? Theme.danger : Theme.accent
+                                    color: (diag && diag.bufferFillPercentage < 15.0) ? Theme.error : Theme.accent
                                     Layout.preferredWidth: 60
                                     horizontalAlignment: Text.AlignRight
                                 }
@@ -357,7 +357,7 @@ Dialog {
                                     width: Math.min(parent.width, Math.max(0, (diag ? diag.bufferFillPercentage : 0) / 100.0 * parent.width))
                                     height: parent.height
                                     radius: 3
-                                    color: (diag && diag.bufferFillPercentage < 15.0) ? Theme.danger : Theme.accent
+                                    color: (diag && diag.bufferFillPercentage < 15.0) ? Theme.error : Theme.accent
                                 }
                             }
                         }

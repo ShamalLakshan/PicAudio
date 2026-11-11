@@ -1,0 +1,345 @@
+/*
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
+ */
+
+#pragma once
+
+#include <core/engine/audiooutput.h>
+#include <core/engine/fadingdefs.h>
+#include <core/engine/levelframe.h>
+#include <core/engine/pcmframe.h>
+#include <core/track.h>
+#include <utils/datastream.h>
+
+namespace PicAudioEngine::Engine {
+Q_NAMESPACE
+
+//! High-level transport state.
+enum class PlaybackState : uint8_t
+{
+    Stopped = 0,
+    Playing,
+    Paused,
+    Error
+};
+
+//! Track lifecycle state reported by the engine.
+enum class TrackStatus : uint8_t
+{
+    NoTrack = 0,
+    Loading,
+    Loaded,
+    Buffering,
+    Buffered,
+    End,
+    Invalid,
+    Unreadable
+};
+
+//! Track-state notification payload including generation for stale-event filtering.
+struct TrackStatusContext
+{
+    TrackStatus status{TrackStatus::NoTrack};
+    Track track;
+    uint64_t generation{0};
+    bool seekable{false};
+};
+
+//! Callback payload emitted shortly before the active track reaches end.
+struct AboutToFinishContext
+{
+    Track track;
+    uint64_t generation{0};
+    uint64_t remainingOutputMs{0};
+    bool engineOwnsTransition{false};
+};
+
+struct PlaybackItem
+{
+    Track track;
+    uint64_t itemId{0};
+
+    [[nodiscard]] bool isValid() const
+    {
+        return track.isValid();
+    }
+
+    bool operator==(const PlaybackItem&) const = default;
+};
+
+//! Result returned from asynchronous next-track prepare requests.
+struct NextTrackPrepareRequest
+{
+    uint64_t requestId{0};
+    bool readyNow{false};
+};
+
+enum class TransitionMode : uint8_t
+{
+    Direct = 0,
+    SegmentSwitch,
+    Crossfade,
+    Gapless,
+    BoundaryFade,
+};
+
+struct TrackCommitContext
+{
+    Track track;
+    QString decoder;
+    uint64_t itemId{0};
+    uint64_t generation{0};
+    TransitionMode mode{TransitionMode::Direct};
+    uint64_t audibleDelayMs{0};
+};
+
+enum RGProcess : uint8_t
+{
+    NoProcessing = 0,
+    //! Apply replaygain loudness adjustment.
+    ApplyGain = 1 << 0,
+    //! Apply limiter/clamp stage to avoid clipping after gain.
+    PreventClipping = 1 << 1,
+};
+Q_DECLARE_FLAGS(RGProcessing, RGProcess)
+Q_FLAG_NS(RGProcessing)
+
+enum class ReplayGainSource : uint8_t
+{
+    None = 0,
+    Track,
+    Album,
+};
+
+struct ReplayGainOutputInfo
+{
+    ReplayGainSource source{ReplayGainSource::None};
+    RGProcessing processing{NoProcessing};
+    double gainDb{0.0};
+    double peak{1.0};
+    bool hasPeak{false};
+
+    bool operator==(const ReplayGainOutputInfo&) const = default;
+};
+
+struct PlaybackOutputInfo
+{
+    AudioFormat format;
+    QString device;
+    std::vector<QString> dsps;
+    QString dspPreset;
+    double volume{1.0};
+    int bufferLengthMs{0};
+    ReplayGainOutputInfo replayGain;
+
+    bool operator==(const PlaybackOutputInfo&) const = default;
+};
+
+//! Analysis frame types produced by the analysis bus.
+enum AnalysisDataType : uint32_t
+{
+    NoAnalysisData = 0,
+    LevelFrameData = 1 << 0,
+    PcmFrameData   = 1 << 1,
+};
+Q_DECLARE_FLAGS(AnalysisDataTypes, AnalysisDataType)
+Q_FLAG_NS(AnalysisDataTypes)
+
+//! Serializable DSP node descriptor used in user-configured chains.
+struct DspDefinition
+{
+    QString id;
+    QString name;
+    bool hasSettings{false};
+    bool enabled{true};
+    uint64_t instanceId{0};
+    QByteArray settings;
+
+    bool operator==(const DspDefinition& other) const noexcept
+    {
+        return std::tie(id, enabled, instanceId, settings)
+            == std::tie(other.id, other.enabled, other.instanceId, other.settings);
+    }
+};
+
+using DspChain = std::vector<DspDefinition>;
+
+//! User-configured DSP chain set grouped by processing stage.
+struct DspChains
+{
+    //! DSPs applied before the master mix stage (per active track stream).
+    DspChain perTrackChain;
+    //! DSPs applied after mix on the master output path.
+    DspChain masterChain;
+
+    bool operator==(const DspChains&) const = default;
+
+    [[nodiscard]] bool isEmpty() const
+    {
+        return perTrackChain.empty() && masterChain.empty();
+    }
+
+    void clear()
+    {
+        perTrackChain.clear();
+        masterChain.clear();
+    }
+};
+
+inline QDataStream& operator<<(QDataStream& stream, const DspDefinition& entry)
+{
+    stream << entry.id;
+    stream << entry.name;
+    stream << entry.hasSettings;
+    stream << entry.enabled;
+    stream << static_cast<quint64>(entry.instanceId);
+    stream << entry.settings;
+
+    return stream;
+}
+
+inline QDataStream& operator>>(QDataStream& stream, DspDefinition& entry)
+{
+    stream >> entry.id;
+    stream >> entry.name;
+    stream >> entry.hasSettings;
+    stream >> entry.enabled;
+
+    quint64 instanceId{0};
+    stream >> instanceId;
+    entry.instanceId = instanceId;
+
+    stream >> entry.settings;
+
+    return stream;
+}
+
+inline QDataStream& operator<<(QDataStream& stream, const DspChains& entry)
+{
+    DataStream::writeContainer(stream, entry.perTrackChain);
+    DataStream::writeContainer(stream, entry.masterChain);
+
+    return stream;
+}
+
+inline QDataStream& operator>>(QDataStream& stream, DspChains& entry)
+{
+    DataStream::readContainer(stream, entry.perTrackChain);
+    DataStream::readContainer(stream, entry.masterChain);
+
+    return stream;
+}
+
+enum class DspChainScope : uint8_t
+{
+    PerTrack = 0,
+    Master
+};
+
+//! UI track-switch anchor policy during crossfade overlap.
+enum class CrossfadeSwitchPolicy : uint8_t
+{
+    OverlapStart = 0, //! Switch when the overlap begins
+    Boundary,         //! Switch after the outgoing track reaches its boundary
+    OverlapMidpoint,  //! Switch halfway through the overlap
+};
+
+//! Patch payload for live settings updates to a DSP instance.
+struct LiveDspSettingsUpdate
+{
+    //! Target chain where the DSP instance is located.
+    DspChainScope scope{DspChainScope::Master};
+    //! Stable runtime instance identifier.
+    uint64_t instanceId{0};
+    //! Serialised settings payload passed to `DspNode::loadSettings`.
+    QByteArray settings;
+    //! Monotonic caller revision for stale-update filtering.
+    uint64_t revision{0};
+};
+
+struct OutputDeviceProfile
+{
+    QString output;
+    QString device;
+    bool enabled{true};
+    SampleFormat bitDepth{SampleFormat::Unknown};
+    bool dither{false};
+    int dspPresetId{-1};
+
+    [[nodiscard]] bool isValid() const
+    {
+        return !output.isEmpty() && !device.isEmpty();
+    }
+
+    bool operator==(const OutputDeviceProfile&) const = default;
+};
+
+using OutputDeviceProfiles = std::vector<OutputDeviceProfile>;
+
+inline QDataStream& operator<<(QDataStream& stream, const OutputDeviceProfiles& profiles)
+{
+    DataStream::writeContainer(stream, profiles);
+    return stream;
+}
+
+inline QDataStream& operator>>(QDataStream& stream, OutputDeviceProfiles& profiles)
+{
+    DataStream::readContainer(stream, profiles);
+    return stream;
+}
+
+inline QDataStream& operator<<(QDataStream& stream, const OutputDeviceProfile& profile)
+{
+    stream << profile.output;
+    stream << profile.device;
+    stream << profile.enabled;
+    stream << static_cast<quint8>(profile.bitDepth);
+    stream << profile.dither;
+    stream << profile.dspPresetId;
+
+    return stream;
+}
+
+inline QDataStream& operator>>(QDataStream& stream, OutputDeviceProfile& profile)
+{
+    stream >> profile.output;
+    stream >> profile.device;
+    stream >> profile.enabled;
+
+    quint8 bits{0};
+    stream >> bits;
+    profile.bitDepth = static_cast<SampleFormat>(bits);
+
+    stream >> profile.dither;
+    stream >> profile.dspPresetId;
+
+    return stream;
+}
+
+struct OutputProfileRequest
+{
+    QString output;
+    QString device;
+    SampleFormat bitDepth{SampleFormat::Unknown};
+    bool dither{false};
+    DspChains chain;
+    QString dspPreset;
+};
+
+} // namespace PicAudioEngine::Engine
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::Engine::RGProcessing)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::Engine::AnalysisDataTypes)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::TrackStatusContext)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::AboutToFinishContext)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::PlaybackItem)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::TrackCommitContext)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::PlaybackOutputInfo)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::AnalysisDataTypes)
+Q_DECLARE_METATYPE(PicAudioEngine::LevelFrame)
+Q_DECLARE_METATYPE(PicAudioEngine::PcmFrame)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::LiveDspSettingsUpdate)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::OutputDeviceProfiles)
+Q_DECLARE_METATYPE(PicAudioEngine::Engine::OutputProfileRequest)

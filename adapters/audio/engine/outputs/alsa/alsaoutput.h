@@ -1,0 +1,78 @@
+/*
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
+ */
+
+#pragma once
+
+#include <core/coresettings.h>
+#include <core/engine/audiooutput.h>
+
+#include <alsa/asoundlib.h>
+
+namespace PicAudioEngine::Alsa {
+struct PcmHandleDeleter
+{
+    void operator()(snd_pcm_t* handle) const
+    {
+        if(handle) {
+            snd_pcm_close(handle);
+        }
+    }
+};
+using PcmHandleUPtr = std::unique_ptr<snd_pcm_t, PcmHandleDeleter>;
+
+class AlsaOutput : public AudioOutput
+{
+public:
+    AlsaOutput();
+    ~AlsaOutput() override;
+
+    bool init(const AudioFormat& format) override;
+    void uninit() override;
+    void reset() override;
+    void start() override;
+    void drain() override;
+
+    [[nodiscard]] bool initialised() const override;
+    [[nodiscard]] QString device() const override;
+    [[nodiscard]] int bufferSize() const override;
+    OutputState currentState() override;
+    [[nodiscard]] OutputDevices getAllDevices(bool isCurrentOutput) override;
+
+    int write(std::span<const std::byte> data, int frameCount) override;
+    void setPaused(bool pause) override;
+    [[nodiscard]] bool supportsVolumeControl() const override;
+    void setDevice(const QString& device) override;
+    [[nodiscard]] AudioFormat negotiateFormat(const AudioFormat& requested) const override;
+
+    [[nodiscard]] QString error() const override;
+    [[nodiscard]] AudioFormat format() const override;
+
+private:
+    void resetAlsa();
+    bool initAlsa();
+
+    bool checkError(int error, const char* message);
+    bool setAlsaFormat(snd_pcm_hw_params_t* hwParams);
+    void getHardwareDevices(OutputDevices& devices);
+    bool attemptRecovery(snd_pcm_status_t* status);
+    bool recoverState(OutputState* state = nullptr);
+
+    PicAudioSettings m_settings;
+    AudioFormat m_format;
+
+    bool m_initialised;
+    bool m_pausable;
+    bool m_started;
+    bool m_reinitRequested;
+
+    QString m_device;
+    QString m_error;
+
+    PcmHandleUPtr m_pcmHandle;
+    snd_pcm_uframes_t m_bufferSize;
+    snd_pcm_uframes_t m_periodSize;
+};
+} // namespace PicAudioEngine::Alsa

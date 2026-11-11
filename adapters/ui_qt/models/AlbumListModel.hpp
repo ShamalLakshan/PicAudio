@@ -7,7 +7,8 @@
 
 namespace core {
 class IMusicDatabasePort;
-}
+struct Track;
+} // namespace core
 
 /**
  * @brief Qt List Model for displaying and filtering album cards in QML
@@ -48,6 +49,20 @@ public:
 
   Q_INVOKABLE void reload();
   Q_INVOKABLE void setFilter(const QString &filterText);
+  Q_INVOKABLE void setSearchQuery(const QString &query);
+  Q_INVOKABLE void setGenreFilter(const QString &genre);
+  Q_INVOKABLE void setArtistFilter(const QString &artist);
+  Q_INVOKABLE void setLetterFilter(const QString &letter);
+  Q_INVOKABLE void setHiResOnly(bool hiResOnly);
+  Q_INVOKABLE void resetAllFilters();
+
+  void setAlbumsFromTracks(const std::vector<core::Track> &tracks);
+
+  [[nodiscard]] QString searchQuery() const { return m_searchQuery; }
+  [[nodiscard]] QString genreFilter() const { return m_genreFilter; }
+  [[nodiscard]] QString artistFilter() const { return m_artistFilter; }
+  [[nodiscard]] QString letterFilter() const { return m_letterFilter; }
+  [[nodiscard]] bool hiResOnly() const { return m_hiResOnly; }
   [[nodiscard]] Q_INVOKABLE QVariantMap getAlbumAt(int index) const;
 
 signals:
@@ -60,4 +75,9 @@ private:
   std::vector<core::Album> m_allAlbums;
   std::vector<core::Album> m_filteredAlbums;
   QString m_filterText;
+  QString m_searchQuery;
+  QString m_genreFilter;
+  QString m_artistFilter;
+  QString m_letterFilter;
+  bool m_hiResOnly{false};
 };

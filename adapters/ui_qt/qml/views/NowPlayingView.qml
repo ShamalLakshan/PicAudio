@@ -118,7 +118,9 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: switchViewMode(1)
+                    onClicked: {
+                        if (bridge.tabModel) bridge.tabModel.updateActiveView("tracks_default");
+                    }
                 }
             }
         }
@@ -161,7 +163,7 @@ Item {
                         VectorIcon { name: "previous"; width: 9; height: 9; color: Theme.accent }
                         Text {
                             id: backText
-                            text: previousViewMode === 0 ? "Albums" : (previousViewMode === 2 ? "Album Details" : "Tracks")
+                            text: "Back to Tracks"
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
                             color: Theme.textSecondary
@@ -173,7 +175,9 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: switchViewMode(previousViewMode)
+                        onClicked: {
+                            if (bridge.tabModel) bridge.tabModel.updateActiveView("tracks_default");
+                        }
                     }
                     ToolTip.visible: backMouse.containsMouse
                     ToolTip.text: "Return to previous view"

@@ -1,0 +1,470 @@
+/*
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
+ */
+
+#pragma once
+
+#include "fyutils_export.h"
+
+#include <utils/helpers.h>
+#include <utils/settings/settingsmanager.h>
+
+#include <QIODevice>
+#include <QObject>
+
+#include <ranges>
+#include <unordered_map>
+#include <utility>
+
+template <typename T>
+concept ValidRegistry = requires(T t) {
+    { t.id } -> std::convertible_to<int>;
+    { t.name } -> std::convertible_to<QString>;
+    { t.index } -> std::convertible_to<int>;
+};
+
+namespace PicAudioEngine {
+class PICAUDIO_UTILS_EXPORT RegistryBase : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit RegistryBase(QObject* parent = nullptr);
+
+Q_SIGNALS:
+    void itemAdded(int id);
+    void itemChanged(int id);
+    void itemRemoved(int id);
+};
+
+/*!
+ * Represents a registry of items ordered by index.
+ * Items are saved and loaded to/from a QByteArray which is stored in the passed settingKey.
+ * @tparam Item A struct or class with public members: int id, int index, QString name,
+ * and optionally bool isDefault and bool isEnabled. Items without isDefault are treated as custom items.
+ */
+template <typename Item>
+    requires ValidRegistry<Item>
+class ItemRegistry : public RegistryBase
+{
+public:
+    using ItemList = std::vector<Item>;
+
+    explicit ItemRegistry(QString settingKey, SettingsManager* settings, QString defaultOverrideKey,
+                          QObject* parent = nullptr)
+        : RegistryBase{parent}
+        , m_settings{settings}
+        , m_settingKey{std::move(settingKey)}
+        , m_defaultOverrideKey{std::move(defaultOverrideKey)}
+    { }
+
+    explicit ItemRegistry(QString settingKey, SettingsManager* settings, QObject* parent = nullptr)
+        : ItemRegistry{settingKey, settings, {}, parent}
+    { }
+
+    [[nodiscard]] ItemList items() const
+    {
+        return m_items;
+    }
+
+    [[nodiscard]] int count() const
+    {
+        return static_cast<int>(m_items.size());
+    }
+
+    [[nodiscard]] bool empty() const
+    {
+        return m_items.empty();
+    }
+
+    void reset()
+    {
+        const ItemList previousItems{m_items};
+
+        m_itemsChanged = false;
+        m_settings->fileRemove(m_settingKey);
+
+        m_defaultOverrides.clear();
+        if(!m_defaultOverrideKey.isEmpty()) {
+            m_settings->fileRemove(m_defaultOverrideKey);
+        }
+
+        m_items.clear();
+        loadDefaults();
+
+        std::unordered_map<int, Item> previousItemsById;
+        previousItemsById.reserve(previousItems.size());
+
+        for(const auto& item : previousItems) {
+            previousItemsById.emplace(item.id, item);
+        }
+
+        std::unordered_map<int, Item> currentItemsById;
+        currentItemsById.reserve(m_items.size());
+
+        for(const auto& item : m_items) {
+            currentItemsById.emplace(item.id, item);
+        }
+
+        for(const auto& item : previousItems) {
+            if(!currentItemsById.contains(item.id)) {
+                Q_EMIT itemRemoved(item.id);
+            }
+        }
+
+        for(const auto& item : m_items) {
+            if(!previousItemsById.contains(item.id)) {
+                Q_EMIT itemAdded(item.id);
+            }
+            else if(!(previousItemsById.at(item.id) == item)) {
+                Q_EMIT itemChanged(item.id);
+            }
+        }
+    }
+
+    Item addItem(const Item& item)
+    {
+        Item newItem{item};
+        newItem.name  = findUniqueName(newItem.name);
+        newItem.id    = findValidId();
+        newItem.index = static_cast<int>(m_items.size());
+        m_items.push_back(newItem);
+
+        m_itemsChanged = true;
+
+        Q_EMIT itemAdded(newItem.id);
+
+        saveItems();
+        return newItem;
+    }
+
+    bool changeItem(const Item& item)
+    {
+        const auto itemIt
+            = std::ranges::find_if(m_items, [item](const auto& regItem) { return regItem.id == item.id; });
+        if(itemIt == m_items.end()) {
+            return false;
+        }
+
+        Item changedItem{item};
+        if(isDefaultItem(*itemIt)) {
+            if(m_defaultOverrideKey.isEmpty()) {
+                return false;
+            }
+
+            changedItem.id    = itemIt->id;
+            changedItem.index = itemIt->index;
+            if constexpr(requires { changedItem.isDefault = true; }) {
+                changedItem.isDefault = true;
+            }
+
+            if(itemIt->name != changedItem.name) {
+                changedItem.name = findUniqueName(changedItem.name);
+            }
+            if(*itemIt == changedItem) {
+                return false;
+            }
+
+            *itemIt                            = changedItem;
+            m_defaultOverrides[changedItem.id] = changedItem;
+
+            saveDefaultOverrides();
+            Q_EMIT itemChanged(changedItem.id);
+            return true;
+        }
+
+        if(*itemIt == changedItem) {
+            return false;
+        }
+
+        if(itemIt->name != changedItem.name) {
+            changedItem.name = findUniqueName(changedItem.name);
+        }
+        *itemIt = changedItem;
+
+        m_itemsChanged = true;
+
+        std::ranges::sort(m_items, {}, &Item::index);
+        Q_EMIT itemChanged(changedItem.id);
+
+        saveItems();
+        return true;
+    }
+
+    std::optional<Item> itemById(int id) const
+    {
+        if(m_items.empty()) {
+            return {};
+        }
+
+        auto it = std::ranges::find_if(m_items, [id](const auto& item) { return item.id == id; });
+        if(it != m_items.end()) {
+            return *it;
+        }
+
+        return {};
+    }
+
+    std::optional<Item> itemByIndex(int index) const
+    {
+        if(m_items.empty()) {
+            return {};
+        }
+
+        auto it = std::ranges::find_if(m_items, [index](const auto& item) { return item.index == index; });
+        if(it != m_items.end()) {
+            return *it;
+        }
+
+        return {};
+    }
+
+    std::optional<Item> itemByName(const QString& name) const
+    {
+        if(m_items.empty()) {
+            return {};
+        }
+
+        auto it = std::ranges::find_if(m_items, [name](const auto& item) { return item.name == name; });
+        if(it != m_items.end()) {
+            return *it;
+        }
+
+        return {};
+    }
+
+    bool removeById(int id)
+    {
+        if(std::erase_if(m_items, [id](const auto& item) { return !isDefaultItem(item) && item.id == id; }) == 0) {
+            return false;
+        }
+
+        m_itemsChanged = true;
+        Q_EMIT itemRemoved(id);
+
+        saveItems();
+        return true;
+    }
+
+    void saveItems() const
+    {
+        if(!m_itemsChanged) {
+            m_settings->fileRemove(m_settingKey);
+            return;
+        }
+
+        QByteArray byteArray;
+        QDataStream stream(&byteArray, QIODevice::WriteOnly);
+        stream.setVersion(QDataStream::Qt_6_0);
+
+        const int customCount
+            = std::ranges::count_if(m_items, [](const auto& regItem) { return !isDefaultItem(regItem); });
+        stream << customCount;
+
+        for(const auto& item :
+            m_items | std::views::filter([](const auto& regItem) { return !isDefaultItem(regItem); })) {
+            stream << item;
+        }
+
+        byteArray = qCompress(byteArray, 9);
+
+        m_settings->fileSet(m_settingKey, byteArray);
+    }
+
+    void loadItems()
+    {
+        m_items.clear();
+        loadDefaults();
+        loadDefaultOverrides();
+        applyDefaultOverrides();
+
+        QByteArray byteArray = m_settings->fileValue(m_settingKey).toByteArray();
+
+        ItemList defaultItemsToAdjust;
+
+        if(!byteArray.isEmpty()) {
+            byteArray = qUncompress(byteArray);
+
+            QDataStream stream(&byteArray, QIODevice::ReadOnly);
+            stream.setVersion(QDataStream::Qt_6_0);
+
+            int size;
+            stream >> size;
+
+            while(size > 0) {
+                --size;
+
+                Item item;
+                stream >> item;
+
+                item.name  = findUniqueName(item.name);
+                item.index = static_cast<int>(m_items.size());
+
+                if(const auto existingItem = itemById(item.id)) {
+                    defaultItemsToAdjust.emplace_back(existingItem.value());
+                }
+
+                m_items.push_back(item);
+            }
+
+            m_itemsChanged = true;
+        }
+
+        // If we add new default items but the user has added custom items, there will be an id conflict.
+        // Adjust for this here.
+        for(const auto& item : defaultItemsToAdjust) {
+            auto itemToAdjust = item;
+            const auto itemIt
+                = std::ranges::find_if(m_items, [item](const auto& regItem) { return regItem.id == item.id; });
+            if(itemIt != m_items.end()) {
+                itemToAdjust.id = findValidId();
+                *itemIt         = itemToAdjust;
+                Q_EMIT itemChanged(itemToAdjust.id);
+            }
+        }
+    }
+
+protected:
+    virtual void loadDefaults() { }
+
+    void addDefaultItem(const Item& item, bool isEditable = false, bool isEnabled = true)
+    {
+        Item defaultItem{item};
+        if constexpr(requires { defaultItem.isDefault = !isEditable; }) {
+            defaultItem.isDefault = !isEditable;
+        }
+        if constexpr(requires { defaultItem.isEnabled = isEnabled; }) {
+            defaultItem.isEnabled = isEnabled;
+        }
+
+        if(defaultItem.name.isEmpty()) {
+            defaultItem.name = findUniqueName(defaultItem.name);
+        }
+        if(defaultItem.id < 0) {
+            defaultItem.id = findValidId();
+        }
+        if(defaultItem.index < 0 || std::cmp_greater(defaultItem.index, m_items.size())) {
+            defaultItem.index = static_cast<int>(m_items.size());
+        }
+
+        m_items.insert(m_items.begin() + defaultItem.index, defaultItem);
+    }
+
+private:
+    static bool isDefaultItem(const Item& item)
+    {
+        if constexpr(requires { item.isDefault; }) {
+            return item.isDefault;
+        }
+        else {
+            return false;
+        }
+    }
+
+    void loadDefaultOverrides()
+    {
+        m_defaultOverrides.clear();
+
+        if(m_defaultOverrideKey.isEmpty()) {
+            return;
+        }
+
+        QByteArray byteArray = m_settings->fileValue(m_defaultOverrideKey).toByteArray();
+        if(byteArray.isEmpty()) {
+            return;
+        }
+
+        byteArray = qUncompress(byteArray);
+        QDataStream stream{&byteArray, QIODevice::ReadOnly};
+        stream.setVersion(QDataStream::Qt_6_0);
+
+        int size;
+        stream >> size;
+
+        while(size > 0) {
+            --size;
+
+            Item item;
+            stream >> item;
+
+            if(item.id >= 0) {
+                m_defaultOverrides[item.id] = std::move(item);
+            }
+        }
+    }
+
+    void applyDefaultOverrides()
+    {
+        for(const auto& [id, item] : m_defaultOverrides) {
+            const auto itemIt = std::ranges::find_if(
+                m_items, [id](const auto& regItem) { return isDefaultItem(regItem) && regItem.id == id; });
+            if(itemIt == m_items.end()) {
+                continue;
+            }
+
+            Item updatedItem{item};
+            updatedItem.id    = itemIt->id;
+            updatedItem.index = itemIt->index;
+            if constexpr(requires { updatedItem.isDefault = true; }) {
+                updatedItem.isDefault = true;
+            }
+
+            if(itemIt->name != updatedItem.name) {
+                updatedItem.name = findUniqueName(updatedItem.name);
+            }
+            *itemIt = updatedItem;
+        }
+    }
+
+    void saveDefaultOverrides() const
+    {
+        if(m_defaultOverrideKey.isEmpty()) {
+            return;
+        }
+
+        if(m_defaultOverrides.empty()) {
+            m_settings->fileRemove(m_defaultOverrideKey);
+            return;
+        }
+
+        QByteArray byteArray;
+        QDataStream stream{&byteArray, QIODevice::WriteOnly};
+        stream.setVersion(QDataStream::Qt_6_0);
+
+        stream << static_cast<int>(m_defaultOverrides.size());
+
+        for(const auto& item : m_defaultOverrides | std::views::values) {
+            stream << item;
+        }
+
+        byteArray = qCompress(byteArray, 9);
+        m_settings->fileSet(m_defaultOverrideKey, byteArray);
+    }
+
+    [[nodiscard]] QString findUniqueName(const QString& name) const
+    {
+        const QString uniqueName{name.isEmpty() ? QStringLiteral("New item") : name};
+        return Utils::findUniqueString(uniqueName, m_items, [](const auto& item) { return item.name; });
+    }
+
+    [[nodiscard]] int findValidId() const
+    {
+        if(m_items.empty()) {
+            return 0;
+        }
+
+        auto ids         = m_items | std::views::transform([](const auto& regItem) { return regItem.id; });
+        const int nextId = *std::ranges::max_element(ids) + 1;
+        return nextId;
+    }
+
+    SettingsManager* m_settings;
+    QString m_settingKey;
+    QString m_defaultOverrideKey;
+    ItemList m_items;
+    std::unordered_map<int, Item> m_defaultOverrides;
+    bool m_itemsChanged{false};
+};
+} // namespace PicAudioEngine

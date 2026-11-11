@@ -1131,3 +1131,65 @@ TEST(AudioPipelineTest, DirectHardwareAudioEngineFormalNamingAndBufferHealth) {
   engine->setReplayGainMode(2); // Album Gain
   EXPECT_EQ(engine->getReplayGainMode(), 2);
 }
+
+TEST(AudioPipelineTest, BitPerfectAudioEnginePlaybackDecodesAudio) {
+  ensureTestCoreApp();
+  std::filesystem::path tempWav =
+      std::filesystem::temp_directory_path() / "test_engine_playback.wav";
+
+  // Synthesize a valid 16-bit 44.1kHz stereo PCM WAV file with 44100 frames (1
+  // second of audio)
+  std::ofstream out(tempWav, std::ios::binary);
+  ASSERT_TRUE(out.is_open());
+
+  uint32_t sampleRate = 44100;
+  uint16_t channels = 2;
+  uint16_t bitsPerSample = 16;
+  uint32_t frameCount = 44100;
+  uint32_t dataBytes = frameCount * channels * (bitsPerSample / 8);
+  uint32_t riffSize = 36 + dataBytes;
+
+  out.write("RIFF", 4);
+  out.write(reinterpret_cast<const char *>(&riffSize), 4);
+  out.write("WAVE", 4);
+
+  // 'fmt ' chunk
+  uint32_t fmtSize = 16;
+  uint16_t fmtTag = 1; // PCM
+  uint32_t byteRate = sampleRate * channels * (bitsPerSample / 8);
+  uint16_t blockAlign = channels * (bitsPerSample / 8);
+  out.write("fmt ", 4);
+  out.write(reinterpret_cast<const char *>(&fmtSize), 4);
+  out.write(reinterpret_cast<const char *>(&fmtTag), 2);
+  out.write(reinterpret_cast<const char *>(&channels), 2);
+  out.write(reinterpret_cast<const char *>(&sampleRate), 4);
+  out.write(reinterpret_cast<const char *>(&byteRate), 4);
+  out.write(reinterpret_cast<const char *>(&blockAlign), 2);
+  out.write(reinterpret_cast<const char *>(&bitsPerSample), 2);
+
+  // 'data' chunk
+  out.write("data", 4);
+  out.write(reinterpret_cast<const char *>(&dataBytes), 4);
+  for (uint32_t i = 0; i < frameCount * channels; ++i) {
+    int16_t sample = static_cast<int16_t>(
+        std::sin(2.0 * M_PI * 440.0 * (i / 2) / sampleRate) * 16000.0);
+    out.write(reinterpret_cast<const char *>(&sample), sizeof(sample));
+  }
+  out.close();
+
+  auto engine = std::make_shared<BitPerfectAudioEngine>();
+  ASSERT_TRUE(engine->initialize(44100, 2));
+
+  ASSERT_TRUE(engine->load(tempWav.string()));
+  ASSERT_TRUE(engine->play());
+
+  // Wait briefly for engine state and decoding
+  for (int i = 0; i < 25; ++i) {
+    QCoreApplication::processEvents();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+
+  EXPECT_TRUE(engine->isPlaying());
+  engine->stop();
+  std::filesystem::remove(tempWav);
+}

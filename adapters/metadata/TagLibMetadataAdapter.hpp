@@ -38,6 +38,15 @@ public:
   std::string extractLyrics(const std::string &filePath) override;
   void setArtworkPriority(bool preferEmbedded) override;
 
+  // Tag Writing & Atomic Updates (Phase 4)
+  bool writeTags(const std::string &filePath,
+                 const std::unordered_map<std::string, std::string> &tags);
+  bool writeRating(const std::string &filePath, int rating);
+  bool writeCoverArt(const std::string &filePath,
+                     const std::vector<uint8_t> &imageData,
+                     const std::string &mimeType);
+  bool removeCoverArt(const std::string &filePath);
+
   /**
    * @brief Computes 64-bit FNV-1a hash over raw binary buffer.
    */

@@ -1,0 +1,225 @@
+/*
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
+ */
+
+#pragma once
+
+#include "fycore_export.h"
+
+#include <core/player/playbackqueue.h>
+#include <core/player/playerdefs.h>
+#include <core/playlist/playlist.h>
+
+#include <QObject>
+
+namespace PicAudioEngine {
+class PlayerControllerPrivate;
+class PlaylistHandler;
+class SettingsManager;
+
+/*!
+ * Handles track playback
+ */
+class PICAUDIO_ENGINE_EXPORT PlayerController : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit PlayerController(SettingsManager* settings, PlaylistHandler* playlistHandler, QObject* parent = nullptr);
+    ~PlayerController() override;
+
+    /** Returns the current state (playing, paused or stopped). */
+    [[nodiscard]] Player::PlayState playState() const;
+    /** Returns whether playback has started since the application was launched. */
+    [[nodiscard]] bool playbackStarted() const;
+
+    /** Returns the current playlist mode (shuffle and repeat flags). */
+    [[nodiscard]] Playlist::PlayModes playMode() const;
+
+    /** Returns the current playback position in ms. */
+    [[nodiscard]] uint64_t currentPosition() const;
+    /** Returns the listened playback time in ms used for playcount thresholding. */
+    [[nodiscard]] uint64_t currentTimeListened() const;
+    /** Returns the listened playback time in ms required to count the current track as played. */
+    [[nodiscard]] uint64_t playedThreshold() const;
+    /** Returns whether the current track has already crossed the played threshold. */
+    [[nodiscard]] bool playedThresholdReached() const;
+    /** Returns the current bitrate. */
+    [[nodiscard]] int bitrate() const;
+    /** Returns the decoder backend used for the current track. */
+    [[nodiscard]] QString decoder() const;
+    /** Returns current post-DSP output and processing information. */
+    [[nodiscard]] Engine::PlaybackOutputInfo playbackOutputInfo() const;
+    /** Returns @c true if the current track can be seeked. */
+    [[nodiscard]] bool currentTrackSeekable() const;
+
+    /*!
+     * Returns the currently playing track.
+     * @note the track will be invalid if the state is 'Stopped'.
+     */
+    [[nodiscard]] Track currentTrack() const;
+    /** Returns the current track id, or -1 if there isn't a valid tracks. */
+    [[nodiscard]] int currentTrackId() const;
+    /** Returns @c true if the current track is part of the queue. */
+    [[nodiscard]] bool currentIsQueueTrack() const;
+    /*!
+     * Returns the currently playing playlist track.
+     * @note the track will be invalid if the state is 'Stopped'.
+     */
+    [[nodiscard]] PlaylistTrack currentPlaylistTrack() const;
+
+    /** Starts playback of the current playlist. */
+    void play();
+    /** Restarts the current track when already playing, otherwise starts playback. */
+    void playFromStart();
+
+    /** Toggles playback. */
+    void playPause();
+
+    void pause();
+    void previous();
+    void next();
+    void randomTrack();
+    void randomAlbum();
+    void previousAlbum();
+    void nextAlbum();
+    void advance(Player::AdvanceReason reason);
+    void stop();
+    /*! Synchronise UI/controller state from engine without issuing transport requests. */
+    void syncPlayStateFromEngine(Player::PlayState state);
+
+    /** Stops playback and clears position and current track. */
+    void reset();
+
+    void setPlayMode(Playlist::PlayModes mode);
+
+    /** Returns the current track’s temporary A–B repeat range, in ms. */
+    [[nodiscard]] Player::ABRepeatRange abRepeatRange() const;
+    /** Optionally seek to the new start when an enabled repeat range is adjusted. */
+    void setABRepeatStart(uint64_t ms, bool seekToStart = false);
+    void setABRepeatEnd(uint64_t ms);
+    void setABRepeatEnabled(bool enabled);
+    void clearABRepeat();
+
+    void seek(uint64_t ms);
+    void seekForward(uint64_t delta);
+    void seekBackward(uint64_t delta);
+    void startPlayback(const UId& playlistId);
+    void startPlayback(Playlist* playlist);
+    void startPlayback(Playlist* playlist, const QueueTracks& trackReferences);
+
+    void restorePlaybackQueue(PlaybackQueueSnapshot snapshot);
+    void restoreCurrentPosition(uint64_t ms);
+    void restorePlaybackProgress(uint64_t positionMs, uint64_t timeListenedMs);
+    void setCurrentPosition(uint64_t ms);
+    void setBitrate(int bitrate);
+    void setDecoder(const QString& decoder);
+    void setPlaybackOutputInfo(const PicAudioEngine::Engine::PlaybackOutputInfo& info);
+    void setCurrentTrackSeekable(bool seekable);
+
+    void changeCurrentTrack(const Track& track);
+    void changeCurrentTrack(const PlaylistTrack& track,
+                            const Player::TrackChangeContext& context = Player::TrackChangeContext{});
+    void commitCurrentTrack(const Player::TrackChangeRequest& request);
+    void commitCurrentTrack(const Track& track);
+    void commitCurrentTrack(const PlaylistTrack& track,
+                            const Player::TrackChangeContext& context = Player::TrackChangeContext{});
+    bool rejectTrackChange(uint64_t itemId);
+    void updateCurrentTrack(const Track& track);
+
+    void scheduleNextTrack(const PlaylistTrack& track);
+
+    [[nodiscard]] Track upcomingTrack() const;
+    [[nodiscard]] PlaylistTrack upcomingPlaylistTrack() const;
+    [[nodiscard]] bool hasNextTrack() const;
+    [[nodiscard]] bool hasPreviousTrack() const;
+    [[nodiscard]] bool trackEndAutoTransitionsEnabled() const;
+    [[nodiscard]] Player::TrackChangeContext lastTrackChangeContext() const;
+    [[nodiscard]] Player::PlaybackSnapshot playbackSnapshot() const;
+
+    [[nodiscard]] const PlaybackQueue& playbackQueue() const;
+    [[nodiscard]] PlaybackQueueMode playbackQueueMode() const;
+    [[nodiscard]] int queuedTracksCount() const;
+    [[nodiscard]] PlaybackQueueItemId currentQueueItemId() const;
+    [[nodiscard]] PlaybackQueueItemId stopAfterQueueItemId() const;
+
+    void playQueueItem(PlaybackQueueItemId id);
+    void stopAfterQueueItem(PlaybackQueueItemId id);
+
+    /** Queues the @p track to be played at the end of the current track. */
+    void queueTrack(const Track& track);
+    void queueTrack(const PlaylistTrack& track);
+    void queueTracks(const TrackList& tracks);
+    void queueTracks(const QueueTracks& tracks);
+    void queueTrackNext(const Track& track);
+    void queueTrackNext(const PlaylistTrack& track);
+    void queueTracksNext(const TrackList& tracks);
+    void queueTracksNext(const QueueTracks& tracks);
+    void queueTracksNextAndPlay(const QueueTracks& tracks);
+
+    void dequeueTrack(const Track& track);
+    void dequeueTrack(const PlaylistTrack& track);
+    void dequeueTracks(const TrackList& tracks);
+    void dequeueTracks(const QueueTracks& tracks);
+    void dequeueTracks(const std::vector<int>& indexes);
+    void dequeueQueueItems(const std::vector<PlaybackQueueItemId>& ids);
+
+    void insertQueueTracks(int index, const QueueTracks& tracks);
+    void moveQueueItems(int index, const std::vector<PlaybackQueueItemId>& ids);
+    void reorderQueueItems(const std::vector<PlaybackQueueItemId>& ids);
+    void updateQueuedTrackMetadata(const TrackList& tracks);
+
+    void replaceTracks(const TrackList& tracks);
+    void replaceTracks(const QueueTracks& tracks);
+    void clearPlaylistQueue(const UId& playlistId);
+    void clearQueue();
+
+Q_SIGNALS:
+    void playStateChanged(PicAudioEngine::Player::PlayState state, PicAudioEngine::Player::PlayState previous);
+    void playModeChanged(PicAudioEngine::Playlist::PlayModes mode);
+    void transportPlayRequested();
+    void transportPauseRequested();
+    void transportStopRequested();
+
+    void positionChanged(uint64_t ms);
+    void positionChangedSeconds(uint64_t seconds);
+    void bitrateChanged(int bitrate);
+    void playbackOutputInfoChanged(const PicAudioEngine::Engine::PlaybackOutputInfo& info);
+    void positionMoved(uint64_t ms);
+    void abRepeatRangeChanged();
+
+    /*! Emitted when the actual playback track changes. */
+    void currentTrackChanged(const PicAudioEngine::Track& track);
+    /*! Emitted when metadata for the current playback track is refreshed in place. */
+    void currentTrackUpdated(const PicAudioEngine::Track& track);
+    /*! Emitted when whether the current track can be seeked changes. */
+    void currentTrackSeekableChanged(bool seekable);
+    /*!
+     * Emitted when the actual playback track changes and the playlist-backed reference for that new track is known.
+     * Unlike playlistTrackUpdated(), this is not emitted for in-place playlist reference remaps of the same
+     * playback item.
+     */
+    void playlistTrackChanged(const PicAudioEngine::PlaylistTrack& track);
+    /*! Emitted when the current playback track's playlist reference changes, including structural remaps. */
+    void playlistTrackUpdated(const PicAudioEngine::PlaylistTrack& track);
+    void trackPlayed(const PicAudioEngine::Track& track);
+    void trackChangeRequested(const PicAudioEngine::Player::TrackChangeRequest& request);
+    void upcomingTrackChanged(const PicAudioEngine::Player::UpcomingTrack& upcomingTrack);
+    void trackEndAutoTransitionsEnabledChanged(bool enabled);
+
+    void tracksQueued(const PicAudioEngine::QueueTracks& tracks, int index);
+    void tracksDequeued(const PicAudioEngine::QueueTracks& tracks);
+    void trackIndexesDequeued(const PicAudioEngine::PlaylistIndexes& indexes);
+    void trackQueueChanged(const PicAudioEngine::QueueTracks& removed, const PicAudioEngine::QueueTracks& added);
+    void playbackQueueModeChanged(PicAudioEngine::PlaybackQueueMode queueMode);
+
+    void playbackSnapshotChanged(const PicAudioEngine::Player::PlaybackSnapshot& snapshot);
+    void playbackQueuePositionChanged(PicAudioEngine::PlaybackQueueItemId currentItemId);
+    void stopAfterQueueItemChanged(PicAudioEngine::PlaybackQueueItemId queueItemId);
+
+private:
+    std::unique_ptr<PlayerControllerPrivate> p;
+};
+} // namespace PicAudioEngine

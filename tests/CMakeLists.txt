@@ -24,6 +24,9 @@ add_executable(picaudio_tests
     test_plugin_manager.cpp
     test_audio_pipeline.cpp
     test_qml_components.cpp
+    test_phase4_library.cpp
+    test_tab_service.cpp
+    test_phase6_ui.cpp
 )
 
 target_include_directories(picaudio_tests PRIVATE

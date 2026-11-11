@@ -944,6 +944,79 @@ Rectangle {
                         }
                     }
 
+                    // Favorite Heart
+                    Item {
+                        Layout.preferredWidth: 20
+                        Layout.preferredHeight: 18
+                        Layout.alignment: Qt.AlignVCenter
+                        visible: bridge.currentTrackTitle.length > 0
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: bridge.currentTrackFavorite ? "♥" : "♡"
+                            font.pixelSize: 13
+                            color: bridge.currentTrackFavorite ? Theme.accent : (deckFavMouse.containsMouse ? Theme.textPrimary : Theme.textMuted)
+                            opacity: bridge.currentTrackFavorite ? 1.0 : (deckFavMouse.containsMouse ? 0.9 : 0.4)
+                        }
+
+                        MouseArea {
+                            id: deckFavMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: bridge.toggleCurrentTrackFavorite()
+                        }
+                        ToolTip.visible: deckFavMouse.containsMouse
+                        ToolTip.text: bridge.currentTrackFavorite ? "Remove from Favorites" : "Add to Favorites"
+                    }
+
+                    // 5-Star Rating
+                    Item {
+                        Layout.preferredWidth: 68
+                        Layout.preferredHeight: 18
+                        Layout.alignment: Qt.AlignVCenter
+                        visible: bridge.currentTrackTitle.length > 0
+
+                        property int hoverStar: 0
+
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 1
+                            Repeater {
+                                model: 5
+                                Text {
+                                    property int starIndex: index + 1
+                                    text: (parent.parent.hoverStar > 0 ? (starIndex <= parent.parent.hoverStar) : (starIndex <= bridge.currentTrackRating)) ? "★" : "☆"
+                                    font.pixelSize: 11
+                                    color: (parent.parent.hoverStar > 0 ? (starIndex <= parent.parent.hoverStar) : (starIndex <= bridge.currentTrackRating)) ? Theme.accent : Theme.textMuted
+                                    opacity: (starIndex <= bridge.currentTrackRating || (parent.parent.hoverStar > 0 && starIndex <= parent.parent.hoverStar)) ? 1.0 : 0.4
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: deckRatingMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onPositionChanged: (mouse) => {
+                                let s = Math.ceil(mouse.x / (width / 5));
+                                parent.hoverStar = Math.max(1, Math.min(5, s));
+                            }
+                            onExited: {
+                                parent.hoverStar = 0;
+                            }
+                            onClicked: (mouse) => {
+                                let s = Math.ceil(mouse.x / (width / 5));
+                                let clickedStar = Math.max(1, Math.min(5, s));
+                                let newRating = (bridge.currentTrackRating === clickedStar) ? 0 : clickedStar;
+                                bridge.setCurrentTrackRating(newRating);
+                            }
+                        }
+                        ToolTip.visible: deckRatingMouse.containsMouse
+                        ToolTip.text: "Rating: " + (bridge.currentTrackRating > 0 ? (bridge.currentTrackRating + " / 5") : "Unrated")
+                    }
+
                     Text {
                         text: bridge.currentAudioSpecs
                         visible: text.length > 0

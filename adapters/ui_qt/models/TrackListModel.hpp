@@ -48,7 +48,12 @@ public:
     DateAddedRole,
     DateAddedFormattedRole,
     PlayCountRole,
-    RatingRole
+    RatingRole,
+    IsFavoriteRole,
+    SkipCountRole,
+    LastPlayedRole,
+    LastPlayedFormattedRole,
+    CommentRole
   };
 
   explicit TrackListModel(core::IMusicDatabasePort *dbPort = nullptr,
@@ -71,6 +76,20 @@ public:
   Q_INVOKABLE void loadAlbumTracks(const QString &albumTitle,
                                    const QString &albumArtist);
   Q_INVOKABLE void setFilter(const QString &filterText);
+  Q_INVOKABLE void setSearchQuery(const QString &query);
+  Q_INVOKABLE void setGenreFilter(const QString &genre);
+  Q_INVOKABLE void setArtistFilter(const QString &artist);
+  Q_INVOKABLE void setAlbumFilter(const QString &album);
+  Q_INVOKABLE void setLetterFilter(const QString &letter);
+  Q_INVOKABLE void setHiResOnly(bool hiResOnly);
+  Q_INVOKABLE void resetAllFilters();
+
+  [[nodiscard]] QString searchQuery() const { return m_searchQuery; }
+  [[nodiscard]] QString genreFilter() const { return m_genreFilter; }
+  [[nodiscard]] QString artistFilter() const { return m_artistFilter; }
+  [[nodiscard]] QString albumFilter() const { return m_albumFilter; }
+  [[nodiscard]] QString letterFilter() const { return m_letterFilter; }
+  [[nodiscard]] bool hiResOnly() const { return m_hiResOnly; }
   [[nodiscard]] Q_INVOKABLE QVariantMap getTrackAt(int index) const;
 
   // Selection management
@@ -85,6 +104,8 @@ public:
   [[nodiscard]] Q_INVOKABLE QVariantList getSelectedTrackIds() const;
   [[nodiscard]] Q_INVOKABLE QVariantList getSelectedTracks() const;
   Q_INVOKABLE void removeSelected();
+  Q_INVOKABLE void setTrackRating(int index, int rating);
+  Q_INVOKABLE void setTrackFavorite(int index, bool isFavorite);
 
   // Sorting
   [[nodiscard]] QString sortColumn() const { return m_sortColumn; }
@@ -107,6 +128,12 @@ private:
   std::vector<core::Track> m_filteredTracks;
   std::unordered_set<int> m_selectedIndices;
   QString m_filterText;
+  QString m_searchQuery;
+  QString m_genreFilter;
+  QString m_artistFilter;
+  QString m_albumFilter;
+  QString m_letterFilter;
+  bool m_hiResOnly{false};
   QString m_sortColumn;
   bool m_sortAscending{true};
 };

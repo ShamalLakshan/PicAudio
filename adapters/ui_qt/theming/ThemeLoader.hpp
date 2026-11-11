@@ -34,6 +34,7 @@ struct ThemeTokens {
   QString textSecondary{"#a3a3a3"};
   QString textMuted{"#737373"};
   QString selection{"#262626"};
+  QString surfaceHighlight{"#1f1f1f"};
   QString error{"#ef4444"};
   QString warning{"#f59e0b"};
   QString success{"#22c55e"};
@@ -88,13 +89,16 @@ class ThemeLoader : public QObject {
   Q_PROPERTY(QString surface READ surface NOTIFY themeChanged)
   Q_PROPERTY(QString surfaceElevated READ surfaceElevated NOTIFY themeChanged)
   Q_PROPERTY(QString panelBorder READ panelBorder NOTIFY themeChanged)
+  Q_PROPERTY(QString border READ panelBorder NOTIFY themeChanged)
   Q_PROPERTY(QString accent READ accent NOTIFY themeChanged)
   Q_PROPERTY(QString accentHover READ accentHover NOTIFY themeChanged)
   Q_PROPERTY(QString textPrimary READ textPrimary NOTIFY themeChanged)
   Q_PROPERTY(QString textSecondary READ textSecondary NOTIFY themeChanged)
   Q_PROPERTY(QString textMuted READ textMuted NOTIFY themeChanged)
   Q_PROPERTY(QString selection READ selection NOTIFY themeChanged)
+  Q_PROPERTY(QString surfaceHighlight READ surfaceHighlight NOTIFY themeChanged)
   Q_PROPERTY(QString error READ error NOTIFY themeChanged)
+  Q_PROPERTY(QString danger READ danger NOTIFY themeChanged)
   Q_PROPERTY(QString warning READ warning NOTIFY themeChanged)
   Q_PROPERTY(QString success READ success NOTIFY themeChanged)
 
@@ -113,6 +117,7 @@ class ThemeLoader : public QObject {
   Q_PROPERTY(int spacingLarge READ spacingLarge NOTIFY themeChanged)
   Q_PROPERTY(int cornerRadiusSmall READ cornerRadiusSmall NOTIFY themeChanged)
   Q_PROPERTY(int cornerRadiusMedium READ cornerRadiusMedium NOTIFY themeChanged)
+  Q_PROPERTY(int cardCornerRadius READ cardCornerRadius NOTIFY themeChanged)
   Q_PROPERTY(int panelPadding READ panelPadding NOTIFY themeChanged)
 
   // UI Scale / Density
@@ -149,7 +154,11 @@ public:
   [[nodiscard]] QString textSecondary() const { return m_tokens.textSecondary; }
   [[nodiscard]] QString textMuted() const { return m_tokens.textMuted; }
   [[nodiscard]] QString selection() const { return m_tokens.selection; }
+  [[nodiscard]] QString surfaceHighlight() const {
+    return m_tokens.surfaceElevated;
+  }
   [[nodiscard]] QString error() const { return m_tokens.error; }
+  [[nodiscard]] QString danger() const { return m_tokens.error; }
   [[nodiscard]] QString warning() const { return m_tokens.warning; }
   [[nodiscard]] QString success() const { return m_tokens.success; }
 
@@ -186,6 +195,9 @@ public:
     return m_tokens.cornerRadiusSmall;
   }
   [[nodiscard]] int cornerRadiusMedium() const {
+    return m_tokens.cornerRadiusMedium;
+  }
+  [[nodiscard]] int cardCornerRadius() const {
     return m_tokens.cornerRadiusMedium;
   }
   [[nodiscard]] int panelPadding() const {

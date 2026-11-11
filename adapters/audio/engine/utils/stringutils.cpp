@@ -1,0 +1,466 @@
+/*
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
+ */
+
+#include <utils/stringutils.h>
+
+#include <QFontMetrics>
+#include <QJsonArray>
+#include <QJsonValue>
+#include <QKeySequence>
+#include <QStringDecoder>
+
+#include <algorithm>
+#include <limits>
+#include <memory>
+#include <vector>
+
+#include <unicode/brkiter.h>
+#include <unicode/locid.h>
+#include <unicode/ucnv.h>
+#include <unicode/ucsdet.h>
+#include <unicode/unistr.h>
+
+using namespace Qt::StringLiterals;
+
+namespace {
+bool isEncoding(const QByteArray& encoding, const char* name)
+{
+    return encoding.compare(name, Qt::CaseInsensitive) == 0;
+}
+
+bool isLatinEncoding(const QByteArray& encoding)
+{
+    return encoding.startsWith("ISO-8859-") || isEncoding(encoding, "windows-1252");
+}
+
+bool canDecode(const QByteArray& encoding, const QByteArray& content)
+{
+    UErrorCode status{U_ZERO_ERROR};
+    UConverter* converter = ucnv_open(encoding.constData(), &status);
+    if(U_FAILURE(status) || !converter) {
+        return false;
+    }
+
+    UConverterToUCallback oldAction{nullptr};
+    const void* oldContext{nullptr};
+    ucnv_setToUCallBack(converter, UCNV_TO_U_CALLBACK_STOP, nullptr, &oldAction, &oldContext, &status);
+    if(U_FAILURE(status)) {
+        ucnv_close(converter);
+        return false;
+    }
+
+    status = U_ZERO_ERROR;
+    ucnv_toUChars(converter, nullptr, 0, content.constData(), static_cast<int32_t>(content.size()), &status);
+    ucnv_close(converter);
+
+    return U_SUCCESS(status) || status == U_BUFFER_OVERFLOW_ERROR;
+}
+} // namespace
+
+namespace PicAudioEngine::Utils {
+QString readMultiLineString(const QJsonValue& value)
+{
+    if(value.isString()) {
+        return value.toString();
+    }
+
+    if(!value.isArray()) {
+        return {};
+    }
+
+    const QJsonArray array = value.toArray();
+
+    QStringList lines;
+    for(const auto& val : array) {
+        if(!val.isString()) {
+            return {};
+        }
+        lines.append(val.toString());
+    }
+    return lines.join(u'\n');
+}
+
+QString elideTextWithBreaks(const QString& text, const QFontMetrics& fontMetrics, int maxWidth, Qt::TextElideMode mode)
+{
+    QStringList lines = text.split(QChar::LineSeparator);
+    for(auto i{0}; i < lines.size(); ++i) {
+        lines[i] = fontMetrics.elidedText(lines[i], mode, maxWidth);
+    }
+    return lines.join(QChar::LineSeparator);
+}
+
+QString capitalise(const QString& str)
+{
+    if(str.isEmpty() || str.size() > std::numeric_limits<int32_t>::max()) {
+        return str;
+    }
+
+    thread_local const auto wordIterator = [] {
+        UErrorCode status{U_ZERO_ERROR};
+        std::unique_ptr<icu::BreakIterator> iterator{
+            icu::BreakIterator::createWordInstance(icu::Locale::getRoot(), status)};
+        if(U_FAILURE(status)) {
+            iterator.reset();
+        }
+        return iterator;
+    }();
+
+    if(!wordIterator) {
+        return str;
+    }
+
+    icu::UnicodeString capitalised{reinterpret_cast<const char16_t*>(str.utf16()), static_cast<int32_t>(str.size())};
+    capitalised.toTitle(wordIterator.get(), icu::Locale::getRoot());
+
+    return capitalised.isBogus() ? str : QString::fromUtf16(capitalised.getBuffer(), capitalised.length());
+}
+
+QByteArray detectEncoding(const QByteArray& content, const DetectEncodingOptions& options)
+{
+    QByteArray encoding;
+    UErrorCode status{U_ZERO_ERROR};
+
+    UCharsetDetector* csd = ucsdet_open(&status);
+    if(U_FAILURE(status) || !csd) {
+        return {};
+    }
+
+    ucsdet_setText(csd, content.constData(), static_cast<int32_t>(content.length()), &status);
+    if(U_FAILURE(status)) {
+        ucsdet_close(csd);
+        return {};
+    }
+
+    int32_t count{0};
+    const UCharsetMatch** matches = ucsdet_detectAll(csd, &count, &status);
+    if(U_SUCCESS(status) && matches) {
+        for(int32_t i{0}; i < count; ++i) {
+            UErrorCode matchStatus{U_ZERO_ERROR};
+            const char* name = ucsdet_getName(matches[i], &matchStatus);
+            if(U_FAILURE(matchStatus) || !name) {
+                continue;
+            }
+
+            const QByteArray candidate{name};
+            if(!canDecode(candidate, content)) {
+                continue;
+            }
+
+            if(encoding.isEmpty()) {
+                encoding = candidate;
+            }
+        }
+
+        if(!options.preferredFallbackEncoding.isEmpty() && isLatinEncoding(encoding)
+           && canDecode(options.preferredFallbackEncoding, content)) {
+            encoding = options.preferredFallbackEncoding;
+        }
+    }
+
+    ucsdet_close(csd);
+
+    return encoding;
+}
+
+std::optional<QString> decodeText(const QByteArray& content, const QByteArray& encoding)
+{
+    UErrorCode status{U_ZERO_ERROR};
+    UConverter* converter = ucnv_open(encoding.constData(), &status);
+    if(U_FAILURE(status) || !converter) {
+        return {};
+    }
+
+    UConverterToUCallback oldAction{nullptr};
+    const void* oldContext{nullptr};
+    ucnv_setToUCallBack(converter, UCNV_TO_U_CALLBACK_STOP, nullptr, &oldAction, &oldContext, &status);
+    if(U_FAILURE(status)) {
+        ucnv_close(converter);
+        return {};
+    }
+
+    status = U_ZERO_ERROR;
+    const int32_t requiredSize
+        = ucnv_toUChars(converter, nullptr, 0, content.constData(), static_cast<int32_t>(content.size()), &status);
+    if(status != U_BUFFER_OVERFLOW_ERROR && U_FAILURE(status)) {
+        ucnv_close(converter);
+        return {};
+    }
+
+    std::vector<UChar> decoded(static_cast<size_t>(requiredSize) + 1);
+    status                    = U_ZERO_ERROR;
+    const int32_t decodedSize = ucnv_toUChars(converter, decoded.data(), static_cast<int32_t>(decoded.size()),
+                                              content.constData(), static_cast<int32_t>(content.size()), &status);
+    ucnv_close(converter);
+
+    if(U_FAILURE(status)) {
+        return {};
+    }
+
+    return QString::fromUtf16(decoded.data(), decodedSize);
+}
+
+QString decodeTextWithDetection(const QByteArray& content, const DetectEncodingOptions& options)
+{
+    if(content.isEmpty()) {
+        return {};
+    }
+
+    QStringDecoder toUtf16;
+
+    auto encoding = QStringConverter::encodingForData(content);
+    if(encoding) {
+        toUtf16 = QStringDecoder{encoding.value()};
+    }
+    else {
+        const auto encodingName = detectEncoding(content, options);
+        if(encodingName.isEmpty()) {
+            return {};
+        }
+
+        encoding = QStringConverter::encodingForName(encodingName.constData());
+        if(encoding) {
+            toUtf16 = QStringDecoder{encoding.value()};
+        }
+        else {
+            toUtf16 = QStringDecoder{encodingName.constData()};
+        }
+    }
+
+    if(!toUtf16.isValid()) {
+        toUtf16 = QStringDecoder{QStringConverter::Utf8};
+    }
+
+    QString string = toUtf16(content);
+    string.replace("\n\n"_L1, "\n"_L1);
+    string.replace('\r'_L1, '\n'_L1);
+
+    return string;
+}
+
+QString foldForSearch(QStringView text)
+{
+    const QString normalised = text.toString().normalized(QString::NormalizationForm_D);
+
+    QString folded;
+    folded.reserve(normalised.size());
+
+    for(const QChar ch : normalised) {
+        switch(ch.category()) {
+            case QChar::Mark_NonSpacing:
+            case QChar::Mark_SpacingCombining:
+            case QChar::Mark_Enclosing:
+                continue;
+            default:
+                folded.append(ch);
+                break;
+        }
+    }
+
+    return folded.toCaseFolded();
+}
+
+bool containsWord(QStringView text, QStringView word)
+{
+    if(word.isEmpty()) {
+        return false;
+    }
+
+    const auto isWordCharacter = [text](qsizetype index) {
+        const QChar character = text.at(index);
+        char32_t codePoint    = character.unicode();
+        // The boundary may touch either half of a UTF-16 pair, so classify the full code point
+        if(character.isHighSurrogate() && index + 1 < text.size() && text.at(index + 1).isLowSurrogate()) {
+            codePoint = QChar::surrogateToUcs4(character, text.at(index + 1));
+        }
+        else if(character.isLowSurrogate() && index > 0 && text.at(index - 1).isHighSurrogate()) {
+            codePoint = QChar::surrogateToUcs4(text.at(index - 1), character);
+        }
+        return QChar::isLetterOrNumber(codePoint);
+    };
+
+    for(qsizetype position = text.indexOf(word); position >= 0; position = text.indexOf(word, position + 1)) {
+        const qsizetype end = position + word.size();
+        if((position == 0 || !isWordCharacter(position - 1)) && (end == text.size() || !isWordCharacter(end))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString msToString(std::chrono::milliseconds ms, bool includeMs)
+{
+    const auto weeks = duration_cast<std::chrono::weeks>(ms);
+    ms -= duration_cast<std::chrono::milliseconds>(weeks);
+
+    const auto days = duration_cast<std::chrono::days>(ms);
+    ms -= duration_cast<std::chrono::milliseconds>(days);
+
+    const auto hours = duration_cast<std::chrono::hours>(ms);
+    ms -= duration_cast<std::chrono::milliseconds>(hours);
+
+    const auto minutes = duration_cast<std::chrono::minutes>(ms);
+    ms -= duration_cast<std::chrono::milliseconds>(minutes);
+
+    const auto seconds = duration_cast<std::chrono::seconds>(ms);
+    ms -= duration_cast<std::chrono::milliseconds>(seconds);
+
+    const auto milliseconds = ms.count();
+
+    QString formattedTime;
+
+    if(weeks.count() > 0) {
+        formattedTime += u"%1wk "_s.arg(weeks.count());
+    }
+    if(days.count() > 0) {
+        formattedTime += u"%1d "_s.arg(days.count());
+    }
+    if(hours.count() > 0) {
+        formattedTime += u"%1:"_s.arg(hours.count(), 2, 10, QLatin1Char{'0'});
+    }
+
+    formattedTime
+        += u"%1:%2"_s.arg(minutes.count(), 2, 10, QLatin1Char{'0'}).arg(seconds.count(), 2, 10, QLatin1Char{'0'});
+
+    if(includeMs) {
+        formattedTime += u".%1"_s.arg(milliseconds, 3, 10, QLatin1Char{'0'});
+    }
+
+    return formattedTime;
+}
+
+QString msToString(uint64_t ms)
+{
+    return msToString(static_cast<std::chrono::milliseconds>(ms), false);
+}
+
+QString formatFileSize(uint64_t bytes, bool includeBytes)
+{
+    if(bytes == 0) {
+        return u"0 B"_s;
+    }
+
+    static const QStringList units = {u"B"_s, u"KB"_s, u"MB"_s, u"GB"_s, u"TB"_s};
+    auto size                      = static_cast<double>(bytes);
+    int unitIndex{0};
+
+    while(size >= 1024 && unitIndex < units.size() - 1) {
+        size /= 1024;
+        ++unitIndex;
+    }
+
+    if(unitIndex >= units.size()) {
+        return {};
+    }
+
+    QString formattedSize = u"%1 %2"_s.arg(QString::number(size, 'f', 1), units.at(unitIndex));
+
+    if(unitIndex == 0) {
+        return formattedSize;
+    }
+
+    if(includeBytes) {
+        formattedSize.append(u" (%3 bytes)"_s.arg(bytes));
+    }
+
+    return formattedSize;
+}
+
+QString addLeadingZero(int number, int leadingCount)
+{
+    return u"%1"_s.arg(number, leadingCount, 10, QLatin1Char{'0'});
+}
+
+QString appendShortcut(const QString& str, const QKeySequence& shortcut)
+{
+    QString string = str;
+    string.remove(QChar::fromLatin1('&'));
+    return QString::fromLatin1("<div style=\"white-space:pre\">%1 "
+                               "<span style=\"color: gray; font-size: small\">%2</span></div>")
+        .arg(string, shortcut.toString(QKeySequence::NativeText));
+}
+
+int levenshteinDistance(const QString& first, const QString& second, Qt::CaseSensitivity cs)
+{
+    // Modified from https://qgis.org/api/qgsstringutils_8cpp_source.html
+
+    int firstLength  = static_cast<int>(first.length());
+    int secondLength = static_cast<int>(second.length());
+
+    if(first.isEmpty()) {
+        return secondLength;
+    }
+    if(second.isEmpty()) {
+        return firstLength;
+    }
+
+    QString a = (cs == Qt::CaseSensitive ? first : first.toLower());
+    QString b = (cs == Qt::CaseSensitive ? second : second.toLower());
+
+    const QChar* aChar = a.constData();
+    const QChar* bChar = b.constData();
+
+    int commonPrefixLen{0};
+    while(firstLength > 0 && secondLength > 0 && *aChar == *bChar) {
+        ++commonPrefixLen;
+        --firstLength;
+        --secondLength;
+        ++aChar;
+        ++bChar;
+    }
+
+    while(firstLength > 0 && secondLength > 0
+          && (a.at(commonPrefixLen + firstLength - 1) == b.at(commonPrefixLen + secondLength - 1))) {
+        firstLength--;
+        secondLength--;
+    }
+
+    if(firstLength == 0) {
+        return secondLength;
+    }
+    if(secondLength == 0) {
+        return firstLength;
+    }
+
+    if(firstLength > secondLength) {
+        std::swap(a, b);
+        std::swap(firstLength, secondLength);
+        std::swap(aChar, bChar);
+    }
+
+    std::vector<int> col(secondLength + 1, 0);
+    std::vector<int> prevCol(secondLength + 1);
+    std::iota(prevCol.begin(), prevCol.end(), 0);
+
+    const QChar* bStart{bChar};
+    for(int i{0}; i < firstLength; ++i) {
+        col[0] = i + 1;
+        bChar  = bStart;
+        for(int j{0}; j < secondLength; ++j) {
+            col[j + 1] = std::min({1 + col.at(j), 1 + prevCol.at(1 + j), prevCol[j] + ((*aChar == *bChar) ? 0 : 1)});
+            ++bChar;
+        }
+        col.swap(prevCol);
+        ++aChar;
+    }
+
+    return prevCol.at(secondLength);
+}
+
+int similarityRatio(const QString& first, const QString& second, Qt::CaseSensitivity cs)
+{
+    const auto maxLength = std::max(first.length(), second.length());
+
+    if(maxLength == 0) {
+        return 100;
+    }
+
+    const int distance = levenshteinDistance(first, second, cs);
+
+    const double similarity = (1.0 - (static_cast<double>(distance) / static_cast<double>(maxLength))) * 100;
+    return static_cast<int>(similarity);
+}
+
+} // namespace PicAudioEngine::Utils

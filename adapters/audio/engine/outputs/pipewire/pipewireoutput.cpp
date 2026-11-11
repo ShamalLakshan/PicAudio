@@ -1,0 +1,845 @@
+/*
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
+ */
+
+#include "pipewireoutput.h"
+
+#include "pipewirecontext.h"
+#include "pipewirecore.h"
+#include "pipewireregistry.h"
+namespace PicAudioEngine::Pipewire {
+constexpr auto LatencySetting = "PipeWire/LatencyMs";
+constexpr auto DefaultLatency = 20;
+constexpr auto MaximumLatency = 200;
+}
+#include "pipewirestream.h"
+#include "pipewirethreadloop.h"
+#include "pipewireutils.h"
+
+#include <pipewire/pipewire.h>
+#include <spa/param/audio/format-utils.h>
+#include <spa/pod/builder.h>
+#include <spa/utils/result.h>
+
+#include <QDebug>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
+#include <ctime>
+#include <limits>
+#include <mutex>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#endif
+
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wgnu-statement-expression-from-macro-expansion"
+#pragma clang diagnostic ignored "-Wc99-extensions"
+#endif
+
+using namespace Qt::StringLiterals;
+
+constexpr auto BufferLength          = 200; // ms
+constexpr auto MaxOutputDelaySeconds = 60.0L;
+constexpr auto NsecPerSecond         = 1'000'000'000.0L;
+
+namespace PicAudioEngine::Pipewire {
+namespace {
+int clampToInt(const uint64_t value)
+{
+    static constexpr auto intMax = static_cast<uint64_t>(std::numeric_limits<int>::max());
+    return static_cast<int>(std::min(value, intMax));
+}
+
+int64_t monotonicNsec()
+{
+    timespec ts{};
+    if(clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return 0;
+    }
+
+    return (ts.tv_sec * 1000000000LL) + ts.tv_nsec;
+}
+
+void ensurePipeWireInitialised()
+{
+    static std::once_flag initOnce;
+    std::call_once(initOnce, []() { pw_init(nullptr, nullptr); });
+}
+
+spa_audio_format findSpaFormat(const SampleFormat& format)
+{
+    switch(format) {
+        case SampleFormat::U8:
+            return SPA_AUDIO_FORMAT_U8;
+        case SampleFormat::S16:
+            return SPA_AUDIO_FORMAT_S16;
+        case SampleFormat::S24In32:
+        case SampleFormat::S32:
+            return SPA_AUDIO_FORMAT_S32;
+        case SampleFormat::F32:
+            return SPA_AUDIO_FORMAT_F32;
+        case SampleFormat::F64:
+            return SPA_AUDIO_FORMAT_F64;
+        case SampleFormat::Unknown:
+        default:
+            return SPA_AUDIO_FORMAT_UNKNOWN;
+    }
+}
+
+spa_audio_channel toSpaChannel(AudioFormat::ChannelPosition channel)
+{
+    using P = AudioFormat::ChannelPosition;
+    switch(channel) {
+        case P::FrontLeft:
+            return SPA_AUDIO_CHANNEL_FL;
+        case P::FrontRight:
+            return SPA_AUDIO_CHANNEL_FR;
+        case P::FrontCenter:
+            return SPA_AUDIO_CHANNEL_FC;
+        case P::LFE:
+            return SPA_AUDIO_CHANNEL_LFE;
+        case P::BackLeft:
+            return SPA_AUDIO_CHANNEL_RL;
+        case P::BackRight:
+            return SPA_AUDIO_CHANNEL_RR;
+#ifdef SPA_AUDIO_CHANNEL_FLC
+        case P::FrontLeftOfCenter:
+            return SPA_AUDIO_CHANNEL_FLC;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_FRC
+        case P::FrontRightOfCenter:
+            return SPA_AUDIO_CHANNEL_FRC;
+#endif
+        case P::BackCenter:
+            return SPA_AUDIO_CHANNEL_RC;
+        case P::SideLeft:
+            return SPA_AUDIO_CHANNEL_SL;
+        case P::SideRight:
+            return SPA_AUDIO_CHANNEL_SR;
+#ifdef SPA_AUDIO_CHANNEL_TC
+        case P::TopCenter:
+            return SPA_AUDIO_CHANNEL_TC;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TFL
+        case P::TopFrontLeft:
+            return SPA_AUDIO_CHANNEL_TFL;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TFC
+        case P::TopFrontCenter:
+            return SPA_AUDIO_CHANNEL_TFC;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TFR
+        case P::TopFrontRight:
+            return SPA_AUDIO_CHANNEL_TFR;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TRL
+        case P::TopBackLeft:
+            return SPA_AUDIO_CHANNEL_TRL;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TRC
+        case P::TopBackCenter:
+            return SPA_AUDIO_CHANNEL_TRC;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TRR
+        case P::TopBackRight:
+            return SPA_AUDIO_CHANNEL_TRR;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_LFE2
+        case P::LFE2:
+            return SPA_AUDIO_CHANNEL_LFE2;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TSL
+        case P::TopSideLeft:
+            return SPA_AUDIO_CHANNEL_TSL;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_TSR
+        case P::TopSideRight:
+            return SPA_AUDIO_CHANNEL_TSR;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_BC
+        case P::BottomFrontCenter:
+            return SPA_AUDIO_CHANNEL_BC;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_BLC
+        case P::BottomFrontLeft:
+            return SPA_AUDIO_CHANNEL_BLC;
+#endif
+#ifdef SPA_AUDIO_CHANNEL_BRC
+        case P::BottomFrontRight:
+            return SPA_AUDIO_CHANNEL_BRC;
+#endif
+        case P::UnknownPosition:
+        default:
+            return SPA_AUDIO_CHANNEL_UNKNOWN;
+    }
+}
+
+void updateChannelMapLegacy(spa_audio_info_raw* info, int channels)
+{
+    // Set channels according to: https://xiph.org/flac/format.html
+    switch(channels) {
+        case 8:
+            info->position[7] = SPA_AUDIO_CHANNEL_SR;
+            info->position[6] = SPA_AUDIO_CHANNEL_SL;
+            info->position[5] = SPA_AUDIO_CHANNEL_RR;
+            info->position[4] = SPA_AUDIO_CHANNEL_RL;
+            info->position[3] = SPA_AUDIO_CHANNEL_LFE;
+            info->position[2] = SPA_AUDIO_CHANNEL_FC;
+            info->position[1] = SPA_AUDIO_CHANNEL_FR;
+            info->position[0] = SPA_AUDIO_CHANNEL_FL;
+            break;
+        case 7:
+            info->position[6] = SPA_AUDIO_CHANNEL_SR;
+            info->position[5] = SPA_AUDIO_CHANNEL_SL;
+            info->position[4] = SPA_AUDIO_CHANNEL_RC;
+            info->position[3] = SPA_AUDIO_CHANNEL_LFE;
+            info->position[2] = SPA_AUDIO_CHANNEL_FC;
+            info->position[1] = SPA_AUDIO_CHANNEL_FR;
+            info->position[0] = SPA_AUDIO_CHANNEL_FL;
+            break;
+        case 6:
+            info->position[5] = SPA_AUDIO_CHANNEL_RR;
+            info->position[4] = SPA_AUDIO_CHANNEL_RL;
+            info->position[3] = SPA_AUDIO_CHANNEL_LFE;
+            info->position[2] = SPA_AUDIO_CHANNEL_FC;
+            info->position[1] = SPA_AUDIO_CHANNEL_FR;
+            info->position[0] = SPA_AUDIO_CHANNEL_FL;
+            break;
+        case 5:
+            info->position[4] = SPA_AUDIO_CHANNEL_RR;
+            info->position[3] = SPA_AUDIO_CHANNEL_RL;
+            info->position[2] = SPA_AUDIO_CHANNEL_FC;
+            info->position[1] = SPA_AUDIO_CHANNEL_FR;
+            info->position[0] = SPA_AUDIO_CHANNEL_FL;
+            break;
+        case 4:
+            info->position[3] = SPA_AUDIO_CHANNEL_RR;
+            info->position[2] = SPA_AUDIO_CHANNEL_RL;
+            info->position[1] = SPA_AUDIO_CHANNEL_FR;
+            info->position[0] = SPA_AUDIO_CHANNEL_FL;
+            break;
+        case 3:
+            info->position[2] = SPA_AUDIO_CHANNEL_FC;
+            // Fall through
+        case 2:
+            info->position[1] = SPA_AUDIO_CHANNEL_FR;
+            info->position[0] = SPA_AUDIO_CHANNEL_FL;
+            break;
+        case 1:
+            info->position[0] = SPA_AUDIO_CHANNEL_MONO;
+            break;
+        default:
+            break;
+    }
+}
+
+void updateChannelMap(spa_audio_info_raw* info, const AudioFormat& format)
+{
+    if(format.hasChannelLayout()) {
+        bool validMap = true;
+        for(int i = 0; i < format.channelCount(); ++i) {
+            spa_audio_channel mapped = SPA_AUDIO_CHANNEL_UNKNOWN;
+            if(format.channelCount() == 1 && format.channelPosition(i) == AudioFormat::ChannelPosition::FrontCenter) {
+                mapped = SPA_AUDIO_CHANNEL_MONO;
+            }
+            else {
+                mapped = toSpaChannel(format.channelPosition(i));
+            }
+            info->position[static_cast<size_t>(i)] = mapped;
+            if(mapped == SPA_AUDIO_CHANNEL_UNKNOWN) {
+                validMap = false;
+            }
+        }
+
+        if(validMap) {
+            return;
+        }
+    }
+
+    updateChannelMapLegacy(info, format.channelCount());
+}
+
+bool supportsPipewireLayout(const AudioFormat& format)
+{
+    if(!format.hasChannelLayout()) {
+        return true;
+    }
+
+    for(int i = 0; i < format.channelCount(); ++i) {
+        const auto pos = format.channelPosition(i);
+        if(format.channelCount() == 1 && pos == AudioFormat::ChannelPosition::FrontCenter) {
+            continue;
+        }
+        if(toSpaChannel(pos) == SPA_AUDIO_CHANNEL_UNKNOWN) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::optional<double> outputDelaySeconds(const PipewireStream::TimeInfo& time, int softwareQueuedFrames, int sampleRate,
+                                         int64_t currentTimeNsec)
+{
+    if(sampleRate <= 0 || time.queued > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())
+       || time.buffered > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+        return {};
+    }
+
+    long double graphDelay{0.0L};
+    if(time.rate.denom > 0 && time.rate.num > 0) {
+        const long double reportedDelay = static_cast<long double>(time.delay) * time.rate.num / time.rate.denom;
+
+        long double elapsed{0.0L};
+        if(time.now > 0 && currentTimeNsec > time.now) {
+            elapsed = static_cast<long double>(currentTimeNsec - time.now) / NsecPerSecond;
+        }
+
+        graphDelay = std::max(0.0L, reportedDelay - elapsed);
+    }
+
+    const long double streamDelay
+        = (static_cast<long double>(time.queued) + static_cast<long double>(time.buffered)) / sampleRate;
+    const long double softwareDelay = static_cast<long double>(std::max(0, softwareQueuedFrames)) / sampleRate;
+    const long double totalDelay    = softwareDelay + streamDelay + graphDelay;
+
+    if(!std::isfinite(totalDelay) || totalDelay < 0.0L || totalDelay > MaxOutputDelaySeconds) {
+        return {};
+    }
+
+    return static_cast<double>(totalDelay);
+}
+} // namespace
+
+PipeWireOutput::PipeWireOutput()
+    : m_volume{1.0}
+    , m_targetBufferFrames{0}
+    , m_invalidTimingLogActive{false}
+    , m_loopStarted{false}
+{ }
+
+bool PipeWireOutput::init(const AudioFormat& format)
+{
+    m_format             = format;
+    m_targetBufferFrames = std::max(1, format.framesForDuration(BufferLength));
+
+    const int bytesPerFrame = format.bytesPerFrame();
+    if(bytesPerFrame <= 0) {
+        qCWarning(PIPEWIRE) << "Invalid bytes-per-frame for PipeWire output:" << bytesPerFrame;
+        return false;
+    }
+
+    const auto targetBytes64
+        = static_cast<uint64_t>(m_targetBufferFrames) * static_cast<uint64_t>(static_cast<uint32_t>(bytesPerFrame));
+    static constexpr auto maxCapacity = std::numeric_limits<size_t>::max() - 1;
+    const size_t targetBytes = std::clamp<uint64_t>(targetBytes64, static_cast<uint64_t>(bytesPerFrame), maxCapacity);
+    m_buffer                 = std::make_unique<LockFreeRingBuffer<std::byte>>(targetBytes);
+
+    ensurePipeWireInitialised();
+
+    qCDebug(PIPEWIRE) << "PipeWire backend initialised with queue target:" << m_targetBufferFrames << "frames ("
+                      << BufferLength << "ms)";
+
+    return initCore() && initStream();
+}
+
+void PipeWireOutput::uninit()
+{
+    uninitCore();
+}
+
+void PipeWireOutput::reset()
+{
+    if(!m_stream || !m_loop) {
+        if(m_buffer) {
+            m_buffer->requestReset();
+        }
+        return;
+    }
+
+    const ThreadLoopGuard guard{m_loop.get()};
+    m_stream->flush(false);
+    if(m_buffer) {
+        m_buffer->requestReset();
+    }
+}
+
+void PipeWireOutput::start()
+{
+    if(!m_stream || !m_loop) {
+        return;
+    }
+
+    const ThreadLoopGuard guard{m_loop.get()};
+    m_stream->setActive(true);
+    // Setting volume only works consistently when stream is active,
+    // so do that here. Fixes issues with silent playback.
+    setVolume(m_volume);
+}
+
+void PipeWireOutput::drain()
+{
+    if(!m_stream || !m_loop) {
+        return;
+    }
+
+    const ThreadLoopGuard guard{m_loop.get()};
+
+    if(m_buffer && m_buffer->readAvailable() > 0) {
+        m_loop->wait(2);
+    }
+    m_stream->flush(true);
+    m_loop->wait(2);
+}
+
+bool PipeWireOutput::initialised() const
+{
+    return m_core && m_core->initialised();
+}
+
+QString PipeWireOutput::device() const
+{
+    return m_device;
+}
+
+OutputDevices PipeWireOutput::getAllDevices(bool /*isCurrentOutput*/)
+{
+    OutputDevices devices;
+
+    devices.emplace_back(u"default"_s, u"Default"_s);
+
+    ensurePipeWireInitialised();
+
+    if(!initCore()) {
+        uninitCore();
+        return {};
+    }
+
+    std::ranges::copy(m_registry->devices(), std::back_inserter(devices));
+
+    uninitCore();
+
+    return devices;
+}
+
+OutputState PipeWireOutput::currentState()
+{
+    OutputState state;
+
+    const int bytesPerFrame = m_format.bytesPerFrame();
+    const int sampleRate    = m_format.sampleRate();
+    if(bytesPerFrame <= 0 || sampleRate <= 0 || !m_buffer) {
+        return state;
+    }
+
+    const auto softQueuedFrames = [this, bytesPerFrame]() {
+        const size_t queuedBytes = m_buffer ? m_buffer->readAvailable() : 0;
+        return clampToInt(queuedBytes / static_cast<size_t>(bytesPerFrame));
+    };
+
+    const bool hasStreamLoop = (m_stream && m_loop);
+    if(!hasStreamLoop) {
+        state.queuedFrames = softQueuedFrames();
+        state.freeFrames   = std::max(0, bufferSize() - state.queuedFrames);
+        state.delay        = static_cast<double>(state.queuedFrames) / static_cast<double>(sampleRate);
+        return state;
+    }
+
+    const ThreadLoopGuard guard{m_loop.get()};
+
+    const int softwareQueuedFrames = softQueuedFrames();
+    state.freeFrames               = std::max(0, bufferSize() - softwareQueuedFrames);
+    state.queuedFrames             = softwareQueuedFrames;
+
+    if(const auto time = m_stream->time()) {
+        const auto delay = outputDelaySeconds(*time, softwareQueuedFrames, sampleRate, monotonicNsec());
+        if(!delay.has_value()) {
+            if(!m_invalidTimingLogActive) {
+                qCWarning(PIPEWIRE) << "Ignoring invalid stream timing:"
+                                    << "queued=" << time->queued << "buffered=" << time->buffered
+                                    << "delay=" << time->delay << "rate=" << time->rate.num << "/" << time->rate.denom;
+            }
+            m_invalidTimingLogActive = true;
+            state.delay              = static_cast<double>(state.queuedFrames) / static_cast<double>(sampleRate);
+            return state;
+        }
+
+        m_invalidTimingLogActive       = false;
+        state.delay                    = *delay;
+        const double totalQueuedFrames = std::clamp(state.delay * static_cast<double>(sampleRate), 0.0,
+                                                    static_cast<double>(std::numeric_limits<int>::max()));
+        state.queuedFrames             = static_cast<int>(totalQueuedFrames);
+    }
+    else {
+        // Fallback when the stream timing API has no data yet
+        state.delay = static_cast<double>(state.queuedFrames) / static_cast<double>(sampleRate);
+    }
+
+    return state;
+}
+
+int PipeWireOutput::bufferSize() const
+{
+    return std::max(1, m_targetBufferFrames);
+}
+
+int PipeWireOutput::write(const std::span<const std::byte> data, const int frameCount)
+{
+    if(!m_stream || !m_loop || !m_buffer) {
+        return 0;
+    }
+
+    if(frameCount <= 0) {
+        return 0;
+    }
+
+    const int bytesPerFrame = m_format.bytesPerFrame();
+    if(bytesPerFrame <= 0) {
+        return 0;
+    }
+
+    const size_t availableFrames = data.size() / static_cast<size_t>(bytesPerFrame);
+    const int framesToWrite      = std::min(frameCount, static_cast<int>(availableFrames));
+    if(framesToWrite <= 0) {
+        return 0;
+    }
+
+    const int freeSoftFrames = clampToInt(m_buffer->writeAvailable() / static_cast<size_t>(bytesPerFrame));
+    const int acceptedFrames = std::min(framesToWrite, freeSoftFrames);
+    if(acceptedFrames <= 0) {
+        return 0;
+    }
+
+    const size_t acceptedByteCount = static_cast<size_t>(acceptedFrames) * static_cast<size_t>(bytesPerFrame);
+    auto writer                    = m_buffer->writer();
+    const size_t writtenBytes      = writer.write(data.data(), acceptedByteCount, RingBufferOverflowPolicy::DropNewest);
+    const int writtenFrames        = static_cast<int>(writtenBytes / static_cast<size_t>(bytesPerFrame));
+
+    if(writtenFrames <= 0) {
+        return 0;
+    }
+
+    return writtenFrames;
+}
+
+void PipeWireOutput::setPaused(bool pause)
+{
+    if(!m_stream || !m_loop) {
+        return;
+    }
+
+    const ThreadLoopGuard guard{m_loop.get()};
+    m_stream->setActive(!pause);
+}
+
+void PipeWireOutput::setVolume(double volume)
+{
+    m_volume = static_cast<float>(volume);
+
+    if(!initialised()) {
+        return;
+    }
+
+    const ThreadLoopGuard guard{m_loop.get()};
+    m_stream->setVolume(static_cast<float>(volume));
+}
+
+bool PipeWireOutput::supportsVolumeControl() const
+{
+    return true;
+}
+
+void PipeWireOutput::setDevice(const QString& device)
+{
+    if(!device.isEmpty()) {
+        m_device = device;
+    }
+}
+
+AudioFormat PipeWireOutput::negotiateFormat(const AudioFormat& requested) const
+{
+    if(!requested.isValid()) {
+        return requested;
+    }
+
+    if(supportsPipewireLayout(requested)) {
+        return requested;
+    }
+
+    AudioFormat negotiated = requested;
+    const auto fallback    = AudioFormat::defaultChannelLayoutForChannelCount(requested.channelCount());
+    if(static_cast<int>(fallback.size()) == requested.channelCount()) {
+        negotiated.setChannelLayout(fallback);
+    }
+    else {
+        negotiated.clearChannelLayout();
+    }
+    return negotiated;
+}
+
+QString PipeWireOutput::error() const
+{
+    // TODO
+    return {};
+}
+
+AudioFormat PipeWireOutput::format() const
+{
+    return m_format;
+}
+
+bool PipeWireOutput::initCore()
+{
+    m_loopStarted = false;
+    m_loop        = std::make_unique<PipewireThreadLoop>();
+
+    if(!m_loop->loop()) {
+        return false;
+    }
+
+    m_context = std::make_unique<PipewireContext>(m_loop.get());
+
+    if(!m_context->context()) {
+        return false;
+    }
+
+    m_core = std::make_unique<PipewireCore>(m_context.get());
+
+    if(!m_core->core()) {
+        return false;
+    }
+
+    m_registry = std::make_unique<PipewireRegistry>(m_core.get());
+
+    m_core->syncCore();
+
+    if(!m_loop->start()) {
+        qCWarning(PIPEWIRE) << "Failed to start thread loop";
+        return false;
+    }
+    m_loopStarted = true;
+
+    {
+        const ThreadLoopGuard guard{m_loop.get()};
+        while(!m_core->initialised()) {
+            if(m_loop->wait(2) != 0) {
+                break;
+            }
+        }
+    }
+
+    return m_core->initialised();
+}
+
+bool PipeWireOutput::initStream()
+{
+    static constexpr pw_stream_events streamEvents = {
+        .version       = PW_VERSION_STREAM_EVENTS,
+        .state_changed = handleStateChanged,
+        .process       = process,
+        .drained       = drained,
+    };
+
+    const ThreadLoopGuard guard{m_loop.get()};
+
+    const auto dev = m_device != "default"_L1 ? m_device : QString{};
+
+    const int latencyMs     = std::clamp(m_settings.value(LatencySetting, DefaultLatency).toInt(), 0, MaximumLatency);
+    const int latencyFrames = m_format.framesForDuration(latencyMs);
+
+    m_stream = std::make_unique<PipewireStream>(m_core.get(), m_format, latencyFrames, dev);
+    m_stream->addListener(streamEvents, this);
+
+    qCDebug(PIPEWIRE) << "Requesting stream latency:" << latencyFrames << "/" << m_format.sampleRate() << "frames/rate";
+
+    const spa_audio_format spaFormat = findSpaFormat(m_format.sampleFormat());
+    if(spaFormat == SPA_AUDIO_FORMAT_UNKNOWN) {
+        qCWarning(PIPEWIRE) << "Unknown audio format";
+        return false;
+    }
+
+    std::array<uint8_t, 1024> paramBuffer;
+    auto builder = SPA_POD_BUILDER_INIT(paramBuffer.data(), paramBuffer.size());
+
+    spa_audio_info_raw audioInfo = {
+        .format   = spaFormat,
+        .flags    = SPA_AUDIO_FLAG_NONE,
+        .rate     = static_cast<uint32_t>(m_format.sampleRate()),
+        .channels = static_cast<uint32_t>(m_format.channelCount()),
+    };
+
+    updateChannelMap(&audioInfo, m_format);
+
+    std::vector<const spa_pod*> params;
+    params.emplace_back(spa_format_audio_raw_build(&builder, SPA_PARAM_EnumFormat, &audioInfo));
+
+    static constexpr auto flags = static_cast<pw_stream_flags>(
+        PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_INACTIVE | PW_STREAM_FLAG_MAP_BUFFERS | PW_STREAM_FLAG_RT_PROCESS);
+
+    return m_stream->connect(PW_ID_ANY, PW_DIRECTION_OUTPUT, params, flags);
+}
+
+void PipeWireOutput::uninitCore()
+{
+    if(m_loop) {
+        {
+            const ThreadLoopGuard guard{m_loop.get()};
+
+            if(m_stream) {
+                m_stream->flush(false);
+                m_stream.reset(nullptr);
+            }
+
+            if(m_registry) {
+                m_registry.reset(nullptr);
+            }
+
+            if(m_core) {
+                m_core.reset(nullptr);
+            }
+
+            if(m_context) {
+                m_context.reset(nullptr);
+            }
+        }
+
+        if(m_loopStarted) {
+            m_loop->stop();
+            m_loopStarted = false;
+        }
+
+        m_loop.reset(nullptr);
+    }
+    else {
+        m_stream.reset(nullptr);
+        m_registry.reset(nullptr);
+        m_core.reset(nullptr);
+        m_context.reset(nullptr);
+    }
+
+    m_buffer.reset();
+    m_targetBufferFrames = 0;
+}
+
+void PipeWireOutput::process(void* userData)
+{
+    auto* self = static_cast<PipeWireOutput*>(userData);
+
+    if(!self->m_buffer) {
+        self->m_loop->signal(false);
+        return;
+    }
+
+    const size_t queuedBytes = self->m_buffer->readAvailable();
+    if(queuedBytes == 0) {
+        self->m_loop->signal(false);
+        return;
+    }
+
+    const int bytesPerFrame = self->m_format.bytesPerFrame();
+    if(bytesPerFrame <= 0) {
+        qCWarning(PIPEWIRE) << "Invalid bytes-per-frame in process callback";
+        self->m_loop->signal(false);
+        return;
+    }
+
+    auto* pwBuffer = self->m_stream->dequeueBuffer();
+    if(!pwBuffer) {
+        qCWarning(PIPEWIRE) << "No available output buffers (queuedBytes=" << queuedBytes << ")";
+        return;
+    }
+    pwBuffer->size = 0;
+
+    const spa_data& data = pwBuffer->buffer->datas[0];
+    if(!data.data || data.maxsize == 0) {
+        qCWarning(PIPEWIRE) << "Dequeued buffer has no writable payload";
+        self->m_stream->queueBuffer(pwBuffer);
+        self->m_loop->signal(false);
+        return;
+    }
+
+    const size_t frameSize         = static_cast<size_t>(bytesPerFrame);
+    const size_t maxWritableFrames = static_cast<size_t>(data.maxsize) / frameSize;
+    const size_t requestedFrames   = pwBuffer->requested > 0
+                                       ? static_cast<size_t>(std::min<uint64_t>(pwBuffer->requested, maxWritableFrames))
+                                       : maxWritableFrames;
+    const size_t writeFrames       = std::min(requestedFrames, queuedBytes / frameSize);
+    const size_t writeBytes        = writeFrames * frameSize;
+
+    if(writeBytes == 0) {
+        data.chunk->offset = 0;
+        data.chunk->stride = bytesPerFrame;
+        data.chunk->size   = 0;
+        self->m_stream->queueBuffer(pwBuffer);
+        self->m_loop->signal(false);
+        return;
+    }
+
+    auto* dst              = static_cast<std::byte*>(data.data);
+    auto reader            = self->m_buffer->reader();
+    const size_t readBytes = reader.read(dst, writeBytes);
+
+    size_t commitBytes = (readBytes / frameSize) * frameSize;
+    if(commitBytes == 0) {
+        const size_t queuedAfterRead = self->m_buffer->readAvailable();
+        if(queuedAfterRead > 0) {
+            const size_t retryFrames = std::min(requestedFrames, queuedAfterRead / frameSize);
+            const size_t retryBytes  = retryFrames * frameSize;
+
+            if(retryBytes > 0) {
+                const size_t retryReadBytes = reader.read(dst, retryBytes);
+                commitBytes                 = (retryReadBytes / frameSize) * frameSize;
+            }
+        }
+
+        if(commitBytes == 0) {
+            data.chunk->offset = 0;
+            data.chunk->stride = bytesPerFrame;
+            data.chunk->size   = 0;
+            self->m_stream->queueBuffer(pwBuffer);
+            self->m_loop->signal(false);
+            return;
+        }
+    }
+
+    data.chunk->offset = 0;
+    data.chunk->stride = bytesPerFrame;
+    data.chunk->size   = static_cast<uint32_t>(commitBytes);
+    pwBuffer->size     = commitBytes / frameSize;
+
+    self->m_stream->queueBuffer(pwBuffer);
+    self->m_loop->signal(false);
+}
+
+void PipeWireOutput::handleStateChanged(void* userdata, pw_stream_state old, pw_stream_state state, const char* error)
+{
+    auto* self = static_cast<PipeWireOutput*>(userdata);
+
+    if(state == PW_STREAM_STATE_ERROR) {
+        const QString message = error ? QString::fromUtf8(error) : u"Unknown PipeWire stream error"_s;
+        qCWarning(PIPEWIRE) << "Stream entered error state:" << message;
+        QMetaObject::invokeMethod(self, [self]() { Q_EMIT self->stateChanged(State::Error); });
+    }
+    else if(state == PW_STREAM_STATE_UNCONNECTED) {
+        QMetaObject::invokeMethod(self, [self]() { Q_EMIT self->stateChanged(State::Disconnected); });
+    }
+    else if(old == PW_STREAM_STATE_UNCONNECTED && state == PW_STREAM_STATE_CONNECTING) {
+        // TODO: Handle reconnections
+    }
+    else if(state == PW_STREAM_STATE_PAUSED || state == PW_STREAM_STATE_STREAMING) {
+        self->m_loop->signal(false);
+    }
+}
+
+void PipeWireOutput::drained(void* userdata)
+{
+    auto* self = static_cast<PipeWireOutput*>(userdata);
+    self->m_loop->signal(false);
+}
+} // namespace PicAudioEngine::Pipewire

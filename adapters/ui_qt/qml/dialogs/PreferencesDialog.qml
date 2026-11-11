@@ -18,6 +18,7 @@ Dialog {
     property var discoveredPluginsList: []
     property var selectedPluginDetail: null
     property string dspSearchQuery: ""
+    signal requestLibraryHealth()
 
     function getFilteredDspPlugins() {
         var all = (typeof bridge !== "undefined" && bridge) ? bridge.discoveredDspPlugins : [];
@@ -3087,6 +3088,38 @@ Dialog {
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
 
+                    // Sync Ratings to Audio File Tags (Issue #48)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "Sync Ratings to Audio File Tags"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+                            Text {
+                                text: "Write 5-star ratings directly into audio file tags (ID3v2 POPM popularimeter and Vorbis RATING comment)."
+                                font.pixelSize: Theme.fontSizeSmall - 1
+                                color: Theme.textMuted
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        StyledCheckBox {
+                            text: "Sync to Tags"
+                            checked: bridge.syncRatingsToTags
+                            onToggled: bridge.setSyncRatingsToTags(checked)
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+
                     // Maintenance Operations
                     Text {
                         text: "Library Maintenance & Database Utilities"
@@ -3100,6 +3133,14 @@ Dialog {
                         columns: 3
                         rowSpacing: 10
                         columnSpacing: 10
+
+                        StyledButton {
+                            Layout.fillWidth: true
+                            text: "Library Health & Missing Files..."
+                            onClicked: {
+                                root.requestLibraryHealth();
+                            }
+                        }
 
                         StyledButton {
                             Layout.fillWidth: true

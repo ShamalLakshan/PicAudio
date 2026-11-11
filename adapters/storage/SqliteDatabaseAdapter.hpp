@@ -42,6 +42,25 @@ public:
   size_t getTrackCount() override;
   size_t getAlbumCount() override;
 
+  // Ratings, Favorites & Play Statistics (Phase 4)
+  bool updateTrackRating(const std::string &id, uint8_t rating) override;
+  bool updateTrackFavorite(const std::string &id, bool isFavorite) override;
+  bool recordTrackPlayed(const std::string &id, uint64_t timestamp) override;
+  bool recordTrackSkipped(const std::string &id) override;
+  std::vector<std::pair<core::Track, uint64_t>>
+  getListeningHistory(size_t limit = 200) override;
+  bool clearListeningHistory() override;
+
+  // Library Health & Relocation (Phase 4)
+  std::vector<core::Track> getMissingTracks() override;
+  size_t relocateTracks(const std::string &oldPrefix,
+                        const std::string &newPrefix) override;
+
+  // Dynamic Rule Query (Phase 4)
+  std::vector<core::Track> queryTracksDynamic(const std::string &whereClause,
+                                              const std::string &orderBy = "",
+                                              size_t limit = 0) override;
+
 private:
   bool createTables();
   core::Track parseTrackRow(sqlite3_stmt *stmt);

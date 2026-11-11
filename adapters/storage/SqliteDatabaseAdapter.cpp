@@ -1,13 +1,37 @@
 #include "SqliteDatabaseAdapter.hpp"
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <unordered_map>
 
 namespace adapters {
 
+namespace fs = std::filesystem;
+
 namespace {
+
+const char *TRACK_COLUMNS =
+    "id, file_path, title, artist, album, album_artist, genre, year, "
+    "track_number, disc_number, duration_ms, sample_rate, bit_depth, "
+    "channels, bitrate, codec, art_hash, file_size, date_added, "
+    "replaygain_track_gain, replaygain_track_peak, replaygain_album_gain, "
+    "replaygain_album_peak, has_replaygain, start_time_ms, end_time_ms, "
+    "is_virtual_track, rating, is_favorite, play_count, skip_count, "
+    "last_played, comment";
+
+const char *TRACK_COLUMNS_PREFIXED =
+    "tracks.id, tracks.file_path, tracks.title, tracks.artist, tracks.album, "
+    "tracks.album_artist, tracks.genre, tracks.year, tracks.track_number, "
+    "tracks.disc_number, tracks.duration_ms, tracks.sample_rate, "
+    "tracks.bit_depth, tracks.channels, tracks.bitrate, tracks.codec, "
+    "tracks.art_hash, tracks.file_size, tracks.date_added, "
+    "tracks.replaygain_track_gain, tracks.replaygain_track_peak, "
+    "tracks.replaygain_album_gain, tracks.replaygain_album_peak, "
+    "tracks.has_replaygain, tracks.start_time_ms, tracks.end_time_ms, "
+    "tracks.is_virtual_track, tracks.rating, tracks.is_favorite, "
+    "tracks.play_count, tracks.skip_count, tracks.last_played, tracks.comment";
 
 std::string extractBaseArtist(const std::string &artist) {
   if (artist.empty()) {
@@ -82,7 +106,7 @@ bool SqliteDatabaseAdapter::initialize(const std::string &dbPath) {
 }
 
 bool SqliteDatabaseAdapter::createTables() {
-  const char *schema = R"(
+  const char *baseTables = R"(
         CREATE TABLE IF NOT EXISTS tracks (
             id TEXT PRIMARY KEY,
             file_path TEXT UNIQUE NOT NULL,
@@ -110,25 +134,51 @@ bool SqliteDatabaseAdapter::createTables() {
             has_replaygain INTEGER DEFAULT 0,
             start_time_ms INTEGER DEFAULT 0,
             end_time_ms INTEGER DEFAULT 0,
-            is_virtual_track INTEGER DEFAULT 0
+            is_virtual_track INTEGER DEFAULT 0,
+            rating INTEGER DEFAULT 0,
+            is_favorite INTEGER DEFAULT 0,
+            play_count INTEGER DEFAULT 0,
+            skip_count INTEGER DEFAULT 0,
+            last_played INTEGER DEFAULT 0,
+            comment TEXT DEFAULT ''
         );
 
-        CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album, album_artist);
-        CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
-        CREATE INDEX IF NOT EXISTS idx_tracks_genre ON tracks(genre);
-        CREATE INDEX IF NOT EXISTS idx_tracks_path ON tracks(file_path);
+        CREATE TABLE IF NOT EXISTS playlists (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            is_smart INTEGER DEFAULT 0,
+            smart_rules TEXT DEFAULT '',
+            created_at INTEGER DEFAULT 0,
+            updated_at INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS playlist_tracks (
+            playlist_id TEXT NOT NULL,
+            track_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            PRIMARY KEY (playlist_id, position)
+        );
+
+        CREATE TABLE IF NOT EXISTS listening_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            track_id TEXT NOT NULL,
+            played_at INTEGER NOT NULL,
+            duration_ms INTEGER DEFAULT 0,
+            completed INTEGER DEFAULT 1
+        );
     )";
 
   char *errMsg = nullptr;
-  int rc = sqlite3_exec(m_db, schema, nullptr, nullptr, &errMsg);
+  int rc = sqlite3_exec(m_db, baseTables, nullptr, nullptr, &errMsg);
   if (rc != SQLITE_OK) {
-    std::cerr << "SqliteDatabaseAdapter: Schema creation failed: "
+    std::cerr << "SqliteDatabaseAdapter: Base table creation failed: "
               << (errMsg ? errMsg : "") << std::endl;
     sqlite3_free(errMsg);
     return false;
   }
 
-  // Gracefully alter existing tables if new columns are missing
+  // Gracefully alter existing tables if new columns are missing from earlier
+  // schemas
   sqlite3_exec(
       m_db,
       "ALTER TABLE tracks ADD COLUMN replaygain_track_gain REAL DEFAULT 0.0;",
@@ -157,6 +207,43 @@ bool SqliteDatabaseAdapter::createTables() {
   sqlite3_exec(
       m_db, "ALTER TABLE tracks ADD COLUMN is_virtual_track INTEGER DEFAULT 0;",
       nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db, "ALTER TABLE tracks ADD COLUMN rating INTEGER DEFAULT 0;",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db,
+               "ALTER TABLE tracks ADD COLUMN is_favorite INTEGER DEFAULT 0;",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db,
+               "ALTER TABLE tracks ADD COLUMN play_count INTEGER DEFAULT 0;",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db,
+               "ALTER TABLE tracks ADD COLUMN skip_count INTEGER DEFAULT 0;",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db,
+               "ALTER TABLE tracks ADD COLUMN last_played INTEGER DEFAULT 0;",
+               nullptr, nullptr, nullptr);
+  sqlite3_exec(m_db, "ALTER TABLE tracks ADD COLUMN comment TEXT DEFAULT '';",
+               nullptr, nullptr, nullptr);
+
+  // Indexes are created after ensuring all columns exist
+  const char *indexes = R"(
+        CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album, album_artist);
+        CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
+        CREATE INDEX IF NOT EXISTS idx_tracks_genre ON tracks(genre);
+        CREATE INDEX IF NOT EXISTS idx_tracks_path ON tracks(file_path);
+        CREATE INDEX IF NOT EXISTS idx_tracks_rating ON tracks(rating);
+        CREATE INDEX IF NOT EXISTS idx_tracks_favorite ON tracks(is_favorite);
+        CREATE INDEX IF NOT EXISTS idx_tracks_last_played ON tracks(last_played);
+        CREATE INDEX IF NOT EXISTS idx_tracks_play_count ON tracks(play_count);
+        CREATE INDEX IF NOT EXISTS idx_history_played_at ON listening_history(played_at);
+    )";
+
+  rc = sqlite3_exec(m_db, indexes, nullptr, nullptr, &errMsg);
+  if (rc != SQLITE_OK) {
+    std::cerr << "SqliteDatabaseAdapter: Index creation failed: "
+              << (errMsg ? errMsg : "") << std::endl;
+    sqlite3_free(errMsg);
+    return false;
+  }
 
   return true;
 }
@@ -221,6 +308,21 @@ core::Track SqliteDatabaseAdapter::parseTrackRow(sqlite3_stmt *stmt) {
     t.isVirtualTrack = sqlite3_column_int(stmt, 26) != 0;
   }
 
+  if (sqlite3_column_count(stmt) > 27) {
+    t.rating = static_cast<uint8_t>(sqlite3_column_int(stmt, 27));
+    t.isFavorite = sqlite3_column_int(stmt, 28) != 0;
+    t.playCount = static_cast<uint32_t>(sqlite3_column_int(stmt, 29));
+    t.skipCount = static_cast<uint32_t>(sqlite3_column_int(stmt, 30));
+    t.lastPlayed = static_cast<uint64_t>(sqlite3_column_int64(stmt, 31));
+  }
+
+  if (sqlite3_column_count(stmt) > 32) {
+    t.comment = reinterpret_cast<const char *>(
+        sqlite3_column_text(stmt, 32)
+            ? sqlite3_column_text(stmt, 32)
+            : reinterpret_cast<const unsigned char *>(""));
+  }
+
   return t;
 }
 
@@ -244,8 +346,9 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
             year, track_number, disc_number, duration_ms, sample_rate,
             bit_depth, channels, bitrate, codec, art_hash, file_size, date_added,
             replaygain_track_gain, replaygain_track_peak, replaygain_album_gain,
-            replaygain_album_peak, has_replaygain, start_time_ms, end_time_ms, is_virtual_track
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            replaygain_album_peak, has_replaygain, start_time_ms, end_time_ms, is_virtual_track,
+            rating, is_favorite, play_count, skip_count, last_played, comment
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_path) DO UPDATE SET
             title=excluded.title,
             artist=excluded.artist,
@@ -270,7 +373,13 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
             has_replaygain=excluded.has_replaygain,
             start_time_ms=excluded.start_time_ms,
             end_time_ms=excluded.end_time_ms,
-            is_virtual_track=excluded.is_virtual_track;
+            is_virtual_track=excluded.is_virtual_track,
+            rating=CASE WHEN excluded.rating > 0 THEN excluded.rating ELSE tracks.rating END,
+            is_favorite=CASE WHEN excluded.is_favorite > 0 THEN excluded.is_favorite ELSE tracks.is_favorite END,
+            play_count=CASE WHEN excluded.play_count > 0 THEN excluded.play_count ELSE tracks.play_count END,
+            skip_count=CASE WHEN excluded.skip_count > 0 THEN excluded.skip_count ELSE tracks.skip_count END,
+            last_played=CASE WHEN excluded.last_played > 0 THEN excluded.last_played ELSE tracks.last_played END,
+            comment=CASE WHEN excluded.comment != '' THEN excluded.comment ELSE tracks.comment END;
     )";
 
   sqlite3_stmt *stmt = nullptr;
@@ -308,6 +417,12 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
     sqlite3_bind_int64(stmt, 25, static_cast<sqlite3_int64>(t.startTimeMs));
     sqlite3_bind_int64(stmt, 26, static_cast<sqlite3_int64>(t.endTimeMs));
     sqlite3_bind_int(stmt, 27, t.isVirtualTrack ? 1 : 0);
+    sqlite3_bind_int(stmt, 28, static_cast<int>(t.rating));
+    sqlite3_bind_int(stmt, 29, t.isFavorite ? 1 : 0);
+    sqlite3_bind_int(stmt, 30, static_cast<int>(t.playCount));
+    sqlite3_bind_int(stmt, 31, static_cast<int>(t.skipCount));
+    sqlite3_bind_int64(stmt, 32, static_cast<sqlite3_int64>(t.lastPlayed));
+    sqlite3_bind_text(stmt, 33, t.comment.c_str(), -1, SQLITE_TRANSIENT);
 
     sqlite3_step(stmt);
   }
@@ -323,13 +438,10 @@ SqliteDatabaseAdapter::getTrackById(const std::string &id) {
   if (!m_db)
     return std::nullopt;
 
-  const char *sql =
-      "SELECT id, file_path, title, artist, album, album_artist, genre, year, "
-      "track_number, disc_number, duration_ms, sample_rate, bit_depth, "
-      "channels, bitrate, codec, art_hash, file_size, date_added FROM tracks "
-      "WHERE id = ? LIMIT 1;";
+  std::string sql = std::string("SELECT ") + TRACK_COLUMNS +
+                    " FROM tracks WHERE id = ? LIMIT 1;";
   sqlite3_stmt *stmt = nullptr;
-  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
     return std::nullopt;
 
   sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
@@ -349,13 +461,10 @@ SqliteDatabaseAdapter::getTrackByPath(const std::string &path) {
   if (!m_db)
     return std::nullopt;
 
-  const char *sql =
-      "SELECT id, file_path, title, artist, album, album_artist, genre, year, "
-      "track_number, disc_number, duration_ms, sample_rate, bit_depth, "
-      "channels, bitrate, codec, art_hash, file_size, date_added FROM tracks "
-      "WHERE file_path = ? LIMIT 1;";
+  std::string sql = std::string("SELECT ") + TRACK_COLUMNS +
+                    " FROM tracks WHERE file_path = ? LIMIT 1;";
   sqlite3_stmt *stmt = nullptr;
-  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
     return std::nullopt;
 
   sqlite3_bind_text(stmt, 1, path.c_str(), -1, SQLITE_TRANSIENT);
@@ -375,13 +484,12 @@ std::vector<core::Track> SqliteDatabaseAdapter::getAllTracks() {
   if (!m_db)
     return list;
 
-  const char *sql =
-      "SELECT id, file_path, title, artist, album, album_artist, genre, year, "
-      "track_number, disc_number, duration_ms, sample_rate, bit_depth, "
-      "channels, bitrate, codec, art_hash, file_size, date_added FROM tracks "
-      "ORDER BY album ASC, disc_number ASC, track_number ASC, title ASC;";
+  std::string sql =
+      std::string("SELECT ") + TRACK_COLUMNS +
+      " FROM tracks ORDER BY album ASC, disc_number ASC, track_number ASC, "
+      "title ASC;";
   sqlite3_stmt *stmt = nullptr;
-  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
     return list;
 
   while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -405,36 +513,26 @@ SqliteDatabaseAdapter::getTracksByAlbum(const std::string &albumTitle,
 
   if (m_groupAlbumsByTitle) {
     if (albumTitle.empty() || albumTitle == "Unknown Album") {
-      sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
-            "year, track_number, disc_number, duration_ms, sample_rate, "
-            "bit_depth, channels, bitrate, codec, art_hash, file_size, "
-            "date_added FROM tracks WHERE (album = '' OR album = 'Unknown "
-            "Album') "
+      sql = std::string("SELECT ") + TRACK_COLUMNS +
+            " FROM tracks WHERE (album = '' OR album = 'Unknown Album') "
             "AND artist = ? ORDER BY disc_number ASC, track_number ASC, title "
             "ASC;";
       bindArtist = true;
     } else {
-      sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
-            "year, track_number, disc_number, duration_ms, sample_rate, "
-            "bit_depth, channels, bitrate, codec, art_hash, file_size, "
-            "date_added FROM tracks WHERE album = ? ORDER BY disc_number ASC, "
+      sql = std::string("SELECT ") + TRACK_COLUMNS +
+            " FROM tracks WHERE album = ? ORDER BY disc_number ASC, "
             "track_number ASC, title ASC;";
     }
   } else {
     if (!albumArtist.empty() && albumArtist != "Unknown Artist" &&
         albumArtist != "Various Artists") {
-      sql =
-          "SELECT id, file_path, title, artist, album, album_artist, genre, "
-          "year, track_number, disc_number, duration_ms, sample_rate, "
-          "bit_depth, channels, bitrate, codec, art_hash, file_size, "
-          "date_added FROM tracks WHERE album = ? AND (album_artist = ? OR "
-          "artist = ?) ORDER BY disc_number ASC, track_number ASC, title ASC;";
+      sql = std::string("SELECT ") + TRACK_COLUMNS +
+            " FROM tracks WHERE album = ? AND (album_artist = ? OR artist = ?) "
+            "ORDER BY disc_number ASC, track_number ASC, title ASC;";
       bindArtist = true;
     } else {
-      sql = "SELECT id, file_path, title, artist, album, album_artist, genre, "
-            "year, track_number, disc_number, duration_ms, sample_rate, "
-            "bit_depth, channels, bitrate, codec, art_hash, file_size, "
-            "date_added FROM tracks WHERE album = ? ORDER BY disc_number ASC, "
+      sql = std::string("SELECT ") + TRACK_COLUMNS +
+            " FROM tracks WHERE album = ? ORDER BY disc_number ASC, "
             "track_number ASC, title ASC;";
     }
   }
@@ -745,6 +843,240 @@ void SqliteDatabaseAdapter::setGroupAlbumsByTitle(bool enabled) {
 
 bool SqliteDatabaseAdapter::groupAlbumsByTitle() const {
   return m_groupAlbumsByTitle;
+}
+
+bool SqliteDatabaseAdapter::updateTrackRating(const std::string &id,
+                                              uint8_t rating) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return false;
+
+  const char *sql = "UPDATE tracks SET rating = ? WHERE id = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+    return false;
+
+  sqlite3_bind_int(stmt, 1, static_cast<int>(rating));
+  sqlite3_bind_text(stmt, 2, id.c_str(), -1, SQLITE_TRANSIENT);
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool SqliteDatabaseAdapter::updateTrackFavorite(const std::string &id,
+                                                bool isFavorite) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return false;
+
+  const char *sql = "UPDATE tracks SET is_favorite = ? WHERE id = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+    return false;
+
+  sqlite3_bind_int(stmt, 1, isFavorite ? 1 : 0);
+  sqlite3_bind_text(stmt, 2, id.c_str(), -1, SQLITE_TRANSIENT);
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool SqliteDatabaseAdapter::recordTrackPlayed(const std::string &id,
+                                              uint64_t timestamp) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return false;
+
+  sqlite3_exec(m_db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+
+  const char *sqlTrack = "UPDATE tracks SET play_count = play_count + 1, "
+                         "last_played = ? WHERE id = ?;";
+  sqlite3_stmt *stmtTrack = nullptr;
+  if (sqlite3_prepare_v2(m_db, sqlTrack, -1, &stmtTrack, nullptr) ==
+      SQLITE_OK) {
+    sqlite3_bind_int64(stmtTrack, 1, static_cast<sqlite3_int64>(timestamp));
+    sqlite3_bind_text(stmtTrack, 2, id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_step(stmtTrack);
+    sqlite3_finalize(stmtTrack);
+  }
+
+  const char *sqlHist =
+      "INSERT INTO listening_history (track_id, played_at) VALUES (?, ?);";
+  sqlite3_stmt *stmtHist = nullptr;
+  if (sqlite3_prepare_v2(m_db, sqlHist, -1, &stmtHist, nullptr) == SQLITE_OK) {
+    sqlite3_bind_text(stmtHist, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmtHist, 2, static_cast<sqlite3_int64>(timestamp));
+    sqlite3_step(stmtHist);
+    sqlite3_finalize(stmtHist);
+  }
+
+  sqlite3_exec(m_db, "COMMIT;", nullptr, nullptr, nullptr);
+  return true;
+}
+
+bool SqliteDatabaseAdapter::recordTrackSkipped(const std::string &id) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return false;
+
+  const char *sql =
+      "UPDATE tracks SET skip_count = skip_count + 1 WHERE id = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+    return false;
+
+  sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+  int rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+std::vector<std::pair<core::Track, uint64_t>>
+SqliteDatabaseAdapter::getListeningHistory(size_t limit) {
+  std::vector<std::pair<core::Track, uint64_t>> history;
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return history;
+
+  std::string sql =
+      std::string("SELECT ") + TRACK_COLUMNS_PREFIXED +
+      ", h.played_at FROM listening_history h JOIN tracks ON h.track_id = "
+      "tracks.id ORDER BY h.played_at DESC LIMIT ?;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+    return history;
+
+  sqlite3_bind_int(stmt, 1, static_cast<int>(limit > 0 ? limit : 200));
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    core::Track t = parseTrackRow(stmt);
+    uint64_t playedAt = static_cast<uint64_t>(sqlite3_column_int64(stmt, 33));
+    history.emplace_back(std::move(t), playedAt);
+  }
+
+  sqlite3_finalize(stmt);
+  return history;
+}
+
+bool SqliteDatabaseAdapter::clearListeningHistory() {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return false;
+
+  return sqlite3_exec(m_db, "DELETE FROM listening_history;", nullptr, nullptr,
+                      nullptr) == SQLITE_OK;
+}
+
+std::vector<core::Track> SqliteDatabaseAdapter::getMissingTracks() {
+  std::vector<core::Track> missing;
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return missing;
+
+  std::string sql = std::string("SELECT ") + TRACK_COLUMNS +
+                    " FROM tracks ORDER BY title ASC;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+    return missing;
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    core::Track t = parseTrackRow(stmt);
+    std::error_code ec;
+    if (!fs::exists(t.filePath, ec)) {
+      missing.push_back(std::move(t));
+    }
+  }
+
+  sqlite3_finalize(stmt);
+  return missing;
+}
+
+size_t SqliteDatabaseAdapter::relocateTracks(const std::string &oldPrefix,
+                                             const std::string &newPrefix) {
+  if (oldPrefix.empty() || newPrefix.empty())
+    return 0;
+
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return 0;
+
+  std::string sql = std::string("SELECT ") + TRACK_COLUMNS +
+                    " FROM tracks WHERE file_path LIKE ?;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+    return 0;
+
+  std::string likePattern = oldPrefix + "%";
+  sqlite3_bind_text(stmt, 1, likePattern.c_str(), -1, SQLITE_TRANSIENT);
+
+  std::vector<std::pair<std::string, std::string>> updates;
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    core::Track t = parseTrackRow(stmt);
+    if (t.filePath.rfind(oldPrefix, 0) == 0) {
+      std::string newPath = newPrefix + t.filePath.substr(oldPrefix.size());
+      std::error_code ec;
+      if (fs::exists(newPath, ec)) {
+        updates.emplace_back(t.id, newPath);
+      }
+    }
+  }
+  sqlite3_finalize(stmt);
+
+  if (updates.empty())
+    return 0;
+
+  sqlite3_exec(m_db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+  const char *updateSql = "UPDATE tracks SET file_path = ? WHERE id = ?;";
+  sqlite3_stmt *upStmt = nullptr;
+  size_t updatedCount = 0;
+  if (sqlite3_prepare_v2(m_db, updateSql, -1, &upStmt, nullptr) == SQLITE_OK) {
+    for (const auto &pair : updates) {
+      sqlite3_reset(upStmt);
+      sqlite3_bind_text(upStmt, 1, pair.second.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text(upStmt, 2, pair.first.c_str(), -1, SQLITE_TRANSIENT);
+      if (sqlite3_step(upStmt) == SQLITE_DONE) {
+        updatedCount++;
+      }
+    }
+    sqlite3_finalize(upStmt);
+  }
+  sqlite3_exec(m_db, "COMMIT;", nullptr, nullptr, nullptr);
+
+  return updatedCount;
+}
+
+std::vector<core::Track> SqliteDatabaseAdapter::queryTracksDynamic(
+    const std::string &whereClause, const std::string &orderBy, size_t limit) {
+  std::vector<core::Track> list;
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (!m_db)
+    return list;
+
+  std::string sql = std::string("SELECT ") + TRACK_COLUMNS + " FROM tracks";
+  if (!whereClause.empty()) {
+    sql += " WHERE " + whereClause;
+  }
+  if (!orderBy.empty()) {
+    sql += " ORDER BY " + orderBy;
+  }
+  if (limit > 0) {
+    sql += " LIMIT " + std::to_string(limit);
+  }
+  sql += ";";
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    std::cerr << "SqliteDatabaseAdapter::queryTracksDynamic error: "
+              << sqlite3_errmsg(m_db) << " in query: " << sql << std::endl;
+    return list;
+  }
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    list.push_back(parseTrackRow(stmt));
+  }
+
+  sqlite3_finalize(stmt);
+  return list;
 }
 
 } // namespace adapters

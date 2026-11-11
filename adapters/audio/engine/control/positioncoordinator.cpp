@@ -1,0 +1,226 @@
+/*
+ * PicAudio Engine
+ * Based on the Fooyin audio engine (Copyright © Luke Taylor <luket@pm.me>).
+ * Licensed under GNU General Public License version 3.
+ */
+
+#include "positioncoordinator.h"
+
+#include "core/engine/enginehelpers.h"
+
+#include <QLoggingCategory>
+
+constexpr uint64_t MaxContinuousPositionJumpMs = 750;
+constexpr uint64_t MaxBackwardDriftToleranceMs = 50;
+constexpr uint64_t GaplessHoldFallbackGraceMs  = 250;
+
+Q_DECLARE_LOGGING_CATEGORY(ENGINE)
+
+namespace PicAudioEngine {
+PositionCoordinator::PositionCoordinator()
+    : m_lastSourcePositionValid{false}
+    , m_lastSourcePositionMs{0}
+    , m_lastSourceStreamId{InvalidStreamId}
+    , m_gaplessHoldStreamId{InvalidStreamId}
+{ }
+
+void PositionCoordinator::reset()
+{
+    resetContinuity();
+    clearGaplessHold();
+}
+
+void PositionCoordinator::resetContinuity()
+{
+    m_lastSourcePositionValid = false;
+    m_lastSourcePositionMs    = 0;
+    m_lastSourceStreamId      = InvalidStreamId;
+}
+
+void PositionCoordinator::clearGaplessHold()
+{
+    m_gaplessHoldStreamId = InvalidStreamId;
+}
+
+void PositionCoordinator::setGaplessHold(const StreamId streamId)
+{
+    m_gaplessHoldStreamId = streamId;
+}
+
+void PositionCoordinator::notePublishedDiscontinuity(const uint64_t sourcePositionMs)
+{
+    m_lastSourcePositionMs    = sourcePositionMs;
+    m_lastSourcePositionValid = true;
+}
+
+PositionCoordinator::Output PositionCoordinator::evaluate(const Input& input)
+{
+    Output output;
+
+    const bool stoppedPlayback = input.playbackState == Engine::PlaybackState::Stopped;
+    const bool noActiveStream  = input.streamId == InvalidStreamId;
+
+    if(stoppedPlayback || input.seekInProgress || noActiveStream) {
+        return output;
+    }
+
+    const bool playing = input.playbackState == Engine::PlaybackState::Playing;
+    const bool stateBlocksDecode
+        = input.streamState == AudioStream::State::Pending || input.streamState == AudioStream::State::Paused;
+    const auto decodeLowWatermarkMs = static_cast<uint64_t>(std::max(1, input.decoderLowWatermarkMs));
+    const bool needsDecodeTimer = playing && !input.decoderTimerActive && !stateBlocksDecode && !input.streamEndOfInput
+                               && input.streamBufferedDurationMs < decodeLowWatermarkMs;
+
+    if(needsDecodeTimer) {
+        output.shouldEnsureDecodeTimer = true;
+    }
+
+    const bool mappedForActiveStream
+        = input.pipelineStatus.renderedSegment.valid && input.pipelineStatus.renderedSegment.streamId == input.streamId;
+
+    if(m_gaplessHoldStreamId != InvalidStreamId && m_gaplessHoldStreamId == input.streamId) {
+        const bool hasRenderedProgress = mappedForActiveStream && input.pipelineStatus.renderedSegment.outputFrames > 0;
+        const auto expectedRenderedLeadMs   = static_cast<uint64_t>(std::max<long double>(
+            0.0, std::llround(static_cast<long double>(input.pipelineDelayMs) * input.delayToSourceScale)));
+        const uint64_t holdFallbackWindowMs = saturatingAdd(expectedRenderedLeadMs, GaplessHoldFallbackGraceMs);
+        const uint64_t relativeStreamPosMs
+            = relativeTrackPositionMs(input.streamPositionMs, input.streamToTrackOriginMs, input.trackOffsetMs);
+        const bool fallbackReached = relativeStreamPosMs > holdFallbackWindowMs;
+
+        if(!hasRenderedProgress) {
+            if(!fallbackReached) {
+                output.positionAvailable         = true;
+                output.discontinuity             = true;
+                output.emitNow                   = true;
+                output.relativePosMs             = 0;
+                m_lastSourcePositionMs           = 0;
+                m_lastSourcePositionValid        = true;
+                output.pendingWithoutMappedAudio = false;
+                output.hasRenderedSegment        = mappedForActiveStream;
+                output.preparedCrossfadeArmed    = input.preparedCrossfade.armed;
+                output.trackEndingPosMs          = 0;
+                output.boundaryFallbackReached   = false;
+                return output;
+            }
+        }
+
+        clearGaplessHold();
+    }
+
+    output.preparedCrossfadeArmed = input.preparedCrossfade.armed;
+
+    const bool pendingWithoutMappedAudio
+        = !output.preparedCrossfadeArmed && input.streamState == AudioStream::State::Pending && !mappedForActiveStream;
+    output.pendingWithoutMappedAudio = pendingWithoutMappedAudio;
+    output.hasRenderedSegment        = mappedForActiveStream;
+
+    uint64_t sourcePosMs = input.streamPositionMs;
+    if(output.pendingWithoutMappedAudio) {
+        sourcePosMs = 0;
+    }
+
+    if(output.hasRenderedSegment) {
+        const uint64_t mappedSourcePosMs = input.pipelineStatus.renderedSegment.sourceEndMs;
+
+        if(mappedSourcePosMs <= input.streamPositionMs) {
+            sourcePosMs = mappedSourcePosMs;
+        }
+        else {
+            const auto expectedGapMs = static_cast<uint64_t>(
+                std::llround(static_cast<double>(input.pipelineDelayMs) * input.delayToSourceScale));
+            const uint64_t maxAllowedGapMs = expectedGapMs + std::max<uint64_t>(1000, MaxContinuousPositionJumpMs);
+            const uint64_t aheadGapMs      = mappedSourcePosMs - input.streamPositionMs;
+
+            if(aheadGapMs <= maxAllowedGapMs) {
+                sourcePosMs = mappedSourcePosMs;
+            }
+            else {
+                output.hasRenderedSegment = false;
+            }
+        }
+    }
+
+    uint64_t relativePosMs = relativeTrackPositionMs(sourcePosMs, input.streamToTrackOriginMs, input.trackOffsetMs);
+
+    const bool sameContinuityStream = m_lastSourcePositionValid && m_lastSourceStreamId != InvalidStreamId
+                                   && m_lastSourceStreamId == input.streamId;
+    bool heldBackwardRegression{false};
+
+    if(sameContinuityStream && output.pendingWithoutMappedAudio) {
+        relativePosMs = std::min(relativePosMs, m_lastSourcePositionMs);
+    }
+
+    const bool shouldHoldUnmappedSameStreamRegression
+        = sameContinuityStream && !output.pendingWithoutMappedAudio && !output.hasRenderedSegment
+       && !output.preparedCrossfadeArmed && relativePosMs + MaxBackwardDriftToleranceMs < m_lastSourcePositionMs;
+    if(shouldHoldUnmappedSameStreamRegression) {
+        qCWarning(ENGINE) << "Playback position regression guarded:"
+                          << "streamId=" << input.streamId << "previousPosMs=" << m_lastSourcePositionMs
+                          << "reportedPosMs=" << relativePosMs << "streamPositionMs=" << input.streamPositionMs
+                          << "streamEndOfInput=" << input.streamEndOfInput
+                          << "streamBufferedMs=" << input.streamBufferedDurationMs
+                          << "pipelineDelayMs=" << input.pipelineDelayMs
+                          << "delayToSourceScale=" << input.delayToSourceScale
+                          << "renderedSegmentValid=" << input.pipelineStatus.renderedSegment.valid
+                          << "renderedSegmentStreamId=" << input.pipelineStatus.renderedSegment.streamId
+                          << "renderedSegmentSourceEndMs=" << input.pipelineStatus.renderedSegment.sourceEndMs
+                          << "renderedSegmentOutputFrames=" << input.pipelineStatus.renderedSegment.outputFrames;
+        relativePosMs          = m_lastSourcePositionMs;
+        heldBackwardRegression = true;
+    }
+
+    output.positionAvailable   = true;
+    output.relativePosMs       = relativePosMs;
+    output.discontinuity       = false;
+    output.emitNow             = false;
+    output.evaluateTrackEnding = true;
+
+    if(sameContinuityStream) {
+        const bool backwardDrift         = relativePosMs < m_lastSourcePositionMs
+                                        && (m_lastSourcePositionMs - relativePosMs) > MaxBackwardDriftToleranceMs;
+        const bool forwardJump           = relativePosMs > m_lastSourcePositionMs
+                                        && (relativePosMs - m_lastSourcePositionMs) > MaxContinuousPositionJumpMs;
+        const bool forwardDecodeHeadJump = forwardJump && !output.hasRenderedSegment && !output.preparedCrossfadeArmed;
+
+        if(backwardDrift || (forwardJump && !forwardDecodeHeadJump)) {
+            output.discontinuity = true;
+            output.emitNow       = true;
+        }
+    }
+
+    m_lastSourcePositionMs    = relativePosMs;
+    m_lastSourceStreamId      = input.streamId;
+    m_lastSourcePositionValid = true;
+
+    const uint64_t decoderRelativePosMs
+        = output.pendingWithoutMappedAudio
+            ? relativePosMs
+            : relativeTrackPositionMs(input.streamPositionMs, input.streamToTrackOriginMs, input.trackOffsetMs);
+    output.trackEndingPosMs = decoderRelativePosMs;
+
+    if(heldBackwardRegression) {
+        output.trackEndingPosMs = relativePosMs;
+    }
+    else if(output.hasRenderedSegment) {
+        if(input.streamEndOfInput) {
+            output.trackEndingPosMs = relativePosMs;
+        }
+        else {
+            output.trackEndingPosMs = std::min(relativePosMs, decoderRelativePosMs);
+        }
+    }
+
+    const bool evaluatingCrossfadeBoundaryFallback = output.preparedCrossfadeArmed
+                                                  && !input.preparedCrossfade.boundarySignalled
+                                                  && input.preparedCrossfade.streamId == input.streamId;
+    if(evaluatingCrossfadeBoundaryFallback) {
+        uint64_t consumedMs{0};
+        if(input.preparedCrossfade.bufferedAtArmMs > input.streamBufferedDurationMs) {
+            consumedMs = input.preparedCrossfade.bufferedAtArmMs - input.streamBufferedDurationMs;
+        }
+        output.boundaryFallbackReached = consumedMs >= input.preparedCrossfade.boundaryLeadMs;
+    }
+
+    return output;
+}
+} // namespace PicAudioEngine

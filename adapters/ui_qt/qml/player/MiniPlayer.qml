@@ -10,6 +10,9 @@ Rectangle {
     signal requestMove()
     signal requestResize(int edge)
     signal requestContextMenu()
+    signal requestToggleStayOnTop()
+
+    property bool stayOnTop: false
 
     color: Theme.background
     clip: true
@@ -64,13 +67,46 @@ Rectangle {
                     Layout.fillWidth: true
                     spacing: 2
 
-                    Text {
-                        text: bridge.currentTrackTitle
-                        font.pixelSize: Theme.fontSizeBase
-                        font.bold: true
-                        color: Theme.textPrimary
-                        elide: Text.ElideRight
+                    Item {
+                        id: titleContainer
                         Layout.fillWidth: true
+                        height: 20
+                        clip: true
+
+                        Text {
+                            id: miniTitleText
+                            text: bridge.currentTrackTitle.length > 0 ? bridge.currentTrackTitle : "PicAudio"
+                            font.pixelSize: Theme.fontSizeBase
+                            font.bold: true
+                            color: Theme.textPrimary
+                            property bool needMarquee: implicitWidth > titleContainer.width
+
+                            x: needMarquee ? marqueeAnim.xVal : 0
+
+                            SequentialAnimation {
+                                id: marqueeAnim
+                                property real xVal: 0
+                                running: miniTitleText.needMarquee
+                                loops: Animation.Infinite
+
+                                PauseAnimation { duration: 1500 }
+                                NumberAnimation {
+                                    target: marqueeAnim
+                                    property: "xVal"
+                                    from: 0
+                                    to: -Math.max(0, miniTitleText.implicitWidth - titleContainer.width + 20)
+                                    duration: Math.max(2500, (miniTitleText.implicitWidth - titleContainer.width) * 35)
+                                    easing.type: Easing.Linear
+                                }
+                                PauseAnimation { duration: 1500 }
+                                NumberAnimation {
+                                    target: marqueeAnim
+                                    property: "xVal"
+                                    to: 0
+                                    duration: 500
+                                }
+                            }
+                        }
                     }
 
                     Text {
@@ -88,6 +124,37 @@ Rectangle {
                     font.pixelSize: 10
                     font.weight: Font.Medium
                     color: Theme.textMuted
+                }
+
+                // Stay on Top Button
+                Rectangle {
+                    Layout.preferredWidth: 24
+                    Layout.preferredHeight: 24
+                    Layout.alignment: Qt.AlignVCenter
+                    width: 24
+                    height: 24
+                    radius: Theme.cornerRadiusSmall
+                    color: root.stayOnTop ? Theme.accent : (stayOnTopMouse.containsMouse ? Theme.surfaceElevated : "transparent")
+                    border.color: stayOnTopMouse.containsMouse ? Theme.panelBorder : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "📌"
+                        font.pixelSize: 10
+                        opacity: root.stayOnTop ? 1.0 : (stayOnTopMouse.containsMouse ? 0.9 : 0.4)
+                    }
+
+                    MouseArea {
+                        id: stayOnTopMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.requestToggleStayOnTop();
+                        }
+                    }
+                    ToolTip.visible: stayOnTopMouse.containsMouse
+                    ToolTip.text: root.stayOnTop ? "Always on Top: Enabled" : "Always on Top: Disabled"
                 }
 
                 // Restore Normal Window Button
@@ -220,6 +287,28 @@ Rectangle {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: bridge.nextTrack()
+                    }
+                }
+
+                // Favorite Heart Button
+                Rectangle {
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 26
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: 13
+                    color: miniFavMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                    Text {
+                        anchors.centerIn: parent
+                        text: bridge.currentTrackFavorite ? "♥" : "♡"
+                        font.pixelSize: 13
+                        color: bridge.currentTrackFavorite ? Theme.accent : Theme.textMuted
+                    }
+                    MouseArea {
+                        id: miniFavMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: bridge.toggleCurrentTrackFavorite()
                     }
                 }
 

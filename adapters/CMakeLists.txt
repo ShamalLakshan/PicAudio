@@ -77,6 +77,8 @@ if(Qt6DBus_FOUND)
     add_compile_definitions(PICAUDIO_ENABLE_DBUS)
 endif()
 
+add_subdirectory(audio/engine)
+
 # UI, Theming, Data, Audio & Desktop Adapters
 qt_add_library(ui_adapter STATIC
     ui_qt/QtBridge.hpp
@@ -87,6 +89,12 @@ qt_add_library(ui_adapter STATIC
     ui_qt/models/AlbumListModel.cpp
     ui_qt/models/TrackListModel.hpp
     ui_qt/models/TrackListModel.cpp
+    ui_qt/models/TabListModel.hpp
+    ui_qt/models/TabListModel.cpp
+    ui_qt/models/LayoutModel.hpp
+    ui_qt/models/LayoutModel.cpp
+    ui_qt/models/ViewRegistryModel.hpp
+    ui_qt/models/ViewRegistryModel.cpp
     ui_qt/providers/AlbumArtImageProvider.hpp
     ui_qt/providers/AlbumArtImageProvider.cpp
     metadata/TagLibMetadataAdapter.hpp
@@ -201,6 +209,8 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/dialogs/NewPlaylistDialog.qml
         ui_qt/qml/dialogs/RenamePlaylistDialog.qml
         ui_qt/qml/dialogs/DeleteConfirmDialog.qml
+        ui_qt/qml/dialogs/LibraryHealthDialog.qml
+        ui_qt/qml/dialogs/SmartPlaylistRuleDialog.qml
         ui_qt/qml/views/QueueView.qml
         ui_qt/qml/views/NowPlayingView.qml
         ui_qt/qml/views/HistoryView.qml
@@ -208,10 +218,23 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/views/AlbumDetailView.qml
         ui_qt/qml/views/ColumnBrowserView.qml
         ui_qt/qml/views/TrackTableView.qml
+        ui_qt/qml/views/AlbumCoversGridView.qml
+        ui_qt/qml/views/AlbumAndTracksView.qml
+        ui_qt/qml/views/ArtistsGridView.qml
+        ui_qt/qml/views/JukeboxView.qml
+        ui_qt/qml/views/ThumbnailBrowserView.qml
+        ui_qt/qml/views/LibraryExplorerView.qml
+        ui_qt/qml/views/MainWorkspaceHost.qml
         ui_qt/qml/views/ViewSubToolbar.qml
         ui_qt/qml/menubar/AppMenuBar.qml
         ui_qt/qml/toolbar/TopToolbar.qml
         ui_qt/qml/navigation/LeftSidebar.qml
+        ui_qt/qml/navigation/TabsBar.qml
+        ui_qt/qml/components/FloatingWindow.qml
+        ui_qt/qml/components/JumpBar.qml
+        ui_qt/qml/dialogs/ArrangePanelsDialog.qml
+        ui_qt/qml/dialogs/ViewConfigDialog.qml
+        ui_qt/qml/dialogs/ConfirmDropDialog.qml
         ui_qt/qml/inspector/RightInspectorPanel.qml
         ui_qt/qml/player/PlayerDeck.qml
         ui_qt/qml/player/MiniPlayer.qml
@@ -220,6 +243,7 @@ qt_add_qml_module(ui_adapter
 
 target_link_libraries(ui_adapter PUBLIC
     player_core
+    picaudio_engine
     picaudio_sdk
     Qt6::Quick
     Qt6::QuickControls2
@@ -246,6 +270,17 @@ target_include_directories(ui_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/metadata
     ${CMAKE_CURRENT_SOURCE_DIR}/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/audio
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/control
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/decode
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/dsp
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/output
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/pipeline
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/outputs
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/player
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/playlist
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/utils
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp/clap/include
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/wasapi

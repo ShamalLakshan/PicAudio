@@ -68,7 +68,9 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.requestSwitchViewMode(0)
+                        onClicked: {
+                            if (bridge.tabModel) bridge.tabModel.updateActiveView("covers_default");
+                        }
                     }
                 }
 
@@ -153,7 +155,9 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.requestSwitchViewMode(root.previousViewMode)
+                            onClicked: {
+                                if (bridge.tabModel) bridge.tabModel.updateActiveView("covers_default");
+                            }
                         }
                     }
 
@@ -321,7 +325,7 @@ Item {
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         bridge.search(bridge.selectedAlbumTitle);
-                                        root.requestSwitchViewMode(1);
+                                        if (bridge.tabModel) bridge.tabModel.updateActiveView("tracks_default");
                                     }
                                 }
                                 ToolTip.visible: viewInTableMouse.containsMouse
@@ -350,7 +354,9 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.requestSwitchViewMode(0)
+                                    onClicked: {
+                                        if (bridge.tabModel) bridge.tabModel.updateActiveView("covers_default");
+                                    }
                                 }
                             }
                         }

@@ -34,6 +34,14 @@ struct Track {
   uint64_t fileSizeBytes{0};
   uint64_t dateAdded{0}; ///< Unix timestamp in seconds
 
+  // Ratings, favorites & listening statistics (Phase 4)
+  uint8_t rating{0};      ///< 0 to 5 stars
+  bool isFavorite{false}; ///< True if marked as favorite
+  uint32_t playCount{0};  ///< Number of plays satisfying scrobble threshold
+  uint32_t skipCount{0};  ///< Number of skips before 30 seconds
+  uint64_t lastPlayed{0}; ///< Unix timestamp in seconds of last playback
+  std::string comment;    ///< Metadata tag comment
+
   // ReplayGain 2.0 & EBU R128 loudness tags
   float replayGainTrackGain{0.0f}; ///< in dB (e.g. -6.5 dB)
   float replayGainTrackPeak{1.0f}; ///< Normalized linear peak (e.g. 0.98)
