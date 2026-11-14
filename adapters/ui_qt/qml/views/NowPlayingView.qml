@@ -7,1447 +7,871 @@ import "../components"
 Item {
     id: root
 
-    // User preference for lyrics visibility (optional, toggleable)
-    property bool showLyrics: false
     property int visualizerStyle: 0 // 0: Fluid Wave, 1: Audio Spectrum Bars
-    property int compactTab: 0 // 0: Track & Controls, 1: Lyrics (on very narrow screens)
-
-    readonly property bool isWideLayout: width >= 860
+    property int rightPanelTab: 0 // 0: Up Next Queue, 1: Synchronized Lyrics
     readonly property bool hasActiveTrack: bridge.currentTrackTitle.length > 0
+    readonly property bool isWideLayout: width >= 860
 
     // Auto-scroll lyrics when active index changes
     Connections {
         target: bridge
         function onActiveLyricIndexChanged() {
-            if (root.showLyrics && bridge.activeLyricIndex >= 0 && lyricsListView.count > bridge.activeLyricIndex) {
+            if (root.rightPanelTab === 1 && bridge.activeLyricIndex >= 0 && lyricsListView.count > bridge.activeLyricIndex) {
                 lyricsListView.positionViewAtIndex(bridge.activeLyricIndex, ListView.Center);
             }
         }
     }
 
-    // Base background with subtle ambient studio glow
-    Rectangle {
+    // Main 2-Column Layout
+    RowLayout {
         anchors.fill: parent
-        color: Theme.background
-        clip: true
+        anchors.margins: Math.round(20 * Theme.uiScale)
+        spacing: Math.round(20 * Theme.uiScale)
 
-        // Soft ambient backlight glow centered in the view
+        // ==========================================
+        // LEFT COLUMN: Primary Player & Stage Card
+        // ==========================================
         Rectangle {
-            anchors.centerIn: parent
-            width: Math.min(parent.width * 0.85, 750)
-            height: Math.min(parent.height * 0.85, 650)
-            radius: width * 0.5
-            color: Theme.accent
-            opacity: bridge.isPlaying ? 0.05 : 0.02
-            Behavior on opacity { NumberAnimation { duration: 400 } }
-        }
-    }
-
-    // Empty state when nothing is playing or loaded
-    Rectangle {
-        anchors.fill: parent
-        color: "transparent"
-        visible: !root.hasActiveTrack
-
-        ColumnLayout {
-            anchors.centerIn: parent
-            spacing: Theme.spacingLarge
-
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                width: 72
-                height: 72
-                radius: 36
-                color: Theme.surfaceElevated
-                border.color: Theme.panelBorder
-                border.width: 1
-
-                VectorIcon {
-                    anchors.centerIn: parent
-                    name: "disc"
-                    width: 38
-                    height: 38
-                    color: Theme.textMuted
-                }
-            }
-
-            ColumnLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: Theme.spacingSmall
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "No Track Playing"
-                    font.pixelSize: Theme.fontSizeTitle + 2
-                    font.bold: true
-                    color: Theme.textPrimary
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "Select a song from your library or double-click to start playback."
-                    font.pixelSize: Theme.fontSizeBase
-                    color: Theme.textMuted
-                }
-            }
-
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: browseBtnRow.implicitWidth + 28
-                Layout.preferredHeight: 34
-                width: Layout.preferredWidth
-                height: 34
-                radius: Theme.cornerRadiusMedium
-                color: browseMouse.containsMouse ? Theme.accentHover : Theme.accent
-
-                RowLayout {
-                    id: browseBtnRow
-                    anchors.centerIn: parent
-                    spacing: 8
-                    VectorIcon { name: "table"; width: 12; height: 12; color: Theme.textPrimary }
-                    Text {
-                        text: "Browse Music Library"
-                        font.pixelSize: Theme.fontSizeBase
-                        font.bold: true
-                        color: Theme.textPrimary
-                    }
-                }
-
-                MouseArea {
-                    id: browseMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (bridge.tabModel) bridge.tabModel.updateActiveView("tracks_default");
-                    }
-                }
-            }
-        }
-    }
-
-    // Active Now Playing Layout
-    ColumnLayout {
-        anchors.fill: parent
-        spacing: 0
-        visible: root.hasActiveTrack
-
-        // Top Navigation & Action Toolbar
-        Rectangle {
+            id: leftCard
             Layout.fillWidth: true
-            Layout.preferredHeight: 42
+            Layout.fillHeight: true
             color: Theme.surface
             border.color: Theme.panelBorder
             border.width: 1
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.panelPadding * 1.5
-                anchors.rightMargin: Theme.panelPadding * 1.5
-                spacing: Theme.spacingMedium
-
-                // Back breadcrumb
-                Rectangle {
-                    Layout.preferredWidth: backText.implicitWidth + 24
-                    Layout.preferredHeight: 28
-                    Layout.alignment: Qt.AlignVCenter
-                    width: Layout.preferredWidth
-                    height: 28
-                    radius: Theme.cornerRadiusSmall
-                    color: backMouse.containsMouse ? Theme.selection : "transparent"
-                    border.color: Theme.panelBorder
-
-                    RowLayout {
-                        anchors.centerIn: parent
-                        spacing: 5
-                        VectorIcon { name: "previous"; width: 9; height: 9; color: Theme.accent }
-                        Text {
-                            id: backText
-                            text: "Back to Tracks"
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            color: Theme.textSecondary
-                        }
-                    }
-
-                    MouseArea {
-                        id: backMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (bridge.tabModel) bridge.tabModel.updateActiveView("tracks_default");
-                        }
-                    }
-                    ToolTip.visible: backMouse.containsMouse
-                    ToolTip.text: "Return to previous view"
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // Center Title Badge
-                RowLayout {
-                    spacing: 8
-                    VectorIcon { name: "disc"; width: 13; height: 13; color: Theme.accent }
-                    Text {
-                        text: "NOW PLAYING"
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.bold: true
-                        font.letterSpacing: 1.5
-                        color: Theme.textPrimary
-                    }
-                    Rectangle {
-                        width: 4
-                        height: 4
-                        radius: 2
-                        color: bridge.isPlaying ? Theme.accent : Theme.textMuted
-                    }
-                    Text {
-                        text: bridge.isPlaying ? "PLAYING" : "PAUSED"
-                        font.pixelSize: Theme.fontSizeSmall - 1
-                        font.bold: true
-                        color: bridge.isPlaying ? Theme.accent : Theme.textMuted
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // Narrow screen tab switcher (Track vs Lyrics)
-                RowLayout {
-                    visible: !root.isWideLayout && root.showLyrics
-                    spacing: 4
-
-                    Rectangle {
-                        Layout.preferredWidth: narrowTrackTxt.implicitWidth + 20
-                        Layout.preferredHeight: 28
-                        Layout.alignment: Qt.AlignVCenter
-                        width: Layout.preferredWidth
-                        height: 28
-                        radius: Theme.cornerRadiusSmall
-                        color: root.compactTab === 0 ? Theme.selection : "transparent"
-                        border.color: root.compactTab === 0 ? Theme.accent : Theme.panelBorder
-                        Text {
-                            id: narrowTrackTxt
-                            anchors.centerIn: parent
-                            text: "Player"
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            color: root.compactTab === 0 ? Theme.textPrimary : Theme.textMuted
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.compactTab = 0
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.preferredWidth: narrowLrcTxt.implicitWidth + 20
-                        Layout.preferredHeight: 28
-                        Layout.alignment: Qt.AlignVCenter
-                        width: Layout.preferredWidth
-                        height: 28
-                        radius: Theme.cornerRadiusSmall
-                        color: root.compactTab === 1 ? Theme.selection : "transparent"
-                        border.color: root.compactTab === 1 ? Theme.accent : Theme.panelBorder
-                        Text {
-                            id: narrowLrcTxt
-                            anchors.centerIn: parent
-                            text: "Lyrics"
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                            color: root.compactTab === 1 ? Theme.textPrimary : Theme.textMuted
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.compactTab = 1
-                        }
-                    }
-                }
-
-                // Optional Lyrics Toggle Button
-                Rectangle {
-                    Layout.preferredWidth: lyricsPillRow.implicitWidth + 22
-                    Layout.preferredHeight: 28
-                    Layout.minimumWidth: 84
-                    Layout.alignment: Qt.AlignVCenter
-                    width: Layout.preferredWidth
-                    height: 28
-                    radius: Theme.cornerRadiusSmall
-                    clip: true
-                    color: root.showLyrics ? Theme.selection : (lyricsMouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                    border.color: root.showLyrics ? Theme.accent : Theme.panelBorder
-                    border.width: 1
-
-                    RowLayout {
-                        id: lyricsPillRow
-                        anchors.centerIn: parent
-                        spacing: 6
-
-                        VectorIcon {
-                            name: "lyrics"
-                            width: 11
-                            height: 11
-                            color: root.showLyrics ? Theme.accent : (bridge.hasLyrics ? Theme.textPrimary : Theme.textMuted)
-                        }
-
-                        Text {
-                            text: root.showLyrics ? "Lyrics (On)" : "Lyrics"
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: root.showLyrics
-                            color: root.showLyrics ? Theme.accent : Theme.textSecondary
-                        }
-
-                        // Dot indicator if lyrics exist
-                        Rectangle {
-                            visible: bridge.hasLyrics && !root.showLyrics
-                            width: 5
-                            height: 5
-                            radius: 2.5
-                            color: Theme.accent
-                        }
-                    }
-
-                    MouseArea {
-                        id: lyricsMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root.showLyrics = !root.showLyrics;
-                            if (root.showLyrics) {
-                                root.compactTab = 1;
-                            }
-                        }
-                    }
-
-                    ToolTip.visible: lyricsMouse.containsMouse
-                    ToolTip.text: root.showLyrics ? "Hide Synchronized Lyrics" : (bridge.hasLyrics ? "Show Synchronized Lyrics" : "Toggle Lyrics Panel")
-                }
-
-                // Visualizer Style Switcher Pill
-                Rectangle {
-                    Layout.preferredWidth: vizPillRow.implicitWidth + 22
-                    Layout.preferredHeight: 28
-                    Layout.alignment: Qt.AlignVCenter
-                    width: Layout.preferredWidth
-                    height: 28
-                    radius: Theme.cornerRadiusSmall
-                    clip: true
-                    color: vizMouse.containsMouse ? Theme.surfaceElevated : "transparent"
-                    border.color: Theme.panelBorder
-                    border.width: 1
-
-                    RowLayout {
-                        id: vizPillRow
-                        anchors.centerIn: parent
-                        spacing: 5
-
-                        VectorIcon {
-                            name: "wave"
-                            width: 11
-                            height: 11
-                            color: Theme.textSecondary
-                        }
-
-                        Text {
-                            text: root.visualizerStyle === 0 ? "Wave" : "Bars"
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.textSecondary
-                        }
-                    }
-
-                    MouseArea {
-                        id: vizMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.visualizerStyle = (root.visualizerStyle === 0) ? 1 : 0
-                    }
-
-                    ToolTip.visible: vizMouse.containsMouse
-                    ToolTip.text: "Toggle Visualizer Style (Fluid Waveform / Equalizer Bars)"
-                }
-
-                // Expanded Album View Shortcut
-                Rectangle {
-                    width: 26
-                    height: 26
-                    radius: Theme.cornerRadiusSmall
-                    color: albBtnMouse.containsMouse ? Theme.selection : "transparent"
-                    border.color: Theme.panelBorder
-                    border.width: 1
-
-                    VectorIcon {
-                        anchors.centerIn: parent
-                        name: "album_tracks"
-                        width: 11
-                        height: 11
-                        color: Theme.textSecondary
-                    }
-
-                    MouseArea {
-                        id: albBtnMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: switchToExpandedView(bridge.currentAlbum, bridge.currentArtist)
-                    }
-
-                    ToolTip.visible: albBtnMouse.containsMouse
-                    ToolTip.text: "View Album in Expanded View"
-                }
-
-                // Toggle Play Queue Panel
-                Rectangle {
-                    width: 26
-                    height: 26
-                    radius: Theme.cornerRadiusSmall
-                    color: (showRightPanel && rightPanelTab === 1) ? Theme.selection : (qBtnMouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                    border.color: (showRightPanel && rightPanelTab === 1) ? Theme.accent : Theme.panelBorder
-                    border.width: 1
-
-                    VectorIcon {
-                        anchors.centerIn: parent
-                        name: "queue"
-                        width: 11
-                        height: 11
-                        color: (showRightPanel && rightPanelTab === 1) ? Theme.accent : Theme.textSecondary
-                    }
-
-                    MouseArea {
-                        id: qBtnMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (showRightPanel && rightPanelTab === 1) {
-                                showRightPanel = false;
-                            } else {
-                                rightPanelTab = 1;
-                                showRightPanel = true;
-                            }
-                        }
-                    }
-
-                    ToolTip.visible: qBtnMouse.containsMouse
-                    ToolTip.text: "Toggle Play Queue Side Panel"
-                }
-            }
-        }
-
-        // Main Stage Container (Expands to fill all remaining vertical and horizontal space)
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            radius: Math.round(8 * Theme.uiScale)
             clip: true
 
-            // MODE A: Full-Stage Hero Presentation (When Lyrics are Toggled OFF)
-            Item {
+            ColumnLayout {
                 anchors.fill: parent
-                visible: !root.showLyrics
+                anchors.margins: Math.round(20 * Theme.uiScale)
+                spacing: Math.round(14 * Theme.uiScale)
 
-                ScrollView {
-                    anchors.fill: parent
-                    contentWidth: availableWidth
-                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                    ColumnLayout {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: Math.min(parent.width - 48, 920)
-                        spacing: Theme.spacingLarge
-
-                        Item { height: Theme.spacingMedium; width: 1 }
-
-                        // Upper Showcase: Large Artwork & Track Information Card
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: isWideLayout ? 320 : (artworkBox.Layout.preferredHeight + metaCol.implicitHeight + Theme.panelPadding * 3)
-                            color: Theme.surface
-                            radius: Theme.cornerRadiusMedium * 2
-                            border.color: Theme.panelBorder
-                            border.width: 1
-
-                            GridLayout {
-                                anchors.fill: parent
-                                anchors.margins: Theme.panelPadding * 1.5
-                                columns: isWideLayout ? 2 : 1
-                                columnSpacing: Theme.spacingLarge * 1.5
-                                rowSpacing: Theme.spacingLarge
-
-                                // Showcase Album Artwork Box
-                                Rectangle {
-                                    id: artworkBox
-                                    Layout.preferredWidth: isWideLayout ? Math.min(270, Math.min(parent.width * 0.42, 290)) : Math.min(220, Math.min(parent.width - 40, 220))
-                                    Layout.preferredHeight: Layout.preferredWidth
-                                    Layout.alignment: isWideLayout ? Qt.AlignVCenter : Qt.AlignHCenter
-                                    radius: Theme.cornerRadiusMedium * 2
-                                    color: Theme.surfaceElevated
-                                    border.color: Theme.panelBorder
-                                    border.width: 1
-                                    clip: true
-
-                                    Image {
-                                        id: fullArtImage
-                                        anchors.fill: parent
-                                        source: bridge.currentArtUrl
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                    }
-
-                                    // Vinyl fallback graphic when no art is embedded
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        visible: fullArtImage.status !== Image.Ready || bridge.currentArtUrl.length === 0
-                                        color: Theme.surfaceElevated
-
-                                        ColumnLayout {
-                                            anchors.centerIn: parent
-                                            spacing: 10
-                                            VectorIcon {
-                                                Layout.alignment: Qt.AlignHCenter
-                                                name: "disc"
-                                                width: 68
-                                                height: 68
-                                                color: Theme.accent
-                                            }
-                                            Text {
-                                                Layout.alignment: Qt.AlignHCenter
-                                                text: bridge.currentAlbum.length > 0 ? bridge.currentAlbum : "PicAudio"
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                font.bold: true
-                                                color: Theme.textMuted
-                                                elide: Text.ElideRight
-                                                Layout.maximumWidth: artworkBox.width - 24
-                                            }
-                                        }
-                                    }
-
-                                    // Quick Play/Pause overlay on artwork hover
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        color: Qt.rgba(0, 0, 0, 0.4)
-                                        opacity: artHoverMouse.containsMouse ? 1.0 : 0.0
-                                        Behavior on opacity { NumberAnimation { duration: 150 } }
-
-                                        Rectangle {
-                                            anchors.centerIn: parent
-                                            width: 52
-                                            height: 52
-                                            radius: 26
-                                            color: Theme.accent
-
-                                            VectorIcon {
-                                                anchors.centerIn: parent
-                                                name: bridge.isPlaying ? "pause" : "play"
-                                                width: 20
-                                                height: 20
-                                                color: Theme.textPrimary
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: artHoverMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: bridge.togglePlayPause()
-                                        }
-                                    }
-                                }
-
-                                // Track Details & Audiophile Information
-                                ColumnLayout {
-                                    id: metaCol
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: isWideLayout
-                                    Layout.alignment: isWideLayout ? Qt.AlignVCenter : Qt.AlignHCenter
-                                    spacing: Theme.spacingMedium
-
-                                    // Category / Context Breadcrumb
-                                    RowLayout {
-                                        spacing: 6
-                                        Rectangle {
-                                            width: 6
-                                            height: 6
-                                            radius: 3
-                                            color: Theme.accent
-                                        }
-                                        Text {
-                                            text: bridge.currentGenre.length > 0 ? (bridge.currentGenre.toUpperCase() + " • NOW STREAMING") : "MASTER AUDIO"
-                                            font.pixelSize: Theme.fontSizeSmall - 1
-                                            font.bold: true
-                                            font.letterSpacing: 1.0
-                                            color: Theme.textMuted
-                                        }
-                                    }
-
-                                    // Track Title
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: bridge.currentTrackTitle
-                                        font.pixelSize: Theme.fontSizeTitle + 6
-                                        font.bold: true
-                                        color: Theme.textPrimary
-                                        elide: Text.ElideRight
-                                    }
-
-                                    // Artist Name
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: bridge.currentArtist
-                                        font.pixelSize: Theme.fontSizeLarge + 3
-                                        font.bold: true
-                                        color: Theme.accentHover
-                                        elide: Text.ElideRight
-                                    }
-
-                                    // Album & Release Year
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: bridge.currentAlbum + (bridge.currentYear.length > 0 ? " (" + bridge.currentYear + ")" : "")
-                                        font.pixelSize: Theme.fontSizeBase + 1
-                                        color: Theme.textSecondary
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Item { height: 4; width: 1 }
-
-                                    // Audiophile Quality Ribbon (Formal & Sleek)
-                                    Flow {
-                                        width: metaCol.width
-                                        spacing: 6
-                                        clip: true
-
-                                        // Hi-Res Badge
-                                        Rectangle {
-                                            visible: bridge.currentSampleRate >= 48000 || bridge.currentBitDepth >= 24
-                                            width: hiResTxt.implicitWidth + 12
-                                            height: 22
-                                            radius: Theme.cornerRadiusSmall
-                                            color: Theme.selection
-                                            border.color: Theme.accent
-                                            border.width: 1
-                                            Text {
-                                                id: hiResTxt
-                                                anchors.centerIn: parent
-                                                text: "HI-RES AUDIO"
-                                                font.pixelSize: Theme.fontSizeSmall - 1
-                                                font.bold: true
-                                                font.letterSpacing: 0.8
-                                                color: Theme.accent
-                                            }
-                                        }
-
-                                        // Codec
-                                        Rectangle {
-                                            visible: bridge.currentCodec.length > 0
-                                            width: codecBadgeTxt.implicitWidth + 12
-                                            height: 22
-                                            radius: Theme.cornerRadiusSmall
-                                            color: Theme.surfaceElevated
-                                            border.color: Theme.panelBorder
-                                            border.width: 1
-                                            Text {
-                                                id: codecBadgeTxt
-                                                anchors.centerIn: parent
-                                                text: bridge.currentCodec.toUpperCase()
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                font.bold: true
-                                                color: Theme.textPrimary
-                                            }
-                                        }
-
-                                        // Bit Depth & Sample Rate
-                                        Rectangle {
-                                            visible: bridge.currentSampleRate > 0
-                                            width: resBadgeTxt.implicitWidth + 12
-                                            height: 22
-                                            radius: Theme.cornerRadiusSmall
-                                            color: Theme.surfaceElevated
-                                            border.color: Theme.panelBorder
-                                            border.width: 1
-                                            Text {
-                                                id: resBadgeTxt
-                                                anchors.centerIn: parent
-                                                text: (bridge.currentBitDepth > 0 ? (bridge.currentBitDepth + "b / ") : "") + (bridge.currentSampleRate / 1000.0).toFixed(1) + " kHz"
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                color: Theme.textSecondary
-                                            }
-                                        }
-
-                                        // Bitrate
-                                        Rectangle {
-                                            visible: bridge.currentBitrate > 0
-                                            width: brBadgeTxt.implicitWidth + 12
-                                            height: 22
-                                            radius: Theme.cornerRadiusSmall
-                                            color: Theme.surfaceElevated
-                                            border.color: Theme.panelBorder
-                                            border.width: 1
-                                            Text {
-                                                id: brBadgeTxt
-                                                anchors.centerIn: parent
-                                                text: bridge.currentBitrate + " kbps"
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                color: Theme.textMuted
-                                            }
-                                        }
-
-                                        // Bit-Perfect Direct Indicator
-                                        Rectangle {
-                                            width: bpTxt.implicitWidth + 12
-                                            height: 22
-                                            radius: Theme.cornerRadiusSmall
-                                            color: Theme.surfaceElevated
-                                            border.color: Theme.panelBorder
-                                            border.width: 1
-                                            RowLayout {
-                                                anchors.centerIn: parent
-                                                spacing: 4
-                                                Rectangle { width: 4; height: 4; radius: 2; color: Theme.success }
-                                                Text {
-                                                    id: bpTxt
-                                                    text: "BIT-PERFECT"
-                                                    font.pixelSize: Theme.fontSizeSmall - 1
-                                                    font.bold: true
-                                                    color: Theme.textMuted
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Middle Showcase: Expansive Wave Visualizer Card
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 120
-                            color: Theme.surface
-                            radius: Theme.cornerRadiusMedium * 2
-                            border.color: Theme.panelBorder
-                            border.width: 1
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: Theme.panelPadding * 1.2
-                                spacing: 6
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    Text {
-                                        text: root.visualizerStyle === 0 ? "REAL-TIME FLUID HARMONIC WAVEFORM" : "REAL-TIME MULTI-BAND SPECTRUM EQUALIZER"
-                                        font.pixelSize: Theme.fontSizeSmall - 1
-                                        font.bold: true
-                                        font.letterSpacing: 1.0
-                                        color: Theme.textMuted
-                                    }
-                                    Item { Layout.fillWidth: true }
-                                    Text {
-                                        text: bridge.isPlaying ? "60 FPS • Real-Time Engine" : "Playback Suspended"
-                                        font.pixelSize: Theme.fontSizeSmall - 1
-                                        color: bridge.isPlaying ? Theme.accent : Theme.textMuted
-                                    }
-                                }
-
-                                WaveVisualizer {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    active: bridge.isPlaying
-                                    visualizerStyle: root.visualizerStyle
-                                    backgroundColor: Theme.surfaceElevated
-                                    visualizerRadius: Theme.cornerRadiusSmall
-                                    visualizerBorderWidth: 1
-                                }
-                            }
-                        }
-
-                        // Lower Showcase: Scrub & Transport Deck Card
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 110
-                            color: Theme.surface
-                            radius: Theme.cornerRadiusMedium * 2
-                            border.color: Theme.panelBorder
-                            border.width: 1
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: Theme.panelPadding * 1.5
-                                spacing: Theme.spacingMedium
-
-                                // Seekbar & Timestamp Row
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    Text {
-                                        id: positionSeekText
-                                        text: bridge.positionStr
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        font.bold: true
-                                        color: Theme.textSecondary
-                                        Layout.preferredWidth: Math.max(44, positionSeekText.implicitWidth + 4)
-                                        Layout.minimumWidth: 44
-                                        Layout.alignment: Qt.AlignVCenter
-                                    }
-
-                                    // Smooth Interactive Scrub Slider
-                                    Slider {
-                                        id: heroSeekSlider
-                                        Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignVCenter
-                                        from: 0
-                                        to: Math.max(1, bridge.durationMs)
-                                        value: bridge.positionMs
-                                        onMoved: bridge.seek(value)
-
-                                        background: Rectangle {
-                                            x: heroSeekSlider.leftPadding
-                                            y: heroSeekSlider.topPadding + heroSeekSlider.availableHeight / 2 - height / 2
-                                            implicitWidth: 200
-                                            implicitHeight: 4
-                                            width: heroSeekSlider.availableWidth
-                                            height: implicitHeight
-                                            radius: 2
-                                            color: Theme.surfaceElevated
-
-                                            Rectangle {
-                                                width: heroSeekSlider.visualPosition * parent.width
-                                                height: parent.height
-                                                color: Theme.accent
-                                                radius: 2
-                                            }
-                                        }
-
-                                        handle: Rectangle {
-                                            x: heroSeekSlider.leftPadding + heroSeekSlider.visualPosition * (heroSeekSlider.availableWidth - width)
-                                            y: heroSeekSlider.topPadding + heroSeekSlider.availableHeight / 2 - height / 2
-                                            implicitWidth: 12
-                                            implicitHeight: 12
-                                            radius: 6
-                                            color: heroSeekSlider.pressed ? Theme.accentHover : Theme.accent
-                                            border.color: Theme.textPrimary
-                                            border.width: 1
-                                        }
-                                    }
-
-                                    Text {
-                                        id: durationSeekText
-                                        text: bridge.showRemainingTime ? ("-" + bridge.durationStr) : bridge.durationStr
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        color: Theme.textMuted
-                                        Layout.preferredWidth: Math.max(48, durationSeekText.implicitWidth + 4)
-                                        Layout.minimumWidth: 48
-                                        Layout.alignment: Qt.AlignVCenter
-                                        horizontalAlignment: Text.AlignRight
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: bridge.showRemainingTime = !bridge.showRemainingTime
-                                        }
-                                    }
-                                }
-
-                                // Transport Action Buttons
-                                RowLayout {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    spacing: 16
-
-                                    // Shuffle
-                                    Rectangle {
-                                        Layout.preferredWidth: 34
-                                        Layout.preferredHeight: 34
-                                        Layout.alignment: Qt.AlignVCenter
-                                        width: 34
-                                        height: 34
-                                        radius: 17
-                                        color: bridge.shuffleMode !== 0 ? Theme.selection : "transparent"
-                                        border.color: bridge.shuffleMode !== 0 ? Theme.accent : "transparent"
-                                        VectorIcon {
-                                            anchors.centerIn: parent
-                                            name: "shuffle"
-                                            width: 13
-                                            height: 13
-                                            color: bridge.shuffleMode !== 0 ? Theme.accent : Theme.textMuted
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: bridge.toggleShuffle()
-                                        }
-                                        ToolTip.text: "Shuffle: " + (bridge.shuffleMode !== 0 ? "On" : "Off")
-                                    }
-
-                                    // Previous
-                                    Rectangle {
-                                        Layout.preferredWidth: 38
-                                        Layout.preferredHeight: 38
-                                        Layout.alignment: Qt.AlignVCenter
-                                        width: 38
-                                        height: 38
-                                        radius: 19
-                                        color: prevMouse.containsMouse ? Theme.surfaceElevated : "transparent"
-                                        VectorIcon {
-                                            anchors.centerIn: parent
-                                            name: "previous"
-                                            width: 15
-                                            height: 15
-                                            color: Theme.textPrimary
-                                        }
-                                        MouseArea {
-                                            id: prevMouse
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: bridge.previousTrack()
-                                        }
-                                        ToolTip.text: "Previous Track"
-                                    }
-
-                                    // Main Play / Pause Hero Button
-                                    Rectangle {
-                                        Layout.preferredWidth: 50
-                                        Layout.preferredHeight: 50
-                                        Layout.alignment: Qt.AlignVCenter
-                                        width: 50
-                                        height: 50
-                                        radius: 25
-                                        color: playMasterMouse.containsMouse ? Theme.accentHover : Theme.accent
-
-                                        VectorIcon {
-                                            anchors.centerIn: parent
-                                            name: bridge.isPlaying ? "pause" : "play"
-                                            width: 18
-                                            height: 18
-                                            color: Theme.textPrimary
-                                        }
-
-                                        MouseArea {
-                                            id: playMasterMouse
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: bridge.togglePlayPause()
-                                        }
-                                        ToolTip.text: bridge.isPlaying ? "Pause" : "Play"
-                                    }
-
-                                    // Next
-                                    Rectangle {
-                                        Layout.preferredWidth: 38
-                                        Layout.preferredHeight: 38
-                                        Layout.alignment: Qt.AlignVCenter
-                                        width: 38
-                                        height: 38
-                                        radius: 19
-                                        color: nextHeroMouse.containsMouse ? Theme.surfaceElevated : "transparent"
-                                        VectorIcon {
-                                            anchors.centerIn: parent
-                                            name: "next"
-                                            width: 15
-                                            height: 15
-                                            color: Theme.textPrimary
-                                        }
-                                        MouseArea {
-                                            id: nextHeroMouse
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: bridge.nextTrack()
-                                        }
-                                        ToolTip.text: "Next Track"
-                                    }
-
-                                    // Repeat
-                                    Rectangle {
-                                        Layout.preferredWidth: 34
-                                        Layout.preferredHeight: 34
-                                        Layout.alignment: Qt.AlignVCenter
-                                        width: 34
-                                        height: 34
-                                        radius: 17
-                                        color: bridge.repeatMode !== 0 ? Theme.selection : "transparent"
-                                        border.color: bridge.repeatMode !== 0 ? Theme.accent : "transparent"
-                                        VectorIcon {
-                                            anchors.centerIn: parent
-                                            name: bridge.repeatMode === 2 ? "repeat_one" : "repeat"
-                                            width: 13
-                                            height: 13
-                                            color: bridge.repeatMode !== 0 ? Theme.accent : Theme.textMuted
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: bridge.cycleRepeatMode()
-                                        }
-                                        ToolTip.text: "Repeat: " + (bridge.repeatMode === 0 ? "Off" : (bridge.repeatMode === 1 ? "All" : "One"))
-                                    }
-                                }
-                            }
-                        }
-
-                        Item { height: Theme.spacingMedium; width: 1 }
-                    }
-                }
-            }
-
-            // MODE B: Balanced Studio & Lyrics Split Mode (When Lyrics are Toggled ON)
-            Item {
-                anchors.fill: parent
-                visible: root.showLyrics
-
+                // Top Area: Album Art + Track Info & Badges
                 RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: Theme.panelPadding * 1.5
-                    spacing: Theme.spacingLarge
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: Math.round(20 * Theme.uiScale)
 
-                    // Left Studio Column: Artwork, Track Info, Transport & Compact Wave
+                    // Album Artwork Card with vinyl fallback
                     Rectangle {
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: root.isWideLayout ? Math.min(460, Math.max(340, Math.round(parent.width * 0.44))) : -1
-                        Layout.fillWidth: !root.isWideLayout
-                        visible: root.isWideLayout || root.compactTab === 0
-                        color: Theme.surface
-                        radius: Theme.cornerRadiusMedium * 2
+                        id: artFrame
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: Math.min(Math.round(260 * Theme.uiScale), Math.round(leftCard.width * 0.4))
+                        Layout.preferredHeight: Layout.preferredWidth
+                        radius: Math.round(8 * Theme.uiScale)
+                        color: Theme.background
                         border.color: Theme.panelBorder
                         border.width: 1
                         clip: true
 
-                        ScrollView {
+                        Image {
+                            id: fullArtImage
                             anchors.fill: parent
-                            anchors.margins: Theme.panelPadding * 1.2
-                            contentWidth: availableWidth
-                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                            source: bridge.currentArtUrl
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                        }
 
-                            ColumnLayout {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                width: parent.width - 8
-                                spacing: Theme.spacingMedium
+                        // Vinyl fallback graphic when no art is available
+                        Rectangle {
+                            anchors.fill: parent
+                            color: Theme.background
+                            visible: fullArtImage.status !== Image.Ready
 
-                                Item { height: 4; width: 1 }
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: Math.round(parent.width * 0.8)
+                                height: width
+                                radius: width / 2
+                                color: "#181a1f"
+                                border.color: "#2a2d35"
+                                border.width: 2
 
-                                // Artwork
                                 Rectangle {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    Layout.preferredWidth: Math.min(220, Math.min(parent.width - 24, 240))
-                                    Layout.preferredHeight: Layout.preferredWidth
-                                    radius: Theme.cornerRadiusMedium * 2
-                                    color: Theme.surfaceElevated
-                                    border.color: Theme.panelBorder
+                                    anchors.centerIn: parent
+                                    width: Math.round(parent.width * 0.65)
+                                    height: width
+                                    radius: width / 2
+                                    color: "transparent"
+                                    border.color: Qt.rgba(1, 1, 1, 0.08)
                                     border.width: 1
-                                    clip: true
-
-                                    Image {
-                                        anchors.fill: parent
-                                        source: bridge.currentArtUrl
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                    }
-
-                                    ColumnLayout {
-                                        anchors.centerIn: parent
-                                        visible: bridge.currentArtUrl.length === 0
-                                        spacing: 6
-                                        VectorIcon { Layout.alignment: Qt.AlignHCenter; name: "disc"; width: 44; height: 44; color: Theme.accent }
-                                        Text { Layout.alignment: Qt.AlignHCenter; text: bridge.currentAlbum; font.pixelSize: Theme.fontSizeSmall; color: Theme.textMuted }
-                                    }
                                 }
 
-                                Item { height: 2; width: 1 }
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: Math.round(parent.width * 0.35)
+                                    height: width
+                                    radius: width / 2
+                                    color: Theme.accent
+                                    opacity: 0.9
 
-                                // Song Title
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: Math.round(parent.width * 0.3)
+                                        height: width
+                                        radius: width / 2
+                                        color: "#181a1f"
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: bridge.togglePlayPause()
+                        }
+                    }
+
+                    // Track Typography & Audio Format Badges
+                    ColumnLayout {
+                        id: metaCol
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: Math.round(8 * Theme.uiScale)
+
+                        // Context indicator
+                        RowLayout {
+                            spacing: 6
+                            Rectangle {
+                                width: 6
+                                height: 6
+                                radius: 3
+                                color: bridge.isPlaying ? Theme.accent : Theme.textMuted
+                            }
+                            Text {
+                                text: bridge.currentGenre.length > 0 ? (bridge.currentGenre.toUpperCase() + " • NOW PLAYING") : "NOW PLAYING"
+                                font.pixelSize: Math.round(11 * Theme.uiScale)
+                                font.bold: true
+                                color: Theme.textMuted
+                            }
+                        }
+
+                        // Track Title
+                        Text {
+                            Layout.fillWidth: true
+                            text: bridge.currentTrackTitle.length > 0 ? bridge.currentTrackTitle : qsTr("No Track Playing")
+                            font.pixelSize: Math.round(24 * Theme.uiScale)
+                            font.bold: true
+                            color: Theme.textPrimary
+                            elide: Text.ElideRight
+                        }
+
+                        // Artist Name
+                        Text {
+                            Layout.fillWidth: true
+                            text: bridge.currentArtist.length > 0 ? bridge.currentArtist : qsTr("PicAudio")
+                            font.pixelSize: Math.round(16 * Theme.uiScale)
+                            font.weight: Font.DemiBold
+                            color: Theme.accentHover
+                            elide: Text.ElideRight
+                        }
+
+                        // Album & Year
+                        Text {
+                            Layout.fillWidth: true
+                            text: bridge.currentAlbum + (bridge.currentYear.length > 0 ? " (" + bridge.currentYear + ")" : "")
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.textSecondary
+                            elide: Text.ElideRight
+                        }
+
+                        Item { height: Math.round(4 * Theme.uiScale); width: 1 }
+
+                        // Quality & Audiophile Badges Row
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: Math.round(6 * Theme.uiScale)
+
+                            // Hi-Res Audio Badge
+                            Rectangle {
+                                visible: bridge.currentSampleRate >= 48000 || bridge.currentBitDepth >= 24
+                                width: hiResTxt.implicitWidth + 12
+                                height: Math.round(22 * Theme.uiScale)
+                                radius: Theme.cornerRadiusSmall
+                                color: Theme.selection
+                                border.color: Theme.accent
+                                border.width: 1
                                 Text {
-                                    Layout.fillWidth: true
-                                    text: bridge.currentTrackTitle
-                                    font.pixelSize: Theme.fontSizeTitle + 2
+                                    id: hiResTxt
+                                    anchors.centerIn: parent
+                                    text: "HI-RES AUDIO"
+                                    font.pixelSize: Math.round(10 * Theme.uiScale)
+                                    font.bold: true
+                                    color: Theme.accent
+                                }
+                            }
+
+                            // Codec Badge
+                            Rectangle {
+                                visible: bridge.currentCodec.length > 0
+                                width: codecTxt.implicitWidth + 12
+                                height: Math.round(22 * Theme.uiScale)
+                                radius: Theme.cornerRadiusSmall
+                                color: Theme.surfaceElevated
+                                border.color: Theme.panelBorder
+                                border.width: 1
+                                Text {
+                                    id: codecTxt
+                                    anchors.centerIn: parent
+                                    text: bridge.currentCodec.toUpperCase()
+                                    font.pixelSize: Math.round(10 * Theme.uiScale)
                                     font.bold: true
                                     color: Theme.textPrimary
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
                                 }
-
-                                // Artist
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: bridge.currentArtist
-                                    font.pixelSize: Theme.fontSizeLarge
-                                    font.bold: true
-                                    color: Theme.accentHover
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
-                                }
-
-                                // Album & Year
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: bridge.currentAlbum + (bridge.currentYear.length > 0 ? " (" + bridge.currentYear + ")" : "")
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    color: Theme.textSecondary
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
-                                }
-
-                                // Audio specs pills
-                                RowLayout {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    spacing: 5
-
-                                    Rectangle {
-                                        visible: bridge.currentCodec.length > 0
-                                        width: splitCodecTxt.implicitWidth + 8
-                                        height: 18
-                                        radius: Theme.cornerRadiusSmall
-                                        color: Theme.surfaceElevated
-                                        border.color: Theme.panelBorder
-                                        Text {
-                                            id: splitCodecTxt
-                                            anchors.centerIn: parent
-                                            text: bridge.currentCodec.toUpperCase()
-                                            font.pixelSize: Theme.fontSizeSmall - 1
-                                            font.bold: true
-                                            color: Theme.accent
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        visible: bridge.currentSampleRate > 0
-                                        width: splitRateTxt.implicitWidth + 8
-                                        height: 18
-                                        radius: Theme.cornerRadiusSmall
-                                        color: Theme.surfaceElevated
-                                        border.color: Theme.panelBorder
-                                        Text {
-                                            id: splitRateTxt
-                                            anchors.centerIn: parent
-                                            text: (bridge.currentSampleRate / 1000.0).toFixed(1) + " kHz"
-                                            font.pixelSize: Theme.fontSizeSmall - 1
-                                            color: Theme.textSecondary
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        visible: bridge.currentBitDepth > 0
-                                        width: splitDepthTxt.implicitWidth + 8
-                                        height: 18
-                                        radius: Theme.cornerRadiusSmall
-                                        color: Theme.surfaceElevated
-                                        border.color: Theme.panelBorder
-                                        Text {
-                                            id: splitDepthTxt
-                                            anchors.centerIn: parent
-                                            text: bridge.currentBitDepth + "-bit"
-                                            font.pixelSize: Theme.fontSizeSmall - 1
-                                            color: Theme.textMuted
-                                        }
-                                    }
-                                }
-
-                                Item { height: 4; width: 1 }
-
-                                // Compact Waveform Deck
-                                WaveVisualizer {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 64
-                                    active: bridge.isPlaying
-                                    visualizerStyle: root.visualizerStyle
-                                    backgroundColor: Theme.surfaceElevated
-                                    visualizerRadius: Theme.cornerRadiusSmall
-                                    visualizerBorderWidth: 1
-                                }
-
-                                Item { height: 4; width: 1 }
-
-                                // Compact Transport Controls
-                                RowLayout {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    spacing: 12
-
-                                    Rectangle {
-                                        width: 28
-                                        height: 28
-                                        radius: 14
-                                        color: "transparent"
-                                        VectorIcon { anchors.centerIn: parent; name: "previous"; width: 12; height: 12; color: Theme.textPrimary }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bridge.previousTrack() }
-                                    }
-
-                                    Rectangle {
-                                        width: 38
-                                        height: 38
-                                        radius: 19
-                                        color: Theme.accent
-                                        VectorIcon { anchors.centerIn: parent; name: bridge.isPlaying ? "pause" : "play"; width: 14; height: 14; color: Theme.textPrimary }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bridge.togglePlayPause() }
-                                    }
-
-                                    Rectangle {
-                                        width: 28
-                                        height: 28
-                                        radius: 14
-                                        color: "transparent"
-                                        VectorIcon { anchors.centerIn: parent; name: "next"; width: 12; height: 12; color: Theme.textPrimary }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bridge.nextTrack() }
-                                    }
-                                }
-
-                                Item { height: 8; width: 1 }
                             }
-                        }
-                    }
 
-                    // Right Studio Column: Dedicated Synchronized Lyrics Stage
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        visible: root.isWideLayout || root.compactTab === 1
-                        color: Theme.surface
-                        radius: Theme.cornerRadiusMedium * 2
-                        border.color: Theme.panelBorder
-                        border.width: 1
-                        clip: true
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 0
-
-                            // Lyrics Header
+                            // Bit Depth & Sample Rate Badge
                             Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 38
+                                visible: bridge.currentSampleRate > 0
+                                width: resTxt.implicitWidth + 12
+                                height: Math.round(22 * Theme.uiScale)
+                                radius: Theme.cornerRadiusSmall
+                                color: Theme.surfaceElevated
+                                border.color: Theme.panelBorder
+                                border.width: 1
+                                Text {
+                                    id: resTxt
+                                    anchors.centerIn: parent
+                                    text: (bridge.currentBitDepth > 0 ? (bridge.currentBitDepth + "b / ") : "") + (bridge.currentSampleRate / 1000.0).toFixed(1) + " kHz"
+                                    font.pixelSize: Math.round(10 * Theme.uiScale)
+                                    color: Theme.textSecondary
+                                }
+                            }
+
+                            // Bitrate Badge
+                            Rectangle {
+                                visible: bridge.currentBitrate > 0
+                                width: brTxt.implicitWidth + 12
+                                height: Math.round(22 * Theme.uiScale)
+                                radius: Theme.cornerRadiusSmall
+                                color: Theme.surfaceElevated
+                                border.color: Theme.panelBorder
+                                border.width: 1
+                                Text {
+                                    id: brTxt
+                                    anchors.centerIn: parent
+                                    text: bridge.currentBitrate + " kbps"
+                                    font.pixelSize: Math.round(10 * Theme.uiScale)
+                                    color: Theme.textMuted
+                                }
+                            }
+
+                            // Bit-Perfect Direct Indicator Badge
+                            Rectangle {
+                                width: bpTxt.implicitWidth + 14
+                                height: Math.round(22 * Theme.uiScale)
+                                radius: Theme.cornerRadiusSmall
                                 color: Theme.surfaceElevated
                                 border.color: Theme.panelBorder
                                 border.width: 1
 
                                 RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Theme.panelPadding * 1.2
-                                    anchors.rightMargin: Theme.panelPadding * 1.2
-                                    spacing: Theme.spacingMedium
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Rectangle {
+                                        width: 6
+                                        height: 6
+                                        radius: 3
+                                        color: "#2ecc71"
+                                    }
+                                    Text {
+                                        id: bpTxt
+                                        text: "BIT-PERFECT"
+                                        font.pixelSize: Math.round(10 * Theme.uiScale)
+                                        font.bold: true
+                                        color: Theme.textSecondary
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
-                                    VectorIcon { name: "lyrics"; width: 12; height: 12; color: Theme.accent }
+                // Middle Area: WaveVisualizer
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.round(100 * Theme.uiScale)
+                    color: Theme.surfaceElevated
+                    radius: Theme.cornerRadiusSmall
+                    border.color: Theme.panelBorder
+                    border.width: 1
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: Math.round(8 * Theme.uiScale)
+                        spacing: Math.round(4 * Theme.uiScale)
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Text {
+                                text: root.visualizerStyle === 0 ? qsTr("REAL-TIME FLUID HARMONIC WAVEFORM") : qsTr("REAL-TIME MULTI-BAND SPECTRUM EQUALIZER")
+                                font.pixelSize: Math.round(10 * Theme.uiScale)
+                                font.bold: true
+                                color: Theme.textMuted
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            // Visualizer Style Switcher Button
+                            Rectangle {
+                                Layout.preferredWidth: vizStyleTxt.implicitWidth + 16
+                                Layout.preferredHeight: Math.round(20 * Theme.uiScale)
+                                radius: Math.round(3 * Theme.uiScale)
+                                color: vizMouse.containsMouse ? Theme.selection : "transparent"
+                                border.color: Theme.panelBorder
+                                border.width: 1
+
+                                Text {
+                                    id: vizStyleTxt
+                                    anchors.centerIn: parent
+                                    text: root.visualizerStyle === 0 ? "Wave" : "Bars"
+                                    font.pixelSize: Math.round(10 * Theme.uiScale)
+                                    font.bold: true
+                                    color: Theme.accent
+                                }
+
+                                MouseArea {
+                                    id: vizMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.visualizerStyle = (root.visualizerStyle === 0) ? 1 : 0
+                                }
+                            }
+
+                            Text {
+                                text: bridge.isPlaying ? "60 FPS • Real-Time Engine" : "Playback Suspended"
+                                font.pixelSize: Math.round(10 * Theme.uiScale)
+                                color: bridge.isPlaying ? Theme.accent : Theme.textMuted
+                            }
+                        }
+
+                        WaveVisualizer {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            active: bridge.isPlaying
+                            visualizerStyle: root.visualizerStyle
+                            backgroundColor: "transparent"
+                            visualizerBorderWidth: 0
+                        }
+                    }
+                }
+
+                // Bottom Area: Seekbar Timeline & Transport Deck
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Math.round(6 * Theme.uiScale)
+
+                    // Seekbar Row
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Math.round(10 * Theme.uiScale)
+
+                        Text {
+                            text: bridge.positionStr
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.textSecondary
+                        }
+
+                        Slider {
+                            id: trackSeekSlider
+                            Layout.fillWidth: true
+                            from: 0
+                            to: Math.max(1, bridge.durationMs)
+                            value: bridge.positionMs
+                            hoverEnabled: true
+
+                            onMoved: {
+                                bridge.seek(value);
+                            }
+                        }
+
+                        Text {
+                            text: bridge.durationStr
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.textSecondary
+                        }
+                    }
+
+                    // Transport Controls Row
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: Math.round(16 * Theme.uiScale)
+
+                        // Shuffle Button
+                        Rectangle {
+                            Layout.preferredWidth: Math.round(38 * Theme.uiScale)
+                            Layout.preferredHeight: Math.round(38 * Theme.uiScale)
+                            radius: Math.round(4 * Theme.uiScale)
+                            color: shufMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                            border.color: bridge.shuffleMode ? Theme.accent : "transparent"
+                            border.width: 1
+
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                name: "shuffle"
+                                width: Math.round(16 * Theme.uiScale)
+                                height: Math.round(16 * Theme.uiScale)
+                                color: bridge.shuffleMode ? Theme.accent : Theme.textMuted
+                            }
+
+                            MouseArea {
+                                id: shufMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: bridge.toggleShuffle()
+                            }
+                        }
+
+                        // Previous Track Button
+                        Rectangle {
+                            Layout.preferredWidth: Math.round(44 * Theme.uiScale)
+                            Layout.preferredHeight: Math.round(44 * Theme.uiScale)
+                            radius: Math.round(6 * Theme.uiScale)
+                            color: prevMouse.containsMouse ? Theme.surfaceElevated : Theme.background
+                            border.color: Theme.panelBorder
+                            border.width: 1
+
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                name: "previous"
+                                width: Math.round(18 * Theme.uiScale)
+                                height: Math.round(18 * Theme.uiScale)
+                                color: Theme.textPrimary
+                            }
+
+                            MouseArea {
+                                id: prevMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: bridge.previousTrack()
+                            }
+                        }
+
+                        // Play / Pause Primary Button
+                        Rectangle {
+                            Layout.preferredWidth: Math.round(56 * Theme.uiScale)
+                            Layout.preferredHeight: Math.round(56 * Theme.uiScale)
+                            radius: width / 2
+                            color: playMouse.containsMouse ? Theme.accentHover : Theme.accent
+
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                name: bridge.isPlaying ? "pause" : "play"
+                                width: Math.round(22 * Theme.uiScale)
+                                height: Math.round(22 * Theme.uiScale)
+                                color: "#ffffff"
+                            }
+
+                            MouseArea {
+                                id: playMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: bridge.togglePlayPause()
+                            }
+                        }
+
+                        // Next Track Button
+                        Rectangle {
+                            Layout.preferredWidth: Math.round(44 * Theme.uiScale)
+                            Layout.preferredHeight: Math.round(44 * Theme.uiScale)
+                            radius: Math.round(6 * Theme.uiScale)
+                            color: nextMouse.containsMouse ? Theme.surfaceElevated : Theme.background
+                            border.color: Theme.panelBorder
+                            border.width: 1
+
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                name: "next"
+                                width: Math.round(18 * Theme.uiScale)
+                                height: Math.round(18 * Theme.uiScale)
+                                color: Theme.textPrimary
+                            }
+
+                            MouseArea {
+                                id: nextMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: bridge.nextTrack()
+                            }
+                        }
+
+                        // Repeat Button
+                        Rectangle {
+                            Layout.preferredWidth: Math.round(38 * Theme.uiScale)
+                            Layout.preferredHeight: Math.round(38 * Theme.uiScale)
+                            radius: Math.round(4 * Theme.uiScale)
+                            color: repMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                            border.color: bridge.repeatMode > 0 ? Theme.accent : "transparent"
+                            border.width: 1
+
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                name: bridge.repeatMode === 2 ? "repeat_one" : "repeat"
+                                width: Math.round(16 * Theme.uiScale)
+                                height: Math.round(16 * Theme.uiScale)
+                                color: bridge.repeatMode > 0 ? Theme.accent : Theme.textMuted
+                            }
+
+                            MouseArea {
+                                id: repMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: bridge.cycleRepeatMode()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // RIGHT COLUMN: Up Next Queue & Lyrics Card
+        // ==========================================
+        Rectangle {
+            id: rightCard
+            Layout.preferredWidth: Math.min(Math.round(420 * Theme.uiScale), Math.round(root.width * 0.44))
+            Layout.minimumWidth: Math.round(280 * Theme.uiScale)
+            Layout.fillHeight: true
+            color: Theme.surface
+            border.color: Theme.panelBorder
+            border.width: 1
+            radius: Math.round(8 * Theme.uiScale)
+            clip: true
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: Math.round(16 * Theme.uiScale)
+                spacing: Math.round(12 * Theme.uiScale)
+
+                // Header with Segmented Switcher (Up Next vs Lyrics)
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Math.round(8 * Theme.uiScale)
+
+                    // Tab: Up Next in Queue
+                    Rectangle {
+                        Layout.preferredHeight: Math.round(32 * Theme.uiScale)
+                        Layout.preferredWidth: upNextTxt.implicitWidth + 24
+                        radius: Theme.cornerRadiusSmall
+                        color: root.rightPanelTab === 0 ? Theme.selection : (tab0Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
+                        border.color: root.rightPanelTab === 0 ? Theme.accent : Theme.panelBorder
+                        border.width: 1
+
+                        RowLayout {
+                            id: upNextTxt
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            VectorIcon {
+                                name: "queue"
+                                width: 12
+                                height: 12
+                                color: root.rightPanelTab === 0 ? Theme.accent : Theme.textSecondary
+                            }
+
+                            Text {
+                                text: qsTr("Up Next") + (bridge.queueTrackModel && bridge.queueTrackModel.rowCount() > 0 ? (" (" + bridge.queueTrackModel.rowCount() + ")") : "")
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: root.rightPanelTab === 0
+                                color: root.rightPanelTab === 0 ? Theme.accent : Theme.textSecondary
+                            }
+                        }
+
+                        MouseArea {
+                            id: tab0Mouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.rightPanelTab = 0
+                        }
+                    }
+
+                    // Tab: Synchronized Lyrics
+                    Rectangle {
+                        Layout.preferredHeight: Math.round(32 * Theme.uiScale)
+                        Layout.preferredWidth: lyricsTabTxt.implicitWidth + 24
+                        radius: Theme.cornerRadiusSmall
+                        color: root.rightPanelTab === 1 ? Theme.selection : (tab1Mouse.containsMouse ? Theme.surfaceElevated : "transparent")
+                        border.color: root.rightPanelTab === 1 ? Theme.accent : Theme.panelBorder
+                        border.width: 1
+
+                        RowLayout {
+                            id: lyricsTabTxt
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            VectorIcon {
+                                name: "lyrics"
+                                width: 12
+                                height: 12
+                                color: root.rightPanelTab === 1 ? Theme.accent : (bridge.hasLyrics ? Theme.textPrimary : Theme.textMuted)
+                            }
+
+                            Text {
+                                text: qsTr("Lyrics")
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: root.rightPanelTab === 1
+                                color: root.rightPanelTab === 1 ? Theme.accent : Theme.textSecondary
+                            }
+
+                            // Dot indicator when lyrics exist
+                            Rectangle {
+                                visible: bridge.hasLyrics && root.rightPanelTab !== 1
+                                width: 6
+                                height: 6
+                                radius: 3
+                                color: Theme.accent
+                            }
+                        }
+
+                        MouseArea {
+                            id: tab1Mouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.rightPanelTab = 1
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    // Reload Lyrics button (when lyrics tab active)
+                    Rectangle {
+                        visible: root.rightPanelTab === 1
+                        Layout.preferredWidth: Math.round(28 * Theme.uiScale)
+                        Layout.preferredHeight: Math.round(28 * Theme.uiScale)
+                        radius: Theme.cornerRadiusSmall
+                        color: relMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                        border.color: Theme.panelBorder
+                        border.width: 1
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "↻"
+                            font.pixelSize: Math.round(14 * Theme.uiScale)
+                            color: Theme.textSecondary
+                        }
+
+                        MouseArea {
+                            id: relMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: bridge.reloadLyrics()
+                        }
+
+                        ToolTip.visible: relMouse.containsMouse
+                        ToolTip.text: qsTr("Reload Lyrics")
+                    }
+                }
+
+                // TAB 0: Up Next Queue Content
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: root.rightPanelTab === 0
+                    clip: true
+
+                    ListView {
+                        id: jukeQueue
+                        anchors.fill: parent
+                        clip: true
+                        model: bridge.queueTrackModel
+                        visible: bridge.queueTrackModel && bridge.queueTrackModel.rowCount() > 0
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                        spacing: Math.round(4 * Theme.uiScale)
+
+                        delegate: Rectangle {
+                            id: qItem
+                            required property var model
+                            required property int index
+                            width: jukeQueue.width
+                            height: Math.round(44 * Theme.uiScale)
+                            color: qHover.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
+                            radius: Math.round(4 * Theme.uiScale)
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Math.round(8 * Theme.uiScale)
+                                anchors.rightMargin: Math.round(8 * Theme.uiScale)
+                                spacing: Math.round(10 * Theme.uiScale)
+
+                                Text {
+                                    text: (qItem.index + 1)
+                                    color: Theme.accent
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.bold: true
+                                    Layout.preferredWidth: Math.round(22 * Theme.uiScale)
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
 
                                     Text {
-                                        text: "LYRICS"
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        font.bold: true
-                                        font.letterSpacing: 1.0
+                                        text: qItem.model.title
                                         color: Theme.textPrimary
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
                                     }
 
-                                    Rectangle {
-                                        visible: bridge.hasLyrics
-                                        Layout.preferredWidth: syncTxt.implicitWidth + 14
-                                        Layout.preferredHeight: 20
-                                        Layout.alignment: Qt.AlignVCenter
-                                        width: Layout.preferredWidth
-                                        height: 20
-                                        radius: Theme.cornerRadiusSmall
-                                        color: bridge.isLyricsSynchronized ? Theme.selection : Theme.surface
-                                        border.color: bridge.isLyricsSynchronized ? Theme.accent : Theme.panelBorder
-                                        Text {
-                                            id: syncTxt
-                                            anchors.centerIn: parent
-                                            text: bridge.isLyricsSynchronized ? "SYNCHRONIZED" : "PLAIN TEXT"
-                                            font.pixelSize: Theme.fontSizeSmall - 1
-                                            font.bold: true
-                                            color: bridge.isLyricsSynchronized ? Theme.accent : Theme.textMuted
-                                        }
+                                    Text {
+                                        text: qItem.model.artist
+                                        color: Theme.textSecondary
+                                        font.pixelSize: Math.round(10 * Theme.uiScale)
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
                                     }
+                                }
 
-                                    Item { Layout.fillWidth: true }
-
-                                    // Close Lyrics Button
-                                    Rectangle {
-                                        Layout.preferredWidth: closeLrcRow.implicitWidth + 16
-                                        Layout.preferredHeight: 24
-                                        Layout.alignment: Qt.AlignVCenter
-                                        width: Layout.preferredWidth
-                                        height: 24
-                                        radius: Theme.cornerRadiusSmall
-                                        color: closeLrcMouse.containsMouse ? Theme.selection : "transparent"
-                                        border.color: Theme.panelBorder
-
-                                        RowLayout {
-                                            id: closeLrcRow
-                                            anchors.centerIn: parent
-                                            spacing: 4
-                                            VectorIcon { name: "clear"; width: 8; height: 8; color: Theme.textMuted }
-                                            Text {
-                                                text: "Hide Lyrics"
-                                                font.pixelSize: Theme.fontSizeSmall - 1
-                                                color: Theme.textSecondary
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: closeLrcMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.showLyrics = false
-                                        }
-                                        ToolTip.visible: closeLrcMouse.containsMouse
-                                        ToolTip.text: "Close lyrics panel and return to full-stage presentation"
-                                    }
+                                Text {
+                                    text: qItem.model.durationStr || ""
+                                    color: Theme.textSecondary
+                                    font.pixelSize: Math.round(11 * Theme.uiScale)
                                 }
                             }
 
-                            // Lyrics Content Stage
-                            Item {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                clip: true
+                            HoverHandler { id: qHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                onDoubleTapped: bridge.playQueueTrack(qItem.index)
+                                onTapped: bridge.playQueueTrack(qItem.index)
+                            }
+                        }
+                    }
 
-                                // Empty Lyrics State
-                                Rectangle {
-                                    anchors.fill: parent
-                                    color: "transparent"
-                                    visible: !bridge.hasLyrics
+                    // Empty Queue Placeholder
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        visible: !bridge.queueTrackModel || bridge.queueTrackModel.rowCount() === 0
+                        spacing: Math.round(8 * Theme.uiScale)
 
-                                    ColumnLayout {
-                                        anchors.centerIn: parent
-                                        spacing: Theme.spacingMedium
-                                        width: Math.min(320, parent.width - 32)
+                        VectorIcon {
+                            Layout.alignment: Qt.AlignHCenter
+                            name: "queue"
+                            width: Math.round(36 * Theme.uiScale)
+                            height: Math.round(36 * Theme.uiScale)
+                            color: Theme.textMuted
+                        }
 
-                                        VectorIcon {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            name: "lyrics"
-                                            width: 42
-                                            height: 42
-                                            color: Theme.textMuted
-                                        }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr("Queue is Empty")
+                            font.pixelSize: Theme.fontSizeMedium
+                            font.bold: true
+                            color: Theme.textSecondary
+                        }
 
-                                        Text {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            text: "No Lyrics Found"
-                                            font.pixelSize: Theme.fontSizeLarge
-                                            font.bold: true
-                                            color: Theme.textPrimary
-                                        }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr("Add songs from your library to queue them next")
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.textMuted
+                        }
+                    }
+                }
 
-                                        Text {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            Layout.fillWidth: true
-                                            horizontalAlignment: Text.AlignHCenter
-                                            wrapMode: Text.WordWrap
-                                            text: "PicAudio looks for local .lrc/.txt files or embedded ID3v2/Vorbis tags alongside the audio track."
-                                            font.pixelSize: Theme.fontSizeSmall
-                                            color: Theme.textMuted
-                                        }
+                // TAB 1: Synchronized Lyrics Content
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: root.rightPanelTab === 1
+                    clip: true
 
-                                        Item { height: 4; width: 1 }
+                    ListView {
+                        id: lyricsListView
+                        anchors.fill: parent
+                        visible: bridge.hasLyrics
+                        model: bridge.currentLyricsLines
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        preferredHighlightBegin: height * 0.35
+                        preferredHighlightEnd: height * 0.55
+                        highlightRangeMode: bridge.isLyricsSynchronized ? ListView.ApplyRange : ListView.NoHighlightRange
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                        spacing: Math.round(4 * Theme.uiScale)
 
-                                        Rectangle {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            Layout.preferredWidth: reloadTxt.implicitWidth + 24
-                                            Layout.preferredHeight: 28
-                                            width: Layout.preferredWidth
-                                            height: 28
-                                            radius: Theme.cornerRadiusSmall
-                                            color: reloadMouse.containsMouse ? Theme.selection : Theme.surfaceElevated
-                                            border.color: Theme.panelBorder
+                        delegate: Rectangle {
+                            id: lyricItem
+                            required property var modelData
+                            required property int index
+                            width: lyricsListView.width
+                            readonly property bool isCurrent: bridge.isLyricsSynchronized && (bridge.activeLyricIndex === index)
+                            height: Math.max(Math.round(32 * Theme.uiScale), lyricText.implicitHeight + (isCurrent ? 14 : 8))
+                            radius: Theme.cornerRadiusSmall
+                            color: isCurrent ? Theme.selection : (lRowMouse.containsMouse ? Theme.surfaceElevated : "transparent")
+                            border.color: isCurrent ? Theme.accent : "transparent"
+                            border.width: isCurrent ? 1 : 0
 
-                                            RowLayout {
-                                                anchors.centerIn: parent
-                                                spacing: 6
-                                                VectorIcon { name: "disc"; width: 10; height: 10; color: Theme.accent }
-                                                Text {
-                                                    id: reloadTxt
-                                                    text: "Scan / Reload Lyrics"
-                                                    font.pixelSize: Theme.fontSizeSmall
-                                                    color: Theme.textSecondary
-                                                }
-                                            }
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Math.round(10 * Theme.uiScale)
+                                anchors.rightMargin: Math.round(10 * Theme.uiScale)
+                                spacing: 8
 
-                                            MouseArea {
-                                                id: reloadMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: bridge.reloadLyrics()
-                                            }
-                                        }
-                                    }
+                                Text {
+                                    id: lyricText
+                                    text: lyricItem.modelData.text || ""
+                                    font.pixelSize: isCurrent ? (Theme.fontSizeBase + 1) : Theme.fontSizeSmall
+                                    font.bold: isCurrent
+                                    color: isCurrent ? Theme.accentHover : (lRowMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary)
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                    Layout.minimumWidth: 0
                                 }
+                            }
 
-                                // Synchronized Karaoke Lyrics List
-                                ListView {
-                                    id: lyricsListView
-                                    anchors.fill: parent
-                                    anchors.margins: Theme.panelPadding * 1.5
-                                    visible: bridge.hasLyrics
-                                    model: bridge.currentLyricsLines
-                                    clip: true
-                                    boundsBehavior: Flickable.StopAtBounds
-                                    highlightMoveDuration: 280
-                                    preferredHighlightBegin: height * 0.35
-                                    preferredHighlightEnd: height * 0.55
-                                    highlightRangeMode: bridge.isLyricsSynchronized ? ListView.ApplyRange : ListView.NoHighlightRange
-
-                                    delegate: Rectangle {
-                                        id: lyricRow
-                                        width: lyricsListView.width
-                                        readonly property bool isCurrent: bridge.isLyricsSynchronized && (bridge.activeLyricIndex === index)
-                                        readonly property bool isPast: bridge.isLyricsSynchronized && (bridge.activeLyricIndex > index)
-                                        height: Math.max(34, lyricText.implicitHeight + (isCurrent ? 18 : 10))
-                                        radius: Theme.cornerRadiusMedium
-                                        color: isCurrent ? Theme.selection : (rowMouse.containsMouse ? Theme.surfaceElevated : "transparent")
-                                        border.color: isCurrent ? Theme.accent : "transparent"
-                                        border.width: isCurrent ? 1 : 0
-
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: 14
-                                            anchors.rightMargin: 14
-                                            spacing: 12
-
-                                            // Timestamp pill
-                                            Text {
-                                                visible: bridge.isLyricsSynchronized && modelData.timeStr.length > 0
-                                                text: modelData.timeStr
-                                                font.pixelSize: Theme.fontSizeSmall - 1
-                                                font.bold: lyricRow.isCurrent
-                                                color: lyricRow.isCurrent ? Theme.accent : Theme.textMuted
-                                                Layout.preferredWidth: 38
-                                            }
-
-                                            // Lyric line
-                                            Text {
-                                                id: lyricText
-                                                text: modelData.text.length > 0 ? modelData.text : "♪"
-                                                font.pixelSize: lyricRow.isCurrent ? (Theme.fontSizeLarge + 2) : Theme.fontSizeBase
-                                                font.bold: lyricRow.isCurrent
-                                                color: lyricRow.isCurrent ? Theme.textPrimary : (lyricRow.isPast ? Theme.textMuted : Theme.textSecondary)
-                                                wrapMode: Text.WordWrap
-                                                Layout.fillWidth: true
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: rowMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                if (bridge.isLyricsSynchronized && modelData.timeMs >= 0) {
-                                                    bridge.seekToLyric(index);
-                                                }
-                                            }
-                                        }
-
-                                        ToolTip.visible: rowMouse.containsMouse && bridge.isLyricsSynchronized
-                                        ToolTip.text: "Click to jump playback to " + modelData.timeStr
-                                    }
-
-                                    ScrollBar.vertical: ScrollBar {
-                                        active: true
-                                        policy: ScrollBar.AsNeeded
+                            MouseArea {
+                                id: lRowMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (lyricItem.modelData.timestampMs !== undefined) {
+                                        bridge.seekToLyric(lyricItem.modelData.timestampMs);
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // Empty Lyrics Placeholder
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        visible: !bridge.hasLyrics
+                        spacing: Math.round(8 * Theme.uiScale)
+
+                        VectorIcon {
+                            Layout.alignment: Qt.AlignHCenter
+                            name: "lyrics"
+                            width: Math.round(36 * Theme.uiScale)
+                            height: Math.round(36 * Theme.uiScale)
+                            color: Theme.textMuted
+                        }
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr("No Synchronized Lyrics")
+                            font.pixelSize: Theme.fontSizeMedium
+                            font.bold: true
+                            color: Theme.textSecondary
+                        }
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr("Embedded or sidecar (.lrc) lyrics not found for this track")
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.textMuted
                         }
                     }
                 }

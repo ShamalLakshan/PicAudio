@@ -35,9 +35,8 @@ Rectangle {
                     { id: "tracks_default", name: "Tracks Table", icon: "table", tooltip: "Tracks Table View" },
                     { id: "covers_default", name: "Album Covers", icon: "grid", tooltip: "Album Covers Grid View" },
                     { id: "album_and_tracks_default", name: "Album & Tracks", icon: "album_tracks", tooltip: "Album & Tracks View" },
-                    { id: "artists_default", name: "Artists", icon: "library", tooltip: "Artists Grid View" },
+                    { id: "artists_default", name: "Artists", icon: "artist", tooltip: "Artists Grid View" },
                     { id: "now_playing_default", name: "Now Playing", icon: "disc", tooltip: "Now Playing View" },
-                    { id: "jukebox_default", name: "Jukebox", icon: "volume", tooltip: "Jukebox Presentation View" },
                     { id: "history_default", name: "History", icon: "history", tooltip: "Listening History View" }
                 ]
 

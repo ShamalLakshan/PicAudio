@@ -219,6 +219,56 @@ Canvas {
             ctx.moveTo(w * 0.12, h * 0.82);
             ctx.lineTo(w * 0.88, h * 0.82);
             ctx.stroke();
+        } else if (name === "artist" || name === "user" || name === "profile" || name === "person" || name === "library") {
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.32, w * 0.19, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.16, h * 0.88);
+            ctx.bezierCurveTo(w * 0.16, h * 0.62, w * 0.32, h * 0.56, w * 0.5, h * 0.56);
+            ctx.bezierCurveTo(w * 0.68, h * 0.56, w * 0.84, h * 0.62, w * 0.84, h * 0.88);
+            ctx.closePath();
+            ctx.fill();
+        } else if (name === "history") {
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.52, w * 0.36, -Math.PI * 0.75, Math.PI * 1.25);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.14, h * 0.22);
+            ctx.lineTo(w * 0.26, h * 0.28);
+            ctx.lineTo(w * 0.26, h * 0.14);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.5, h * 0.28);
+            ctx.lineTo(w * 0.5, h * 0.52);
+            ctx.lineTo(w * 0.68, h * 0.52);
+            ctx.stroke();
+        } else if (name === "jukebox") {
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.42, w * 0.34, Math.PI, 0);
+            ctx.lineTo(w * 0.84, h * 0.86);
+            ctx.lineTo(w * 0.16, h * 0.86);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.42, w * 0.18, Math.PI, 0);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(w * 0.5, h * 0.42, w * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(w * 0.26, h * 0.60); ctx.lineTo(w * 0.74, h * 0.60);
+            ctx.moveTo(w * 0.26, h * 0.72); ctx.lineTo(w * 0.74, h * 0.72);
+            ctx.moveTo(w * 0.26, h * 0.84); ctx.lineTo(w * 0.74, h * 0.84);
+            ctx.stroke();
+        } else if (name === "plus" || name === "add") {
+            ctx.beginPath();
+            ctx.moveTo(w * 0.5, h * 0.2);
+            ctx.lineTo(w * 0.5, h * 0.8);
+            ctx.moveTo(w * 0.2, h * 0.5);
+            ctx.lineTo(w * 0.8, h * 0.5);
+            ctx.stroke();
         } else if (name === "panel_left") {
             ctx.strokeRect(w * 0.12, h * 0.15, w * 0.76, h * 0.7);
             ctx.fillRect(w * 0.12, h * 0.15, w * 0.26, h * 0.7);

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import ".."
 import "../components"
 
 Item {
@@ -30,6 +31,11 @@ Item {
                     text: qsTr("← All Artists")
                     visible: artistsGridRoot.inDrilldown
                     onClicked: artistsGridRoot.selectedArtist = ""
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
+                    }
                 }
 
                 Text {
@@ -75,21 +81,22 @@ Item {
                         anchors.margins: Math.round(8 * Theme.uiScale)
                         spacing: Math.round(6 * Theme.uiScale)
 
-                        // Circular or rounded photo frame
+                        // Circular photo frame with human head/profile icon
                         Rectangle {
                             Layout.alignment: Qt.AlignHCenter
-                            width: Math.round(100 * Theme.uiScale)
-                            height: Math.round(100 * Theme.uiScale)
+                            width: Math.round(96 * Theme.uiScale)
+                            height: Math.round(96 * Theme.uiScale)
                             radius: width / 2
-                            color: Theme.background
-                            border.color: Theme.panelBorder
-                            clip: true
+                            color: artHover.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12) : Theme.surfaceElevated
+                            border.color: artHover.hovered ? Theme.accent : Theme.panelBorder
+                            border.width: 1
 
-                            Image {
-                                anchors.fill: parent
-                                source: "image://albumart/" + (artItem.model.artHash ? artItem.model.artHash : artItem.model.id)
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                width: Math.round(48 * Theme.uiScale)
+                                height: Math.round(48 * Theme.uiScale)
+                                name: "artist"
+                                color: artHover.hovered ? Theme.accent : Theme.textSecondary
                             }
                         }
 
@@ -137,19 +144,21 @@ Item {
                     RowLayout {
                         spacing: Math.round(16 * Theme.uiScale)
 
+                        // Circular header frame with human head/profile icon
                         Rectangle {
-                            width: Math.round(84 * Theme.uiScale)
-                            height: Math.round(84 * Theme.uiScale)
+                            width: Math.round(80 * Theme.uiScale)
+                            height: Math.round(80 * Theme.uiScale)
                             radius: width / 2
-                            color: Theme.surface
-                            border.color: Theme.panelBorder
-                            clip: true
+                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                            border.color: Theme.accent
+                            border.width: 1
 
-                            Image {
-                                anchors.fill: parent
-                                source: "image://albumart/" + artistsGridRoot.selectedArtist
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                width: Math.round(42 * Theme.uiScale)
+                                height: Math.round(42 * Theme.uiScale)
+                                name: "artist"
+                                color: Theme.accent
                             }
                         }
 
@@ -166,6 +175,11 @@ Item {
                             Button {
                                 text: qsTr("▶ Play Artist Discography")
                                 onClicked: bridge.playAlbumNow("", artistsGridRoot.selectedArtist)
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    acceptedButtons: Qt.NoButton
+                                }
                             }
                         }
                     }

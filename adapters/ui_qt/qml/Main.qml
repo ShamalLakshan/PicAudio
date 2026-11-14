@@ -727,8 +727,7 @@ ApplicationWindow {
     Shortcut { sequence: "Alt+3"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("album_and_tracks_default") } }
     Shortcut { sequence: "Alt+4"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("artists_default") } }
     Shortcut { sequence: "Alt+5"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("now_playing_default") } }
-    Shortcut { sequence: "Alt+6"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("jukebox_default") } }
-    Shortcut { sequence: "Alt+7"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("history_default") } }
+    Shortcut { sequence: "Alt+6"; onActivated: { if (bridge.tabModel) bridge.tabModel.updateActiveView("history_default") } }
     Shortcut { sequence: "Ctrl+Shift+M"; onActivated: toggleMiniPlayer() }
     Shortcut { sequence: "F10"; onActivated: toggleMiniPlayer() }
     Shortcut { sequence: "F11"; onActivated: toggleFullscreen() }

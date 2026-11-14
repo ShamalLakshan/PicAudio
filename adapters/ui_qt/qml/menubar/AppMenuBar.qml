@@ -298,14 +298,8 @@ RowLayout {
                 MenuItem {
                     text: "Now Playing View"
                     checkable: true
-                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "now_playing_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "now_playing"))
+                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "now_playing_default" || (bridge.viewRegistry && (bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "now_playing" || bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "jukebox")))
                     onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("now_playing_default") }
-                }
-                MenuItem {
-                    text: "Jukebox Presentation"
-                    checkable: true
-                    checked: bridge.tabModel && (bridge.tabModel.activeViewId === "jukebox_default" || (bridge.viewRegistry && bridge.viewRegistry.getBaseRendererType(bridge.tabModel.activeViewId) === "jukebox"))
-                    onTriggered: { if (bridge.tabModel) bridge.tabModel.updateActiveView("jukebox_default") }
                 }
                 MenuItem {
                     text: "Listening History"
