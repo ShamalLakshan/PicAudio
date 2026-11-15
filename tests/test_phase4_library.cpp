@@ -381,3 +381,42 @@ TEST_F(Phase4LibraryTest, Database_MigrationHandlesLegacyDatabasesGracefully) {
   EXPECT_EQ(retrieved->rating, 5);
   EXPECT_TRUE(retrieved->isFavorite);
 }
+
+TEST_F(Phase4LibraryTest, TrackListModel_LoadArtistTracksAcrossMultipleAlbums) {
+  adapters::SqliteDatabaseAdapter db;
+  ASSERT_TRUE(db.initialize(dbPath));
+
+  core::Track t1;
+  t1.id = "q1";
+  t1.filePath = "/path/bohemian.flac";
+  t1.title = "Bohemian Rhapsody";
+  t1.artist = "Queen";
+  t1.album = "A Night at the Opera";
+  t1.trackNumber = 11;
+  ASSERT_TRUE(db.saveTrack(t1));
+
+  core::Track t2;
+  t2.id = "q2";
+  t2.filePath = "/path/radio_ga_ga.flac";
+  t2.title = "Radio Ga Ga";
+  t2.artist = "queen"; // lowercase variation
+  t2.album = "The Works";
+  t2.trackNumber = 1;
+  ASSERT_TRUE(db.saveTrack(t2));
+
+  core::Track t3;
+  t3.id = "p1";
+  t3.filePath = "/path/comfortably_numb.flac";
+  t3.title = "Comfortably Numb";
+  t3.artist = "Pink Floyd";
+  t3.album = "The Wall";
+  ASSERT_TRUE(db.saveTrack(t3));
+
+  TrackListModel model(&db);
+  model.loadArtistTracks("Queen");
+
+  EXPECT_EQ(model.rowCount(), 2);
+  EXPECT_EQ(model.tracks().size(), 2u);
+  EXPECT_EQ(model.tracks()[0].artist, "Queen");
+  EXPECT_EQ(model.tracks()[1].artist, "queen");
+}

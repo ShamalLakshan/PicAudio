@@ -75,6 +75,7 @@ public:
   Q_INVOKABLE void loadAllTracks();
   Q_INVOKABLE void loadAlbumTracks(const QString &albumTitle,
                                    const QString &albumArtist);
+  Q_INVOKABLE void loadArtistTracks(const QString &artist);
   Q_INVOKABLE void setFilter(const QString &filterText);
   Q_INVOKABLE void setSearchQuery(const QString &query);
   Q_INVOKABLE void setGenreFilter(const QString &genre);

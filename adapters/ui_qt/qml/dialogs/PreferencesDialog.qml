@@ -3437,6 +3437,78 @@ Dialog {
                             }
                         }
                     }
+
+                    // Online Artist Imagery
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: artistImgCol.implicitHeight + 28
+                        color: Theme.background
+                        border.color: Theme.panelBorder
+                        border.width: 1
+                        radius: Theme.cornerRadiusSmall
+
+                        ColumnLayout {
+                            id: artistImgCol
+                            anchors.fill: parent
+                            anchors.margins: 14
+                            spacing: 10
+
+                            Text {
+                                text: "Online Artist Imagery"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+
+                            StyledCheckBox {
+                                text: "Automatically download artist photography from online services"
+                                checked: bridge.fetchArtistImagesOnline
+                                onToggled: bridge.setFetchArtistImagesOnline(checked)
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+                                Text {
+                                    text: "Service Provider:"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textSecondary
+                                    Layout.preferredWidth: 140
+                                }
+                                Text {
+                                    text: "Deezer API (deezer.com) — Free public artist discovery"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textPrimary
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                Text {
+                                    text: "Cached artist portraits are saved locally in the application data directory."
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textMuted
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                Button {
+                                    text: "Clear Artist Cache"
+                                    implicitHeight: 30
+                                    onClicked: bridge.clearArtistImageCache()
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        acceptedButtons: Qt.NoButton
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

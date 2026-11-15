@@ -17,6 +17,8 @@ struct Track;
 class AlbumListModel : public QAbstractListModel {
   Q_OBJECT
   Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+  Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY filterChanged)
+  Q_PROPERTY(QString letterFilter READ letterFilter NOTIFY filterChanged)
 
 public:
   enum AlbumRoles {
@@ -67,6 +69,7 @@ public:
 
 signals:
   void countChanged();
+  void filterChanged();
 
 private:
   void applyFilter();

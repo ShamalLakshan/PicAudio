@@ -5,6 +5,7 @@
 #include "dsp/DspManager.hpp"
 #include "metadata/TagLibMetadataAdapter.hpp"
 #include "plugin/PluginManager.hpp"
+#include "providers/ArtistImageManager.hpp"
 #include <QClipboard>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -120,6 +121,19 @@ QtBridge::QtBridge(core::PlayerService &player, core::LibraryService &library,
   loadColumnSettings();
   loadViewLayoutSettings();
   loadSettings();
+
+  QString artistsCacheDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+      "/artists";
+  m_artistImageManager =
+      std::make_unique<adapters::ArtistImageManager>(artistsCacheDir, this);
+  m_artistImageManager->setOnlineFetchingEnabled(m_fetchArtistImagesOnline);
+  connect(m_artistImageManager.get(),
+          &adapters::ArtistImageManager::artistImageReady, this,
+          [this](const QString &artistName, const QString & /*diskPath*/) {
+            emit artistArtChanged(artistName);
+          });
+
   populateDefaultSmartPlaylists();
   setupFilesystemWatcher();
   refreshLibraryStats();
@@ -306,6 +320,8 @@ void QtBridge::loadSettings() {
       s.value("metadata/lyricsProviderOrder", "Local .lrc sidecar first")
           .toString();
   m_autoFetchLyrics = s.value("metadata/autoFetchLyrics", true).toBool();
+  m_fetchArtistImagesOnline =
+      s.value("metadata/fetchArtistImagesOnline", true).toBool();
 
   // Diagnostics
   m_loggingVerbosity =
@@ -406,6 +422,7 @@ void QtBridge::saveSettings() {
   s.setValue("metadata/offlineScrobbleCache", m_offlineScrobbleCache);
   s.setValue("metadata/lyricsProviderOrder", m_lyricsProviderOrder);
   s.setValue("metadata/autoFetchLyrics", m_autoFetchLyrics);
+  s.setValue("metadata/fetchArtistImagesOnline", m_fetchArtistImagesOnline);
 
   // Diagnostics
   s.setValue("diagnostics/loggingVerbosity", m_loggingVerbosity);
@@ -654,13 +671,43 @@ QString QtBridge::totalLibrarySizeStr() const {
 
 void QtBridge::refreshLibraryStats() {
   auto all = m_library.getTracks();
+  auto allAlbums = m_library.getAlbums();
+
+  struct CaseInsensitiveCompare {
+    bool operator()(const std::string &a, const std::string &b) const {
+      return QString::compare(QString::fromStdString(a),
+                              QString::fromStdString(b),
+                              Qt::CaseInsensitive) < 0;
+    }
+  };
+
   std::set<std::string> genres;
-  std::set<std::string> artists;
+  std::set<std::string, CaseInsensitiveCompare> artists;
+  m_artistTrackCounts.clear();
+  m_artistAlbumCounts.clear();
+
   for (const auto &t : all) {
-    if (!t.genre.empty())
-      genres.insert(t.genre);
-    if (!t.artist.empty())
-      artists.insert(t.artist);
+    if (!t.genre.empty()) {
+      QString g = QString::fromStdString(t.genre).trimmed();
+      if (!g.isEmpty())
+        genres.insert(g.toStdString());
+    }
+    if (!t.artist.empty()) {
+      QString a = QString::fromStdString(t.artist).trimmed();
+      if (!a.isEmpty()) {
+        artists.insert(a.toStdString());
+        m_artistTrackCounts[a.toLower().toStdString()]++;
+      }
+    }
+  }
+
+  for (const auto &alb : allAlbums) {
+    if (!alb.artist.empty()) {
+      QString a = QString::fromStdString(alb.artist).trimmed();
+      if (!a.isEmpty()) {
+        m_artistAlbumCounts[a.toLower().toStdString()]++;
+      }
+    }
   }
 
   m_genresList.clear();
@@ -1010,6 +1057,21 @@ void QtBridge::openAlbumDetails(const QString &albumTitle,
   emit selectedAlbumChanged();
 }
 
+void QtBridge::openArtistDetails(const QString &artist) {
+  m_selectedAlbumTitle = "";
+  m_selectedAlbumArtist = artist;
+  m_selectedAlbumYear = "";
+  m_selectedAlbumGenre = "";
+  m_selectedAlbumQuality = "Lossless";
+  m_selectedAlbumDuration = "";
+  m_selectedAlbumTrackCount = getArtistTrackCount(artist);
+  m_selectedAlbumArtHash = "";
+  if (m_albumDetailTrackModel) {
+    m_albumDetailTrackModel->loadArtistTracks(artist);
+  }
+  emit selectedAlbumChanged();
+}
+
 void QtBridge::playAlbum(const QString &albumTitle,
                          const QString &albumArtist) {
   playAlbumNow(albumTitle, albumArtist);
@@ -1151,8 +1213,34 @@ void QtBridge::playNextInAlbumShuffle(const QStringList &trackIds) {
   }
 }
 
+void QtBridge::playArtistNow(const QString &artist) {
+  if (m_albumDetailTrackModel) {
+    m_albumDetailTrackModel->loadArtistTracks(artist);
+    auto tracks = m_albumDetailTrackModel->tracks();
+    if (!tracks.empty()) {
+      m_player.playQueue(tracks, 0);
+      updatePlaybackState(tracks[0]);
+      syncQueueModel();
+    }
+  }
+}
+
+int QtBridge::getArtistTrackCount(const QString &artist) const {
+  auto it = m_artistTrackCounts.find(artist.trimmed().toLower().toStdString());
+  return it != m_artistTrackCounts.end() ? it->second : 0;
+}
+
+int QtBridge::getArtistAlbumCount(const QString &artist) const {
+  auto it = m_artistAlbumCounts.find(artist.trimmed().toLower().toStdString());
+  return it != m_artistAlbumCounts.end() ? it->second : 0;
+}
+
 void QtBridge::playAlbumNow(const QString &albumTitle,
                             const QString &albumArtist) {
+  if (albumTitle.trimmed().isEmpty() && !albumArtist.trimmed().isEmpty()) {
+    playArtistNow(albumArtist);
+    return;
+  }
   auto tracks = m_library.getTracksForAlbum(albumTitle.toStdString(),
                                             albumArtist.toStdString());
   if (!tracks.empty()) {
@@ -4519,6 +4607,42 @@ void QtBridge::setAutoFetchLyrics(bool enable) {
     m_autoFetchLyrics = enable;
     saveSettings();
     emit metadataSettingsChanged();
+  }
+}
+
+void QtBridge::setFetchArtistImagesOnline(bool enabled) {
+  if (m_fetchArtistImagesOnline != enabled) {
+    m_fetchArtistImagesOnline = enabled;
+    if (m_artistImageManager) {
+      m_artistImageManager->setOnlineFetchingEnabled(enabled);
+    }
+    saveSettings();
+    emit fetchArtistImagesOnlineChanged();
+    emit metadataSettingsChanged();
+  }
+}
+
+adapters::ArtistImageManager *QtBridge::artistImageManager() const {
+  return m_artistImageManager.get();
+}
+
+void QtBridge::clearArtistImageCache() {
+  if (m_artistImageManager) {
+    m_artistImageManager->clearCache();
+  }
+  showToast("Artist image cache cleared.", "info");
+}
+
+QStringList QtBridge::registeredArtistImageServices() const {
+  if (m_artistImageManager) {
+    return m_artistImageManager->registeredServiceNames();
+  }
+  return {};
+}
+
+void QtBridge::requestArtistImage(const QString &artistName) {
+  if (m_artistImageManager) {
+    m_artistImageManager->requestArtistImage(artistName);
   }
 }
 
