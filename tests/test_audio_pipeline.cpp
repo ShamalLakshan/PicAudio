@@ -18,12 +18,13 @@
 #include "audio/decoders/WavAudioDecoder.hpp"
 #include "audio/dsp/ChannelMatrixProcessor.hpp"
 #include "audio/dsp/CrossfadeEngine.hpp"
-#include "audio/dsp/DspManager.hpp"
 #include "audio/dsp/LoudnessAndDitherProcessor.hpp"
 #include "audio/dsp/ParametricEqualizer.hpp"
 #include "audio/pipewire/PipeWireAudioSink.hpp"
 #include "audio/wasapi/WasapiAudioSink.hpp"
 #include "core/services/PlayerService.hpp"
+#include "dsp/channelmatrixdsp.h"
+#include "dsp/equalizerdsp.h"
 #include <QGuiApplication>
 
 using namespace adapters;
@@ -560,30 +561,102 @@ TEST(AudioPipelineTest, ParametricEqualizerMultiChannelAndClipping) {
   }
 }
 
-TEST(AudioPipelineTest, DspManagerInitializationAndDirectories) {
+TEST(AudioPipelineTest, NativeEqualizerDspAndMatrixDspNodes) {
   ensureTestCoreApp();
-  DspManager dsp;
-  EXPECT_TRUE(dsp.isDspMasterEnabled());
-  EXPECT_EQ(dsp.getRoutingOrder(), DspManager::RoutingOrder::EqThenDsp);
 
-  std::string primaryDir = dsp.getPrimaryDspDirectory();
-  EXPECT_FALSE(primaryDir.empty());
+  // Test PicAudioEngine::EqualizerDsp
+  PicAudioEngine::EqualizerDsp eqDsp;
+  EXPECT_EQ(eqDsp.id(), QStringLiteral("equalizer"));
+  EXPECT_EQ(eqDsp.bandCount(), 10u);
+  EXPECT_EQ(eqDsp.preampGain(), 0.0f);
+  EXPECT_FALSE(eqDsp.isBypassed());
 
-  // Verify directory and README.txt exist
-  EXPECT_TRUE(std::filesystem::exists(primaryDir));
-  EXPECT_TRUE(std::filesystem::exists(std::filesystem::path(primaryDir) /
-                                      "README.txt"));
+  eqDsp.setBandGain(0, 3.5f);
+  EXPECT_FLOAT_EQ(eqDsp.bandGain(0), 3.5f);
+  eqDsp.setPreampGain(-2.0f);
+  EXPECT_FLOAT_EQ(eqDsp.preampGain(), -2.0f);
 
-  // Check routing order change
-  dsp.setRoutingOrder(DspManager::RoutingOrder::DspThenEq);
-  EXPECT_EQ(dsp.getRoutingOrder(), DspManager::RoutingOrder::DspThenEq);
+  eqDsp.setBandCount(15);
+  EXPECT_EQ(eqDsp.bandCount(), 15u);
+  EXPECT_EQ(eqDsp.bandGains().size(), 15u);
 
-  dsp.setDspMasterEnabled(false);
-  EXPECT_FALSE(dsp.isDspMasterEnabled());
+  eqDsp.setBandCount(31);
+  EXPECT_EQ(eqDsp.bandCount(), 31u);
+  EXPECT_EQ(eqDsp.bandGains().size(), 31u);
 
-  // Test setAllPluginsEnabled invocation without plugins does not crash
-  dsp.setAllPluginsEnabled(true);
-  dsp.setAllPluginsEnabled(false);
+  // Test JSON serialization & round-trip
+  QByteArray eqJson = eqDsp.saveSettings();
+  EXPECT_FALSE(eqJson.isEmpty());
+
+  PicAudioEngine::EqualizerDsp restoredEq;
+  EXPECT_TRUE(restoredEq.loadSettings(eqJson));
+  EXPECT_EQ(restoredEq.bandCount(), 31u);
+  EXPECT_FLOAT_EQ(restoredEq.preampGain(), -2.0f);
+
+  // Test EQ presets across 10, 15, and 31 bands
+  eqDsp.setBandCount(10);
+  eqDsp.setPreset(QStringLiteral("Rock"));
+  EXPECT_EQ(eqDsp.preset(), QStringLiteral("Rock"));
+  EXPECT_GT(eqDsp.bandGains()[0], 4.0f);
+  EXPECT_LT(eqDsp.bandGains()[4], 0.0f);
+
+  eqDsp.setPreset(QStringLiteral("Bass Boost"));
+  EXPECT_GT(eqDsp.bandGains()[0], 5.0f);
+
+  eqDsp.setBandCount(15);
+  eqDsp.setPreset(QStringLiteral("Pop"));
+  EXPECT_EQ(eqDsp.bandGains().size(), 15u);
+  EXPECT_NE(eqDsp.bandGains()[4], 0.0f);
+
+  eqDsp.setBandCount(31);
+  eqDsp.setPreset(QStringLiteral("Jazz"));
+  EXPECT_EQ(eqDsp.bandGains().size(), 31u);
+  EXPECT_NE(eqDsp.bandGains()[0], 0.0f);
+
+  eqDsp.setPreset(QStringLiteral("Flat"));
+  for (float g : eqDsp.bandGains()) {
+    EXPECT_FLOAT_EQ(g, 0.0f);
+  }
+
+  // Test BitPerfectAudioEngine adapter preset integration
+  adapters::BitPerfectAudioEngine bpEngine;
+  bpEngine.setEqPreset("Rock");
+  EXPECT_EQ(bpEngine.getEqPreset(), "Rock");
+  EXPECT_GT(bpEngine.getEqBandGains()[0], 4.0f);
+  bpEngine.resetEq();
+  EXPECT_EQ(bpEngine.getEqPreset(), "Flat");
+  EXPECT_FLOAT_EQ(bpEngine.getEqBandGains()[0], 0.0f);
+
+  // Test PicAudioEngine::ChannelMatrixDsp
+  PicAudioEngine::ChannelMatrixDsp matDsp;
+  EXPECT_EQ(matDsp.id(), QStringLiteral("channel_matrix"));
+  EXPECT_EQ(matDsp.activePreset(),
+            PicAudioEngine::ChannelMatrixDsp::Preset::Passthrough);
+  EXPECT_FLOAT_EQ(matDsp.coefficient(0, 0), 1.0f);
+  EXPECT_FLOAT_EQ(matDsp.coefficient(0, 1), 0.0f);
+
+  matDsp.setPreset(PicAudioEngine::ChannelMatrixDsp::Preset::DownmixToStereo);
+  EXPECT_EQ(matDsp.activePreset(),
+            PicAudioEngine::ChannelMatrixDsp::Preset::DownmixToStereo);
+  EXPECT_EQ(matDsp.outputChannels(), 2);
+
+  matDsp.setPreset(PicAudioEngine::ChannelMatrixDsp::Preset::UpmixTo51);
+  EXPECT_EQ(matDsp.activePreset(),
+            PicAudioEngine::ChannelMatrixDsp::Preset::UpmixTo51);
+  EXPECT_EQ(matDsp.outputChannels(), 6);
+
+  matDsp.setCoefficient(0, 1, 0.5f);
+  EXPECT_FLOAT_EQ(matDsp.coefficient(0, 1), 0.5f);
+  matDsp.normalize();
+
+  // Test Matrix JSON serialization & round-trip
+  QByteArray matJson = matDsp.saveSettings();
+  EXPECT_FALSE(matJson.isEmpty());
+
+  PicAudioEngine::ChannelMatrixDsp restoredMat;
+  EXPECT_TRUE(restoredMat.loadSettings(matJson));
+  EXPECT_EQ(restoredMat.outputChannels(), 6);
+  EXPECT_FLOAT_EQ(restoredMat.coefficient(0, 1), matDsp.coefficient(0, 1));
 }
 
 TEST(AudioPipelineTest, ParametricEqualizerDynamicBandCounts) {

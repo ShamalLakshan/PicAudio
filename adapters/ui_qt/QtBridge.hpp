@@ -26,7 +26,6 @@
 
 namespace adapters {
 class PluginManager;
-class DspManager;
 class WaveformExtractor;
 class ArtistImageManager;
 } // namespace adapters
@@ -1250,12 +1249,7 @@ public:
   [[nodiscard]] Q_INVOKABLE bool
   isPluginWindowVisible(const QString &pluginId) const;
 
-  // External DSP Plugins (.clap) & Built-in EQ Management
-  void setDspManager(adapters::DspManager *manager);
-  [[nodiscard]] adapters::DspManager *dspManager() const {
-    return m_dspManager;
-  }
-
+  // Equalizer & DSP Management
   [[nodiscard]] bool isEqEnabled() const;
   Q_INVOKABLE void setEqEnabled(bool enabled);
   [[nodiscard]] qreal eqPreampDb() const;
@@ -1584,7 +1578,6 @@ private:
   class QQmlApplicationEngine *m_qmlEngine{nullptr};
   class QTranslator *m_translator{nullptr};
   adapters::PluginManager *m_pluginManager{nullptr};
-  adapters::DspManager *m_dspManager{nullptr};
   void applyLanguage(const QString &lang);
 
   // Phase 4 State

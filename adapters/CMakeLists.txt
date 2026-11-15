@@ -137,10 +137,6 @@ qt_add_library(ui_adapter STATIC
     audio/dsp/LoudnessAndDitherProcessor.cpp
     audio/dsp/CrossfadeEngine.hpp
     audio/dsp/CrossfadeEngine.cpp
-    audio/dsp/ClapPluginHost.hpp
-    audio/dsp/ClapPluginHost.cpp
-    audio/dsp/DspManager.hpp
-    audio/dsp/DspManager.cpp
     audio/CueSheetParser.hpp
     audio/CueSheetParser.cpp
     audio/WaveformExtractor.hpp
@@ -290,7 +286,6 @@ target_include_directories(ui_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/playlist
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/utils
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp
-    ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp/clap/include
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/wasapi
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/coreaudio
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/decoders

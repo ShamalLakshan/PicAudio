@@ -2,7 +2,6 @@
 #include "audio/CueSheetParser.hpp"
 #include "audio/WaveformExtractor.hpp"
 #include "core/services/PlaylistService.hpp"
-#include "dsp/DspManager.hpp"
 #include "metadata/TagLibMetadataAdapter.hpp"
 #include "plugin/PluginManager.hpp"
 #include "providers/ArtistImageManager.hpp"
@@ -5877,27 +5876,6 @@ bool QtBridge::isPluginWindowVisible(const QString &pluginId) const {
   return m_pluginManager->isPluginWindowVisible(pluginId);
 }
 
-void QtBridge::setDspManager(adapters::DspManager *manager) {
-  if (m_dspManager == manager) {
-    return;
-  }
-  if (m_dspManager) {
-    disconnect(m_dspManager, nullptr, this, nullptr);
-  }
-  m_dspManager = manager;
-  if (m_dspManager) {
-    connect(m_dspManager, &adapters::DspManager::dspPluginsChanged, this,
-            &QtBridge::dspPluginsChanged);
-    connect(m_dspManager, &adapters::DspManager::dspMasterEnabledChanged, this,
-            &QtBridge::dspMasterEnabledChanged);
-    connect(m_dspManager, &adapters::DspManager::routingOrderChanged, this,
-            &QtBridge::dspRoutingOrderChanged);
-  }
-  emit dspPluginsChanged();
-  emit dspMasterEnabledChanged();
-  emit dspRoutingOrderChanged();
-}
-
 bool QtBridge::isEqEnabled() const { return m_player.isEqEnabled(); }
 
 void QtBridge::setEqEnabled(bool enabled) {
@@ -5932,6 +5910,7 @@ void QtBridge::setEqBandGain(int bandIndex, qreal gainDb) {
       bandIndex < static_cast<int>(m_player.getEqBandCount())) {
     m_player.setEqBandGain(static_cast<size_t>(bandIndex),
                            static_cast<float>(gainDb));
+    emit eqPresetChanged();
     emit eqBandGainsChanged();
     scheduleDspAndEqSettingsSave();
   }
@@ -5949,6 +5928,7 @@ void QtBridge::setEqBandCount(int count) {
     m_player.setEqBandCount(static_cast<size_t>(count));
     emit eqBandCountChanged();
     emit eqBandGainsChanged();
+    emit eqPresetChanged();
     scheduleDspAndEqSettingsSave();
   }
 }
@@ -5970,6 +5950,7 @@ void QtBridge::setEqPreset(const QString &preset) {
   m_player.setEqPreset(preset.toStdString());
   emit eqPresetChanged();
   emit eqBandGainsChanged();
+  emit eqPreampDbChanged();
   scheduleDspAndEqSettingsSave();
 }
 
@@ -5982,113 +5963,51 @@ void QtBridge::resetEq() {
 }
 
 bool QtBridge::isDspMasterEnabled() const {
-  if (m_dspManager) {
-    return m_dspManager->isDspMasterEnabled();
-  }
   return m_player.isDspMasterEnabled();
 }
 
 void QtBridge::setDspMasterEnabled(bool enabled) {
-  if (m_dspManager) {
-    m_dspManager->setDspMasterEnabled(enabled);
-  }
   m_player.setDspMasterEnabled(enabled);
   emit dspMasterEnabledChanged();
   scheduleDspAndEqSettingsSave();
 }
 
-int QtBridge::dspRoutingOrder() const {
-  if (m_dspManager) {
-    return static_cast<int>(m_dspManager->getRoutingOrder());
-  }
-  return m_player.getDspRoutingOrder();
-}
+int QtBridge::dspRoutingOrder() const { return m_player.getDspRoutingOrder(); }
 
 void QtBridge::setDspRoutingOrder(int order) {
-  if (m_dspManager) {
-    m_dspManager->setRoutingOrder(
-        static_cast<adapters::DspManager::RoutingOrder>(order));
-  }
   m_player.setDspRoutingOrder(order);
   emit dspRoutingOrderChanged();
   scheduleDspAndEqSettingsSave();
 }
 
-QVariantList QtBridge::discoveredDspPlugins() const {
-  QVariantList list;
-  if (!m_dspManager) {
-    return list;
-  }
-  for (const auto &p : m_dspManager->getDiscoveredPlugins()) {
-    QVariantMap map;
-    map[QStringLiteral("id")] = QString::fromStdString(p.id);
-    map[QStringLiteral("name")] = QString::fromStdString(p.name);
-    map[QStringLiteral("vendor")] = QString::fromStdString(p.vendor);
-    map[QStringLiteral("version")] = QString::fromStdString(p.version);
-    map[QStringLiteral("description")] = QString::fromStdString(p.description);
-    map[QStringLiteral("libraryPath")] = QString::fromStdString(p.libraryPath);
-    map[QStringLiteral("hasGui")] = p.hasGui;
-    map[QStringLiteral("enabled")] = p.enabled;
-    map[QStringLiteral("isLoaded")] = p.isLoaded;
-    list.append(map);
-  }
-  return list;
-}
+QVariantList QtBridge::discoveredDspPlugins() const { return QVariantList{}; }
 
-QString QtBridge::primaryDspDirectory() const {
-  if (m_dspManager) {
-    return QString::fromStdString(m_dspManager->getPrimaryDspDirectory());
-  }
-  return QString();
-}
+QString QtBridge::primaryDspDirectory() const { return QString(); }
 
-void QtBridge::openDspDirectory() {
-  if (m_dspManager) {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(
-        QString::fromStdString(m_dspManager->getPrimaryDspDirectory())));
-  }
-}
+void QtBridge::openDspDirectory() {}
 
-void QtBridge::scanDspPlugins() {
-  if (m_dspManager) {
-    m_dspManager->scanAndLoadPlugins();
-    emit dspPluginsChanged();
-    showToast(tr("Rescanned external DSP directory"),
-              QStringLiteral("success"));
-  }
-}
+void QtBridge::scanDspPlugins() {}
 
 bool QtBridge::setDspPluginEnabled(const QString &pluginId, bool enabled) {
-  if (m_dspManager) {
-    return m_dspManager->setPluginEnabled(pluginId.toStdString(), enabled);
-  }
+  Q_UNUSED(pluginId);
+  Q_UNUSED(enabled);
   return false;
 }
 
-void QtBridge::setAllDspPluginsEnabled(bool enabled) {
-  if (m_dspManager) {
-    m_dspManager->setAllPluginsEnabled(enabled);
-  }
-}
+void QtBridge::setAllDspPluginsEnabled(bool enabled) { Q_UNUSED(enabled); }
 
 bool QtBridge::showDspPluginWindow(const QString &pluginId) {
-  if (m_dspManager) {
-    return m_dspManager->showPluginWindow(pluginId.toStdString());
-  }
+  Q_UNUSED(pluginId);
   return false;
 }
 
 bool QtBridge::hideDspPluginWindow(const QString &pluginId) {
-  if (m_dspManager) {
-    return m_dspManager->hidePluginWindow(pluginId.toStdString());
-  }
+  Q_UNUSED(pluginId);
   return false;
 }
 
 bool QtBridge::isDspPluginWindowVisible(const QString &pluginId) const {
-  if (m_dspManager) {
-    return m_dspManager->isPluginWindowVisible(pluginId.toStdString());
-  }
+  Q_UNUSED(pluginId);
   return false;
 }
 

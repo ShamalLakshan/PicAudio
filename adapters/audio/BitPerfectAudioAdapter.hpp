@@ -1,6 +1,5 @@
 #pragma once
 
-#include "audio/dsp/DspManager.hpp"
 #include "core/ports/IAudioEnginePort.hpp"
 
 #include <memory>
@@ -25,8 +24,8 @@ namespace adapters {
 
 /**
  * @brief High-fidelity audio engine adapter implementing IAudioEnginePort
- * using PicAudio's multi-threaded audio pipeline, lock-free mixer, and real-time
- * visualization.
+ * using PicAudio's multi-threaded audio pipeline, lock-free mixer, and
+ * real-time visualization.
  */
 class BitPerfectAudioEngine : public core::IAudioEnginePort {
 public:
@@ -139,9 +138,6 @@ public:
   float getBufferFillPercentage() const override;
   std::string getActiveDecoderName() const override;
 
-  // External CLAP DSP Plugin Host Manager
-  DspManager &dspManager() { return m_dspManager; }
-
   // Direct reference to underlying engine controllers
   PicAudioEngine::EngineHandler *engineHandler() const;
   PicAudioEngine::PlayerController *playerController() const;
@@ -149,7 +145,6 @@ public:
 private:
   struct Impl;
   std::unique_ptr<Impl> m_impl;
-  DspManager m_dspManager;
 };
 
 using BitPerfectAudioAdapter = BitPerfectAudioEngine;

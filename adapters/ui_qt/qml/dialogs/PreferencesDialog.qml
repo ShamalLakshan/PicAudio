@@ -17,29 +17,7 @@ Dialog {
     property int activeCategory: 1 // default to Themes & Appearance
     property var discoveredPluginsList: []
     property var selectedPluginDetail: null
-    property string dspSearchQuery: ""
     signal requestLibraryHealth()
-
-    function getFilteredDspPlugins() {
-        var all = (typeof bridge !== "undefined" && bridge) ? bridge.discoveredDspPlugins : [];
-        if (!all || all.length === 0) return [];
-        var q = dspSearchQuery.trim().toLowerCase();
-        if (q === "") return all;
-        var res = [];
-        for (var i = 0; i < all.length; ++i) {
-            var item = all[i];
-            var name = (item.name || "").toLowerCase();
-            var vendor = (item.vendor || "").toLowerCase();
-            var desc = (item.description || "").toLowerCase();
-            var id = (item.id || "").toLowerCase();
-            var path = (item.libraryPath || "").toLowerCase();
-            if (name.indexOf(q) !== -1 || vendor.indexOf(q) !== -1 ||
-                desc.indexOf(q) !== -1 || id.indexOf(q) !== -1 || path.indexOf(q) !== -1) {
-                res.push(item);
-            }
-        }
-        return res;
-    }
 
     function refreshPlugins() {
         if (typeof bridge !== "undefined" && bridge) {
@@ -2237,338 +2215,272 @@ Dialog {
                     }
 
                     Text {
-                        text: "Configure the real-time biquad equalizer and drop-in external CLAP audio DSP plugins (such as LSP Expanders or dynamics controllers)."
+                        text: "Configure the real-time biquad parametric equalizer and the multi-channel surround matrix processor (Mono to 7.1)."
                         font.pixelSize: Theme.fontSizeSmall - 1
                         color: Theme.textMuted
                         wrapMode: Text.WordWrap
                         Layout.fillWidth: true
                     }
 
-                    StyledCheckBox {
-                        Layout.fillWidth: true
-                        text: "Enable Parametric Equalizer (" + (bridge ? bridge.eqBandCount : 10) + " Bands)"
-                        checked: bridge.eqEnabled
-                        onToggled: bridge.setEqEnabled(checked)
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 16
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-                            Text {
-                                text: "Equalizer Frequency Bands"
-                                font.pixelSize: Theme.fontSizeSmall
-                                font.bold: true
-                                color: Theme.textPrimary
-                            }
-                            Text {
-                                text: "Select the frequency resolution: 10 bands (1 octave), 15 bands (2/3 octave), or 31 bands (1/3 octave)."
-                                font.pixelSize: Theme.fontSizeSmall - 1
-                                color: Theme.textMuted
-                                wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        StyledComboBox {
-                            Layout.preferredWidth: 320
-                            model: ["10 Bands (ISO 1 Octave)", "15 Bands (ISO 2/3 Octave)", "31 Bands (ISO 1/3 Octave)"]
-                            currentIndex: {
-                                var bc = bridge ? bridge.eqBandCount : 10;
-                                if (bc === 31) return 2;
-                                if (bc === 15) return 1;
-                                return 0;
-                            }
-                            onActivated: function(index) {
-                                if (!bridge) return;
-                                if (index === 2) bridge.setEqBandCount(31);
-                                else if (index === 1) bridge.setEqBandCount(15);
-                                else bridge.setEqBandCount(10);
-                            }
-                        }
-                    }
-
-                    StyledCheckBox {
-                        Layout.fillWidth: true
-                        text: "Enable External DSP Plugins Chain (.clap)"
-                        checked: bridge.dspMasterEnabled
-                        onToggled: bridge.setDspMasterEnabled(checked)
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 16
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-                            Text {
-                                text: "DSP Pipeline Sequence Order"
-                                font.pixelSize: Theme.fontSizeSmall
-                                font.bold: true
-                                color: Theme.textPrimary
-                            }
-                            Text {
-                                text: "Determine whether the equalizer precedes or succeeds external dynamic processors."
-                                font.pixelSize: Theme.fontSizeSmall - 1
-                                color: Theme.textMuted
-                                wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
-                            }
-                        }
-
-                        StyledComboBox {
-                            Layout.preferredWidth: 320
-                            model: [
-                                "Parametric Equalizer → External DSP Plugins",
-                                "External DSP Plugins → Parametric Equalizer"
-                            ]
-                            currentIndex: bridge.dspRoutingOrder
-                            onActivated: function(index) {
-                                bridge.setDspRoutingOrder(index)
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        StyledButton {
-                            text: "Select All"
-                            enabled: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
-                            onClicked: {
-                                if (!bridge) return;
-                                if (root.dspSearchQuery.trim() === "") {
-                                    bridge.setAllDspPluginsEnabled(true);
-                                } else {
-                                    var filtered = root.getFilteredDspPlugins();
-                                    for (var i = 0; i < filtered.length; ++i) {
-                                        bridge.setDspPluginEnabled(filtered[i].id, true);
-                                    }
-                                }
-                            }
-                        }
-
-                        StyledButton {
-                            text: "Unselect All"
-                            enabled: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
-                            onClicked: {
-                                if (!bridge) return;
-                                if (root.dspSearchQuery.trim() === "") {
-                                    bridge.setAllDspPluginsEnabled(false);
-                                } else {
-                                    var filtered = root.getFilteredDspPlugins();
-                                    for (var i = 0; i < filtered.length; ++i) {
-                                        bridge.setDspPluginEnabled(filtered[i].id, false);
-                                    }
-                                }
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        StyledButton {
-                            text: "Open DSP Plugins Directory"
-                            onClicked: bridge.openDspDirectory()
-                        }
-                        StyledButton {
-                            text: "Rescan DSP Plugins"
-                            onClicked: bridge.scanDspPlugins()
-                        }
-                    }
-
-                    // Search input bar
+                    // Card 1: Parametric Equalizer
                     Rectangle {
-                        visible: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 32
+                        implicitHeight: eqPrefCol.implicitHeight + 24
                         radius: Theme.cornerRadiusSmall
                         color: Theme.surfaceElevated
-                        border.color: dspSearchTf.activeFocus ? Theme.accent : Theme.panelBorder
+                        border.color: Theme.panelBorder
                         border.width: 1
 
-                        RowLayout {
+                        ColumnLayout {
+                            id: eqPrefCol
                             anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            spacing: 6
-
-                            VectorIcon {
-                                name: "search"
-                                width: 14
-                                height: 14
-                                color: Theme.textMuted
-                            }
-
-                            TextInput {
-                                id: dspSearchTf
-                                Layout.fillWidth: true
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.textPrimary
-                                clip: true
-                                text: root.dspSearchQuery
-                                onTextChanged: root.dspSearchQuery = text
-
-                                Text {
-                                    anchors.fill: parent
-                                    text: "Search DSP plugins by name, vendor, description, or id..."
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    color: Theme.textMuted
-                                    visible: !dspSearchTf.text && !dspSearchTf.activeFocus
-                                    verticalAlignment: Text.AlignVCenter
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            Rectangle {
-                                visible: dspSearchTf.text !== ""
-                                Layout.preferredWidth: 18
-                                Layout.preferredHeight: 18
-                                radius: 9
-                                color: clearPrefSearchMouse.containsMouse ? Theme.surface : "transparent"
-
-                                VectorIcon {
-                                    anchors.centerIn: parent
-                                    name: "clear"
-                                    width: 9
-                                    height: 9
-                                    color: Theme.textMuted
-                                }
-
-                                MouseArea {
-                                    id: clearPrefSearchMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        dspSearchTf.text = "";
-                                        root.dspSearchQuery = "";
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Status / Count indicator
-                    RowLayout {
-                        visible: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0
-                        Layout.fillWidth: true
-                        Text {
-                            text: {
-                                var filtered = root.getFilteredDspPlugins();
-                                var total = bridge ? bridge.discoveredDspPlugins.length : 0;
-                                if (root.dspSearchQuery.trim() !== "") {
-                                    return "Showing " + filtered.length + " of " + total + " plugins";
-                                }
-                                return total + " plugins discovered in DSP search directories";
-                            }
-                            font.pixelSize: Theme.fontSizeSmall - 1
-                            color: Theme.textMuted
-                        }
-                    }
-
-                    // External DSP Plugins List
-                    Repeater {
-                        model: root.getFilteredDspPlugins()
-                        delegate: Rectangle {
-                            id: prefPluginCard
-                            required property var modelData
-                            Layout.fillWidth: true
-                            implicitHeight: Math.max(62, prefCardRow.implicitHeight + 16)
-                            radius: Theme.cornerRadiusSmall
-                            color: modelData.enabled ? Theme.surfaceElevated : Theme.surface
-                            border.color: modelData.enabled ? Theme.accent : Theme.panelBorder
-                            border.width: 1
-                            clip: true
+                            anchors.margins: 16
+                            spacing: 12
 
                             RowLayout {
-                                id: prefCardRow
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                anchors.topMargin: 8
-                                anchors.bottomMargin: 8
+                                Layout.fillWidth: true
                                 spacing: 12
 
-                                StyledCheckBox {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    checked: modelData.enabled
-                                    onToggled: bridge.setDspPluginEnabled(modelData.id, checked)
+                                VectorIcon {
+                                    name: "equalizer"
+                                    width: 20
+                                    height: 20
+                                    color: Theme.accent
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.minimumWidth: 100
                                     spacing: 2
-
                                     Text {
-                                        Layout.fillWidth: true
-                                        text: modelData.name + (modelData.vendor ? " — " + modelData.vendor + " v" + modelData.version : "")
-                                        font.pixelSize: Theme.fontSizeSmall
+                                        text: "Parametric Biquad Equalizer"
+                                        font.pixelSize: Theme.fontSizeBase
                                         font.bold: true
-                                        color: modelData.enabled ? Theme.accentHover : Theme.textPrimary
-                                        elide: Text.ElideRight
+                                        color: Theme.textPrimary
                                     }
                                     Text {
-                                        Layout.fillWidth: true
-                                        text: modelData.description ? modelData.description : modelData.libraryPath
+                                        text: "Real-time 64-bit double precision cascaded biquad filters with soft-knee limiting."
                                         font.pixelSize: Theme.fontSizeSmall - 1
                                         color: Theme.textMuted
-                                        elide: Text.ElideRight
                                     }
                                 }
 
                                 StyledButton {
-                                    visible: modelData.hasGui
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Layout.preferredWidth: 140
-                                    Layout.preferredHeight: 30
-                                    text: (bridge && bridge.isDspPluginWindowVisible(modelData.id)) ? "Close Panel" : "Open Control Panel"
+                                    text: "Open EQ Overlay..."
+                                    implicitHeight: 30
+                                    hoverEnabled: true
                                     onClicked: {
-                                        if (!bridge) return;
-                                        if (bridge.isDspPluginWindowVisible(modelData.id)) {
-                                            bridge.hideDspPluginWindow(modelData.id);
-                                        } else {
-                                            bridge.showDspPluginWindow(modelData.id);
+                                        if (equalizerOverlay) {
+                                            equalizerOverlay.open();
                                         }
+                                    }
+                                }
+                            }
+
+                            StyledCheckBox {
+                                Layout.fillWidth: true
+                                text: "Enable Parametric Equalizer (" + (bridge ? bridge.eqBandCount : 10) + " Bands)"
+                                checked: bridge.eqEnabled
+                                onToggled: bridge.setEqEnabled(checked)
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 16
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Text {
+                                        text: "Frequency Band Resolution"
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
+                                        color: Theme.textPrimary
+                                    }
+                                    Text {
+                                        text: "Select ISO standard frequency octave resolution: 10 bands (1 oct), 15 bands (2/3 oct), or 31 bands (1/3 oct)."
+                                        font.pixelSize: Theme.fontSizeSmall - 1
+                                        color: Theme.textMuted
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                StyledComboBox {
+                                    Layout.preferredWidth: 280
+                                    model: ["10 Bands (ISO 1 Octave)", "15 Bands (ISO 2/3 Octave)", "31 Bands (ISO 1/3 Octave)"]
+                                    currentIndex: {
+                                        var bc = bridge ? bridge.eqBandCount : 10;
+                                        if (bc === 31) return 2;
+                                        if (bc === 15) return 1;
+                                        return 0;
+                                    }
+                                    onActivated: function(index) {
+                                        if (!bridge) return;
+                                        if (index === 2) bridge.setEqBandCount(31);
+                                        else if (index === 1) bridge.setEqBandCount(15);
+                                        else bridge.setEqBandCount(10);
                                     }
                                 }
                             }
                         }
                     }
 
-                    // No search results state
+                    // Card 2: Channel Matrix & Surround Processor
                     Rectangle {
-                        visible: bridge && bridge.discoveredDspPlugins && bridge.discoveredDspPlugins.length > 0 && root.getFilteredDspPlugins().length === 0
                         Layout.fillWidth: true
-                        implicitHeight: 64
+                        implicitHeight: matrixPrefCol.implicitHeight + 24
                         radius: Theme.cornerRadiusSmall
-                        color: Theme.background
+                        color: Theme.surfaceElevated
                         border.color: Theme.panelBorder
                         border.width: 1
 
-                        RowLayout {
+                        ColumnLayout {
+                            id: matrixPrefCol
                             anchors.fill: parent
-                            anchors.margins: 12
+                            anchors.margins: 16
                             spacing: 12
 
-                            Text {
+                            RowLayout {
                                 Layout.fillWidth: true
-                                text: "No DSP plugins match '" + root.dspSearchQuery + "'."
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.textMuted
+                                spacing: 12
+
+                                VectorIcon {
+                                    name: "equalizer"
+                                    width: 20
+                                    height: 20
+                                    color: Theme.accentHover
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Text {
+                                        text: "Multi-Channel Surround Matrix Processor"
+                                        font.pixelSize: Theme.fontSizeBase
+                                        font.bold: true
+                                        color: Theme.textPrimary
+                                    }
+                                    Text {
+                                        text: "Real-time stereo downmixing (ITU-R BS.775), mono sum, 5.1/7.1 surround upmixing, and custom channel coefficients."
+                                        font.pixelSize: Theme.fontSizeSmall - 1
+                                        color: Theme.textMuted
+                                    }
+                                }
+
+                                StyledButton {
+                                    text: "Open Channel Matrix..."
+                                    implicitHeight: 30
+                                    highlighted: true
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        if (bridge) bridge.openChannelMatrix();
+                                    }
+                                }
                             }
 
-                            StyledButton {
-                                text: "Clear Filter"
-                                onClicked: {
-                                    dspSearchTf.text = "";
-                                    root.dspSearchQuery = "";
+                            StyledCheckBox {
+                                Layout.fillWidth: true
+                                text: "Enable Multi-Channel Surround Matrix Processor"
+                                checked: bridge.dspMasterEnabled
+                                onToggled: bridge.setDspMasterEnabled(checked)
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 16
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Text {
+                                        text: "Channel Processing Preset"
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
+                                        color: Theme.textPrimary
+                                    }
+                                    Text {
+                                        text: "Active layout: " + (bridge ? bridge.channelProcessing : "Passthrough") + " (" + (bridge ? bridge.outputChannels : 2) + " Channels)"
+                                        font.pixelSize: Theme.fontSizeSmall - 1
+                                        color: Theme.textMuted
+                                    }
+                                }
+
+                                StyledComboBox {
+                                    Layout.preferredWidth: 280
+                                    model: [
+                                        "Stereo Passthrough",
+                                        "Downmix to Stereo (ITU-R BS.775)",
+                                        "Downmix to Mono",
+                                        "Upmix to 5.1 Surround",
+                                        "Upmix to 7.1 Surround",
+                                        "Custom 8×8 Matrix"
+                                    ]
+                                    currentIndex: {
+                                        if (!bridge) return 0;
+                                        var p = bridge.channelProcessing;
+                                        if (p === "Downmix to Stereo (ITU-R BS.775)") return 1;
+                                        if (p === "Downmix to Mono") return 2;
+                                        if (p === "Upmix to 5.1 Surround") return 3;
+                                        if (p === "Upmix to 7.1 Surround") return 4;
+                                        if (p === "Custom 8×8 Matrix" || p === "Custom Matrix") return 5;
+                                        return 0;
+                                    }
+                                    onActivated: function(index) {
+                                        if (!bridge) return;
+                                        bridge.setChannelMatrixPreset(index);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Card 3: Execution Routing Order
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: routingPrefCol.implicitHeight + 24
+                        radius: Theme.cornerRadiusSmall
+                        color: Theme.surfaceElevated
+                        border.color: Theme.panelBorder
+                        border.width: 1
+
+                        ColumnLayout {
+                            id: routingPrefCol
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 12
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 16
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Text {
+                                        text: "DSP Pipeline Execution Sequence"
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
+                                        color: Theme.textPrimary
+                                    }
+                                    Text {
+                                        text: "Determine whether the equalizer precedes or succeeds the multi-channel matrix processor."
+                                        font.pixelSize: Theme.fontSizeSmall - 1
+                                        color: Theme.textMuted
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                StyledComboBox {
+                                    Layout.preferredWidth: 280
+                                    model: [
+                                        "Equalizer → Channel Matrix",
+                                        "Channel Matrix → Equalizer"
+                                    ]
+                                    currentIndex: bridge.dspRoutingOrder
+                                    onActivated: function(index) {
+                                        bridge.setDspRoutingOrder(index)
+                                    }
                                 }
                             }
                         }

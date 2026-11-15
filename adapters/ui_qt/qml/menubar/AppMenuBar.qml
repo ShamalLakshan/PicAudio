@@ -786,7 +786,7 @@ RowLayout {
                 onTriggered: root.requestEditTags()
             }
             MenuItem {
-                text: (root.showEqualizer ? "Hide" : "Show") + " Parametric Equalizer & DSP (Ctrl+Shift+E)"
+                text: (root.showEqualizer ? "Hide" : "Show") + " Parametric Equalizer (Ctrl+Shift+E)"
                 onTriggered: root.requestToggleEqualizer()
             }
             MenuItem {
