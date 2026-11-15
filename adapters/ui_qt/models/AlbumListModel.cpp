@@ -42,6 +42,7 @@ void AlbumListModel::setSearchQuery(const QString &query) {
   applyFilter();
   endResetModel();
   emit countChanged();
+  emit filterChanged();
 }
 
 void AlbumListModel::setGenreFilter(const QString &genre) {
@@ -72,6 +73,7 @@ void AlbumListModel::setLetterFilter(const QString &letter) {
   applyFilter();
   endResetModel();
   emit countChanged();
+  emit filterChanged();
 }
 
 void AlbumListModel::setHiResOnly(bool hiResOnly) {
@@ -95,6 +97,7 @@ void AlbumListModel::resetAllFilters() {
   applyFilter();
   endResetModel();
   emit countChanged();
+  emit filterChanged();
 }
 
 void AlbumListModel::setAlbumsFromTracks(

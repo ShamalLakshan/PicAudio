@@ -42,9 +42,8 @@ Item {
                     if (workspaceHostRoot.baseRenderer === "covers") return coversComp
                     if (workspaceHostRoot.baseRenderer === "album_and_tracks") return albumTracksComp
                     if (workspaceHostRoot.baseRenderer === "artists") return artistsComp
-                    if (workspaceHostRoot.baseRenderer === "now_playing") return nowPlayingComp
+                    if (workspaceHostRoot.baseRenderer === "now_playing" || workspaceHostRoot.baseRenderer === "jukebox") return nowPlayingComp
                     if (workspaceHostRoot.baseRenderer === "history") return historyComp
-                    if (workspaceHostRoot.baseRenderer === "jukebox") return jukeboxComp
                     return tracksComp
                 }
             }
@@ -100,26 +99,6 @@ Item {
                 id: historyComp
                 HistoryView {
                     anchors.fill: parent
-                }
-            }
-
-            Component {
-                id: jukeboxComp
-                JukeboxView {
-                    anchors.fill: parent
-                }
-            }
-        }
-
-        // A-Z Alphabetical Jump Bar (docked along bottom of main workspace if visible)
-        JumpBar {
-            id: jumpBar
-            Layout.fillWidth: true
-            visible: bridge.layoutModel ? bridge.layoutModel.jumpBarVisible : true
-            onLetterSelected: function(letter) {
-                bridge.filterByLetter(letter)
-                if (bridge.tabModel) {
-                    bridge.tabModel.updateActiveJumpBarLetter(letter)
                 }
             }
         }

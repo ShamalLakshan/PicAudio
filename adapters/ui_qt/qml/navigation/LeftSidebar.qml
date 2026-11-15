@@ -95,10 +95,10 @@ Rectangle {
                         { title: "All Music Tracks", count: bridge.totalTracks, icon: "table", nav: 0, mode: 1 },
                         { title: "Inbox (Staging)", count: "", icon: "queue", nav: 8, mode: 1 },
                         { title: "Albums", count: bridge.totalAlbums, icon: "grid", nav: 1, mode: 0 },
-                        { title: "Artists", count: bridge.artistsList.length, icon: "disc", nav: 2, mode: 1 },
+                        { title: "Artists", count: bridge.artistsList.length, icon: "artist", nav: 2, mode: 1 },
                         { title: "Genres", count: bridge.genresList.length, icon: "music", nav: 3, mode: 1 },
                         { title: "Favorites", count: "", icon: "heart", nav: 6, mode: 1 },
-                        { title: "Listening History", count: "", icon: "queue", nav: 7, mode: 3 }
+                        { title: "Listening History", count: "", icon: "history", nav: 7, mode: 3 }
                     ]
 
                     delegate: Rectangle {

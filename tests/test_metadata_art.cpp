@@ -2,6 +2,9 @@
 #include "adapters/storage/SqliteDatabaseAdapter.hpp"
 #include "adapters/ui_qt/models/TrackListModel.hpp"
 #include "adapters/ui_qt/providers/AlbumArtImageProvider.hpp"
+#include "adapters/ui_qt/providers/ArtistArtImageProvider.hpp"
+#include "adapters/ui_qt/providers/ArtistImageManager.hpp"
+#include "adapters/ui_qt/providers/DeezerArtistImageService.hpp"
 #include <QBuffer>
 #include <QImage>
 #include <filesystem>
@@ -483,4 +486,78 @@ TEST_F(MetadataArtTest, ExtractsArtworkFromOpusXiphComment) {
     EXPECT_EQ(art->mimeType, "image/png");
     EXPECT_EQ(art->artHash, "3e7dace7273c5cba");
   }
+}
+
+TEST_F(MetadataArtTest, ArtistImageManagerInitializationAndServices) {
+  QString cacheDir = QString::fromStdString((m_testDir / "artists").string());
+  adapters::ArtistImageManager manager(cacheDir);
+
+  EXPECT_EQ(manager.cacheDir(), cacheDir);
+  EXPECT_TRUE(manager.isOnlineFetchingEnabled());
+
+  QStringList services = manager.registeredServiceNames();
+  ASSERT_FALSE(services.isEmpty());
+  EXPECT_TRUE(services.contains("Deezer"));
+}
+
+TEST_F(MetadataArtTest, ArtistImageManagerDiskAndMemoryCaching) {
+  QString cacheDir = QString::fromStdString((m_testDir / "artists").string());
+  adapters::ArtistImageManager manager(cacheDir);
+
+  QString artistName = "Queen";
+  EXPECT_FALSE(manager.hasCachedImage(artistName));
+  EXPECT_TRUE(manager.getCachedDiskPath(artistName).isEmpty());
+  EXPECT_FALSE(manager.getCachedPixmap(artistName).has_value());
+
+  // Create test image data
+  auto imgBytes = createValidImageBytes();
+  QByteArray qdata(reinterpret_cast<const char *>(imgBytes.data()),
+                   static_cast<int>(imgBytes.size()));
+
+  manager.cacheArtistImage(artistName, qdata);
+
+  EXPECT_TRUE(manager.hasCachedImage(artistName));
+  EXPECT_FALSE(manager.getCachedDiskPath(artistName).isEmpty());
+  auto pixOpt = manager.getCachedPixmap(artistName);
+  ASSERT_TRUE(pixOpt.has_value());
+  EXPECT_FALSE(pixOpt->isNull());
+
+  // Clear cache
+  manager.clearCache();
+  EXPECT_FALSE(manager.hasCachedImage(artistName));
+  EXPECT_TRUE(manager.getCachedDiskPath(artistName).isEmpty());
+}
+
+TEST_F(MetadataArtTest, ArtistImageManagerSafeDiskFileName) {
+  EXPECT_EQ(adapters::ArtistImageManager::safeDiskFileName("AC/DC"), "AC_DC");
+  EXPECT_EQ(adapters::ArtistImageManager::safeDiskFileName("Guns N' Roses"),
+            "Guns N' Roses");
+  EXPECT_EQ(adapters::ArtistImageManager::safeDiskFileName("Artist: The Best?"),
+            "Artist_ The Best_");
+}
+
+TEST_F(MetadataArtTest, ArtistArtImageProviderResolutionAndFallback) {
+  QString cacheDir = QString::fromStdString((m_testDir / "artists").string());
+  adapters::ArtistImageManager manager(cacheDir);
+  manager.setOnlineFetchingEnabled(false); // Offline test mode
+
+  adapters::ArtistArtImageProvider provider(&manager);
+
+  QSize sz;
+  // Unknown or uncached artist should return null pixmap (fallback to vector
+  // icon)
+  QPixmap nullPix =
+      provider.requestPixmap("NonExistentArtist", &sz, QSize(100, 100));
+  EXPECT_TRUE(nullPix.isNull());
+
+  // Cache an artist image
+  auto imgBytes = createValidImageBytes();
+  QByteArray qdata(reinterpret_cast<const char *>(imgBytes.data()),
+                   static_cast<int>(imgBytes.size()));
+  manager.cacheArtistImage("The Beatles", qdata);
+
+  // Request cached artist with query string revision
+  QPixmap loadedPix =
+      provider.requestPixmap("The%20Beatles?v=2", &sz, QSize(100, 100));
+  EXPECT_FALSE(loadedPix.isNull());
 }

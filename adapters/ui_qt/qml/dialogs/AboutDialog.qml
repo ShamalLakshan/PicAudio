@@ -188,6 +188,27 @@ Dialog {
 
                 RowLayout {
                     Layout.fillWidth: true
+                    Text { text: "Artist Imagery:"; font.pixelSize: Theme.fontSizeSmall; color: Theme.textSecondary; Layout.preferredWidth: 120 }
+                    Text {
+                        text: "Deezer API (deezer.com)"
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.underline: deezerMouse.containsMouse
+                        color: Theme.accent
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+
+                        MouseArea {
+                            id: deezerMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally("https://www.deezer.com")
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
                     Text { text: "Repository:"; font.pixelSize: Theme.fontSizeSmall; color: Theme.textSecondary; Layout.preferredWidth: 120 }
                     Text {
                         text: "github.com/ShamalLakshan/PicAudio"

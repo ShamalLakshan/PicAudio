@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import ".."
 import "../components"
 
 Item {
@@ -8,6 +9,41 @@ Item {
 
     property string selectedArtist: ""
     property bool inDrilldown: selectedArtist.length > 0
+    property int artRevision: 0
+
+    readonly property var filteredArtists: {
+        var list = bridge.artistsList;
+        if (!list) return [];
+        var sQuery = (bridge.albumModel && bridge.albumModel.searchQuery) ? bridge.albumModel.searchQuery.trim().toLowerCase() : "";
+        var lFilter = (bridge.albumModel && bridge.albumModel.letterFilter) ? bridge.albumModel.letterFilter.trim() : "All";
+
+        if (sQuery.length === 0 && (lFilter.length === 0 || lFilter === "All")) {
+            return list;
+        }
+
+        return list.filter(function(artist) {
+            if (!artist || artist.length === 0) return false;
+            if (sQuery.length > 0) {
+                if (artist.toLowerCase().indexOf(sQuery) === -1) return false;
+            }
+            if (lFilter.length > 0 && lFilter !== "All") {
+                var first = artist.charAt(0).toUpperCase();
+                if (lFilter === "#") {
+                    if (first >= 'A' && first <= 'Z') return false;
+                } else {
+                    if (first !== lFilter.toUpperCase()) return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    Connections {
+        target: bridge
+        function onArtistArtChanged(artistName) {
+            artistsGridRoot.artRevision++
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -30,6 +66,11 @@ Item {
                     text: qsTr("← All Artists")
                     visible: artistsGridRoot.inDrilldown
                     onClicked: artistsGridRoot.selectedArtist = ""
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
+                    }
                 }
 
                 Text {
@@ -57,12 +98,13 @@ Item {
                 clip: true
                 cellWidth: Math.round(160 * Theme.uiScale)
                 cellHeight: Math.round(190 * Theme.uiScale)
-                model: bridge.albumModel // Groups by artist or album
+                model: artistsGridRoot.filteredArtists
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 delegate: Rectangle {
                     id: artItem
-                    required property var model
+                    required property string modelData
+                    readonly property string artistName: modelData
                     width: artistGrid.cellWidth - Math.round(12 * Theme.uiScale)
                     height: artistGrid.cellHeight - Math.round(12 * Theme.uiScale)
                     radius: Math.round(6 * Theme.uiScale)
@@ -75,27 +117,40 @@ Item {
                         anchors.margins: Math.round(8 * Theme.uiScale)
                         spacing: Math.round(6 * Theme.uiScale)
 
-                        // Circular or rounded photo frame
+                        // Circular photo frame with artist photo or fallback human head/profile icon
                         Rectangle {
                             Layout.alignment: Qt.AlignHCenter
-                            width: Math.round(100 * Theme.uiScale)
-                            height: Math.round(100 * Theme.uiScale)
+                            width: Math.round(96 * Theme.uiScale)
+                            height: Math.round(96 * Theme.uiScale)
                             radius: width / 2
-                            color: Theme.background
-                            border.color: Theme.panelBorder
+                            color: artHover.hovered ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12) : Theme.surfaceElevated
+                            border.color: artHover.hovered ? Theme.accent : Theme.panelBorder
+                            border.width: 1
                             clip: true
 
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                width: Math.round(48 * Theme.uiScale)
+                                height: Math.round(48 * Theme.uiScale)
+                                name: "artist"
+                                color: artHover.hovered ? Theme.accent : Theme.textSecondary
+                                visible: artistImg.status !== Image.Ready
+                            }
+
                             Image {
+                                id: artistImg
                                 anchors.fill: parent
-                                source: "image://albumart/" + (artItem.model.artHash ? artItem.model.artHash : artItem.model.id)
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                cache: false
+                                source: artItem.artistName ? ("image://artistart/" + encodeURIComponent(artItem.artistName) + (artistsGridRoot.artRevision > 0 ? ("?v=" + artistsGridRoot.artRevision) : "")) : ""
+                                visible: status === Image.Ready
                             }
                         }
 
                         Text {
                             Layout.fillWidth: true
-                            text: artItem.model.artist
+                            text: artItem.artistName
                             color: Theme.textPrimary
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
@@ -105,7 +160,8 @@ Item {
 
                         Text {
                             Layout.fillWidth: true
-                            text: qsTr("Discography")
+                            readonly property int trkCount: bridge.getArtistTrackCount(artItem.artistName)
+                            text: trkCount > 0 ? (trkCount === 1 ? qsTr("1 Track") : qsTr("%1 Tracks").arg(trkCount)) : qsTr("Discography")
                             color: Theme.accent
                             font.pixelSize: Math.round(10 * Theme.uiScale)
                             horizontalAlignment: Text.AlignHCenter
@@ -116,11 +172,19 @@ Item {
 
                     TapHandler {
                         onTapped: {
-                            artistsGridRoot.selectedArtist = artItem.model.artist
-                            bridge.selectAlbum(artItem.model.title, artItem.model.artist)
+                            artistsGridRoot.selectedArtist = artItem.artistName
+                            bridge.openArtistDetails(artItem.artistName)
                         }
                     }
                 }
+            }
+
+            Text {
+                anchors.centerIn: parent
+                visible: !artistsGridRoot.inDrilldown && artistsGridRoot.filteredArtists.length === 0
+                text: qsTr("No artists found in library.")
+                color: Theme.textMuted
+                font.pixelSize: Theme.fontSizeMedium
             }
 
             // Drilldown View (when an artist is clicked)
@@ -137,19 +201,33 @@ Item {
                     RowLayout {
                         spacing: Math.round(16 * Theme.uiScale)
 
+                        // Circular header frame with artist photo or fallback human head/profile icon
                         Rectangle {
-                            width: Math.round(84 * Theme.uiScale)
-                            height: Math.round(84 * Theme.uiScale)
+                            width: Math.round(80 * Theme.uiScale)
+                            height: Math.round(80 * Theme.uiScale)
                             radius: width / 2
-                            color: Theme.surface
-                            border.color: Theme.panelBorder
+                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                            border.color: Theme.accent
+                            border.width: 1
                             clip: true
 
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                width: Math.round(42 * Theme.uiScale)
+                                height: Math.round(42 * Theme.uiScale)
+                                name: "artist"
+                                color: Theme.accent
+                                visible: drillArtistImg.status !== Image.Ready
+                            }
+
                             Image {
+                                id: drillArtistImg
                                 anchors.fill: parent
-                                source: "image://albumart/" + artistsGridRoot.selectedArtist
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                cache: false
+                                source: artistsGridRoot.selectedArtist ? ("image://artistart/" + encodeURIComponent(artistsGridRoot.selectedArtist) + (artistsGridRoot.artRevision > 0 ? ("?v=" + artistsGridRoot.artRevision) : "")) : ""
+                                visible: status === Image.Ready
                             }
                         }
 
@@ -163,9 +241,23 @@ Item {
                                 font.bold: true
                             }
 
+                            Text {
+                                readonly property int trkCount: bridge.getArtistTrackCount(artistsGridRoot.selectedArtist)
+                                readonly property int albCount: bridge.getArtistAlbumCount(artistsGridRoot.selectedArtist)
+                                text: (albCount > 0 ? (albCount === 1 ? qsTr("1 Album") : qsTr("%1 Albums").arg(albCount)) + " • " : "")
+                                    + (trkCount === 1 ? qsTr("1 Track") : qsTr("%1 Tracks").arg(trkCount))
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
+
                             Button {
                                 text: qsTr("▶ Play Artist Discography")
-                                onClicked: bridge.playAlbumNow("", artistsGridRoot.selectedArtist)
+                                onClicked: bridge.playArtistNow(artistsGridRoot.selectedArtist)
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    acceptedButtons: Qt.NoButton
+                                }
                             }
                         }
                     }

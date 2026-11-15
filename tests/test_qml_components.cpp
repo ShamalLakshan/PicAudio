@@ -18,6 +18,7 @@
 #include "core/services/PlayerService.hpp"
 #include "metadata/TagLibMetadataAdapter.hpp"
 #include "providers/AlbumArtImageProvider.hpp"
+#include "providers/ArtistArtImageProvider.hpp"
 #include "storage/SqliteDatabaseAdapter.hpp"
 #include "theming/ThemeLoader.hpp"
 
@@ -62,6 +63,9 @@ protected:
         "albumart",
         new AlbumArtImageProvider(m_metadataAdapter.get(), m_dbAdapter.get(),
                                   m_tempDir->path() + "/covers"));
+    m_engine->addImageProvider(
+        "artistart",
+        new adapters::ArtistArtImageProvider(m_bridge->artistImageManager()));
     m_engine->rootContext()->setContextProperty("Theme", m_themeLoader.get());
     m_engine->rootContext()->setContextProperty("bridge", m_bridge.get());
     m_engine->rootContext()->setContextProperty("desktopIntegration", nullptr);

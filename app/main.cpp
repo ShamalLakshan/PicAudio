@@ -18,6 +18,7 @@
 #include "metadata/TagLibMetadataAdapter.hpp"
 #include "plugin/PluginManager.hpp"
 #include "providers/AlbumArtImageProvider.hpp"
+#include "providers/ArtistArtImageProvider.hpp"
 #include "storage/SqliteDatabaseAdapter.hpp"
 #include "theming/ThemeLoader.hpp"
 
@@ -175,6 +176,8 @@ int main(int argc, char *argv[]) {
   engine.addImageProvider(
       "albumart", new AlbumArtImageProvider(metadataAdapter.get(),
                                             dbAdapter.get(), coversDir));
+  engine.addImageProvider("artistart", new adapters::ArtistArtImageProvider(
+                                           bridge.artistImageManager()));
   engine.rootContext()->setContextProperty("Theme", themeLoader.get());
   engine.rootContext()->setContextProperty("bridge", &bridge);
   engine.rootContext()->setContextProperty("desktopIntegration", &desktop);

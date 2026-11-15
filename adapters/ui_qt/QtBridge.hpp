@@ -28,6 +28,7 @@ namespace adapters {
 class PluginManager;
 class DspManager;
 class WaveformExtractor;
+class ArtistImageManager;
 } // namespace adapters
 
 /**
@@ -375,6 +376,9 @@ class QtBridge : public QObject {
                  setLyricsProviderOrder NOTIFY metadataSettingsChanged)
   Q_PROPERTY(bool autoFetchLyrics READ autoFetchLyrics WRITE setAutoFetchLyrics
                  NOTIFY metadataSettingsChanged)
+  Q_PROPERTY(
+      bool fetchArtistImagesOnline READ fetchArtistImagesOnline WRITE
+          setFetchArtistImagesOnline NOTIFY fetchArtistImagesOnlineChanged)
 
   // Settings (Diagnostics & Advanced)
   Q_PROPERTY(QString loggingVerbosity READ loggingVerbosity WRITE
@@ -650,6 +654,14 @@ public:
     return m_lyricsProviderOrder;
   }
   [[nodiscard]] bool autoFetchLyrics() const { return m_autoFetchLyrics; }
+  [[nodiscard]] bool fetchArtistImagesOnline() const {
+    return m_fetchArtistImagesOnline;
+  }
+  void setFetchArtistImagesOnline(bool enabled);
+  [[nodiscard]] adapters::ArtistImageManager *artistImageManager() const;
+  Q_INVOKABLE void clearArtistImageCache();
+  Q_INVOKABLE QStringList registeredArtistImageServices() const;
+  Q_INVOKABLE void requestArtistImage(const QString &artistName);
 
   // Diagnostics Settings Getters
   [[nodiscard]] QString loggingVerbosity() const { return m_loggingVerbosity; }
@@ -672,6 +684,12 @@ public:
   Q_INVOKABLE void applyLayoutPreset(const QString &presetId);
   Q_INVOKABLE void openAlbumDetails(const QString &albumTitle,
                                     const QString &albumArtist);
+  Q_INVOKABLE void openArtistDetails(const QString &artist);
+  Q_INVOKABLE void playArtistNow(const QString &artist);
+  [[nodiscard]] Q_INVOKABLE int
+  getArtistTrackCount(const QString &artist) const;
+  [[nodiscard]] Q_INVOKABLE int
+  getArtistAlbumCount(const QString &artist) const;
   Q_INVOKABLE void selectAlbum(const QString &albumTitle,
                                const QString &albumArtist) {
     openAlbumDetails(albumTitle, albumArtist);
@@ -1290,6 +1308,8 @@ signals:
   void audioDevicesChanged();
   void hotkeysChanged();
   void metadataSettingsChanged();
+  void fetchArtistImagesOnlineChanged();
+  void artistArtChanged(const QString &artistName);
   void diagnosticsSettingsChanged();
   void audioDiagnosticsRequested();
   void channelProcessingChanged();
@@ -1412,6 +1432,8 @@ private:
   // Filter lists
   QStringList m_genresList;
   QStringList m_artistsList;
+  std::unordered_map<std::string, int> m_artistTrackCounts;
+  std::unordered_map<std::string, int> m_artistAlbumCounts;
 
   // Selected album info
   QString m_selectedAlbumTitle;
@@ -1511,6 +1533,8 @@ private:
   bool m_offlineScrobbleCache{true};
   QString m_lyricsProviderOrder{"Local .lrc sidecar first"};
   bool m_autoFetchLyrics{true};
+  bool m_fetchArtistImagesOnline{true};
+  std::unique_ptr<adapters::ArtistImageManager> m_artistImageManager;
 
   // Diagnostics Settings
   QString m_loggingVerbosity{"Info"};

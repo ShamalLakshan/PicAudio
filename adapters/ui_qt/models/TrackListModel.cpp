@@ -64,6 +64,47 @@ void TrackListModel::loadAlbumTracks(const QString &albumTitle,
   emit selectionChanged();
 }
 
+void TrackListModel::loadArtistTracks(const QString &artist) {
+  beginResetModel();
+  m_allTracks.clear();
+  m_filteredTracks.clear();
+  m_selectedIndices.clear();
+  m_searchQuery.clear();
+  m_filterText.clear();
+  m_genreFilter.clear();
+  m_artistFilter.clear();
+  m_albumFilter.clear();
+  m_letterFilter.clear();
+  m_hiResOnly = false;
+  if (m_dbPort) {
+    auto all = m_dbPort->getAllTracks();
+    QString cleanArtist = artist.trimmed();
+    for (const auto &t : all) {
+      if (QString::fromStdString(t.artist).trimmed().compare(
+              cleanArtist, Qt::CaseInsensitive) == 0 ||
+          QString::fromStdString(t.albumArtist)
+                  .trimmed()
+                  .compare(cleanArtist, Qt::CaseInsensitive) == 0) {
+        m_allTracks.push_back(t);
+      }
+    }
+    std::sort(m_allTracks.begin(), m_allTracks.end(),
+              [](const core::Track &a, const core::Track &b) {
+                if (a.album != b.album)
+                  return a.album < b.album;
+                if (a.discNumber != b.discNumber)
+                  return a.discNumber < b.discNumber;
+                if (a.trackNumber != b.trackNumber)
+                  return a.trackNumber < b.trackNumber;
+                return a.title < b.title;
+              });
+  }
+  m_filteredTracks = m_allTracks;
+  endResetModel();
+  emit countChanged();
+  emit selectionChanged();
+}
+
 void TrackListModel::setFilter(const QString &filterText) {
   setSearchQuery(filterText);
 }

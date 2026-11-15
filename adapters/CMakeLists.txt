@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Multimedia Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Multimedia Widgets Network)
 find_package(Qt6 OPTIONAL_COMPONENTS DBus)
 
 # SQLite3 discovery
@@ -97,6 +97,13 @@ qt_add_library(ui_adapter STATIC
     ui_qt/models/ViewRegistryModel.cpp
     ui_qt/providers/AlbumArtImageProvider.hpp
     ui_qt/providers/AlbumArtImageProvider.cpp
+    ui_qt/providers/IArtistImageService.hpp
+    ui_qt/providers/DeezerArtistImageService.hpp
+    ui_qt/providers/DeezerArtistImageService.cpp
+    ui_qt/providers/ArtistImageManager.hpp
+    ui_qt/providers/ArtistImageManager.cpp
+    ui_qt/providers/ArtistArtImageProvider.hpp
+    ui_qt/providers/ArtistArtImageProvider.cpp
     metadata/TagLibMetadataAdapter.hpp
     metadata/TagLibMetadataAdapter.cpp
     storage/SqliteDatabaseAdapter.hpp
@@ -248,6 +255,7 @@ target_link_libraries(ui_adapter PUBLIC
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
+    Qt6::Network
     Qt6::Widgets
     $<$<BOOL:${Qt6DBus_FOUND}>:Qt6::DBus>
     $<$<BOOL:${ALSA_FOUND}>:${ALSA_LIBRARIES}>
