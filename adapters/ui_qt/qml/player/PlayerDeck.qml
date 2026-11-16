@@ -684,13 +684,13 @@ Rectangle {
                             width: parent.width
                             height: 4
                             radius: 2
-                            color: Theme.surfaceElevated
+                            color: Theme.sliderTrack
                             visible: !bridge.waveformSeekbar
 
                             Rectangle {
                                 width: timelineSlider.visualPosition * parent.width
                                 height: parent.height
-                                color: Theme.accent
+                                color: Theme.sliderTrackFilled
                                 radius: 2
                             }
                         }
@@ -1483,14 +1483,14 @@ Rectangle {
                     width: volumeSlider.availableWidth
                     height: 4
                     radius: 2
-                    color: Theme.surfaceElevated
+                    color: Theme.sliderTrack
                     border.color: volumeSlider.activeFocus ? Theme.accent : "transparent"
                     border.width: volumeSlider.activeFocus ? 1 : 0
 
                     Rectangle {
                         width: volumeSlider.visualPosition * parent.width
                         height: parent.height
-                        color: Theme.accent
+                        color: Theme.sliderTrackFilled
                         radius: 2
                     }
                 }
@@ -1501,7 +1501,7 @@ Rectangle {
                     implicitWidth: volumeSlider.activeFocus ? 10 : 8
                     implicitHeight: volumeSlider.activeFocus ? 10 : 8
                     radius: 5
-                    color: volumeSlider.activeFocus ? Theme.accentHover : Theme.textPrimary
+                    color: volumeSlider.activeFocus ? Theme.accentHover : Theme.sliderHandle
                     border.color: volumeSlider.activeFocus ? Theme.textPrimary : "transparent"
                     border.width: volumeSlider.activeFocus ? 1 : 0
                 }

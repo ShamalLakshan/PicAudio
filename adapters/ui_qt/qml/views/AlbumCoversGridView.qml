@@ -47,7 +47,7 @@ Item {
                     font.pixelSize: Theme.fontSizeSmall
                 }
 
-                Slider {
+                StyledSlider {
                     id: sizeSlider
                     Layout.preferredWidth: Math.round(120 * Theme.uiScale)
                     from: 100

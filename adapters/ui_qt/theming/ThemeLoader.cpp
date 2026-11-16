@@ -6,9 +6,11 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QPalette>
 #include <QStandardPaths>
 #include <QUrl>
 #include <algorithm>
@@ -152,6 +154,10 @@ ThemeTokens ThemeLoader::getDefaultDarkStudioTheme() {
   t.error = "#ef4444";
   t.warning = "#f59e0b";
   t.success = "#22c55e";
+  t.sliderTrack = "#262626";
+  t.sliderTrackFilled = "#ffffff";
+  t.sliderHandle = "#ffffff";
+  t.sliderHandleHover = "#e5e5e5";
 
   t.fontFamily = "sans-serif";
   t.fontSizeSmall = 9;
@@ -193,6 +199,10 @@ ThemeTokens ThemeLoader::getBuiltInNordTheme() {
   t.error = "#bf616a";
   t.warning = "#ebcb8b";
   t.success = "#a3be8c";
+  t.sliderTrack = "#4c566a";
+  t.sliderTrackFilled = "#88c0d0";
+  t.sliderHandle = "#88c0d0";
+  t.sliderHandleHover = "#8fbcbb";
 
   t.fontFamily = "sans-serif";
   t.fontSizeSmall = 9;
@@ -233,6 +243,10 @@ ThemeTokens ThemeLoader::getBuiltInSolarizedDarkTheme() {
   t.error = "#dc322f";
   t.warning = "#b58900";
   t.success = "#859900";
+  t.sliderTrack = "#586e75";
+  t.sliderTrackFilled = "#268bd2";
+  t.sliderHandle = "#268bd2";
+  t.sliderHandleHover = "#2aa198";
 
   t.fontFamily = "sans-serif";
   t.fontSizeSmall = 9;
@@ -289,6 +303,19 @@ bool ThemeLoader::validateThemeJson(const QJsonObject &root,
     }
   }
 
+  const char *optColors[] = {"sliderTrack", "sliderTrackFilled", "sliderHandle",
+                             "sliderHandleHover"};
+  for (const char *cKey : optColors) {
+    if (colors.contains(cKey) && colors[cKey].isString()) {
+      QString colStr = colors[cKey].toString();
+      if (!isValidColorName(colStr)) {
+        errorReason = QString("Invalid color hex format for '%1': '%2'")
+                          .arg(cKey, colStr);
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -334,6 +361,30 @@ ThemeTokens ThemeLoader::parseThemeJson(const QJsonObject &root,
     readColor("error", t.error);
     readColor("warning", t.warning);
     readColor("success", t.success);
+    // Explicit slider tokens or automatic fallback to theme palette
+    if (c.contains("sliderTrack")) {
+      readColor("sliderTrack", t.sliderTrack);
+    } else {
+      t.sliderTrack = t.surfaceElevated;
+    }
+
+    if (c.contains("sliderTrackFilled")) {
+      readColor("sliderTrackFilled", t.sliderTrackFilled);
+    } else {
+      t.sliderTrackFilled = t.accent;
+    }
+
+    if (c.contains("sliderHandle")) {
+      readColor("sliderHandle", t.sliderHandle);
+    } else {
+      t.sliderHandle = t.accent;
+    }
+
+    if (c.contains("sliderHandleHover")) {
+      readColor("sliderHandleHover", t.sliderHandleHover);
+    } else {
+      t.sliderHandleHover = t.accentHover;
+    }
   }
 
   if (root.contains("typography") && root["typography"].isObject()) {
@@ -409,6 +460,7 @@ bool ThemeLoader::loadThemeFromFile(const QString &filePath) {
 
   m_tokens = tokens;
   watchActiveFile(filePath);
+  syncAppPalette();
   emit themeChanged();
   return true;
 }
@@ -423,6 +475,7 @@ void ThemeLoader::setThemeId(const QString &id) {
     } else {
       watchActiveFile("");
     }
+    syncAppPalette();
     emit themeChanged();
     return;
   }
@@ -455,6 +508,7 @@ void ThemeLoader::setThemeId(const QString &id) {
     m_tokens = getDefaultDarkStudioTheme();
     watchActiveFile("");
   }
+  syncAppPalette();
   emit themeChanged();
 }
 
@@ -613,6 +667,10 @@ bool ThemeLoader::exportTheme(const QString &id, const QString &destFilePath) {
   colors["error"] = entry.tokens.error;
   colors["warning"] = entry.tokens.warning;
   colors["success"] = entry.tokens.success;
+  colors["sliderTrack"] = entry.tokens.sliderTrack;
+  colors["sliderTrackFilled"] = entry.tokens.sliderTrackFilled;
+  colors["sliderHandle"] = entry.tokens.sliderHandle;
+  colors["sliderHandleHover"] = entry.tokens.sliderHandleHover;
   root["colors"] = colors;
 
   QJsonObject typo;
@@ -773,6 +831,10 @@ void ThemeLoader::refreshAvailableThemes() {
     colors["error"] = meta.tokens.error;
     colors["warning"] = meta.tokens.warning;
     colors["success"] = meta.tokens.success;
+    colors["sliderTrack"] = meta.tokens.sliderTrack;
+    colors["sliderTrackFilled"] = meta.tokens.sliderTrackFilled;
+    colors["sliderHandle"] = meta.tokens.sliderHandle;
+    colors["sliderHandleHover"] = meta.tokens.sliderHandleHover;
     map["colors"] = colors;
 
     m_availableThemes.append(map);
@@ -818,8 +880,17 @@ void ThemeLoader::setCustomColorToken(const QString &tokenName,
     m_tokens.warning = hexColor;
   else if (tokenName == QLatin1String("success"))
     m_tokens.success = hexColor;
+  else if (tokenName == QLatin1String("sliderTrack"))
+    m_tokens.sliderTrack = hexColor;
+  else if (tokenName == QLatin1String("sliderTrackFilled"))
+    m_tokens.sliderTrackFilled = hexColor;
+  else if (tokenName == QLatin1String("sliderHandle"))
+    m_tokens.sliderHandle = hexColor;
+  else if (tokenName == QLatin1String("sliderHandleHover"))
+    m_tokens.sliderHandleHover = hexColor;
   else
     return;
+  syncAppPalette();
   emit themeChanged();
 }
 
@@ -873,11 +944,51 @@ void ThemeLoader::applyColorOverrides(
     } else if (k == QLatin1String("success")) {
       m_tokens.success = v;
       changed = true;
+    } else if (k == QLatin1String("sliderTrack")) {
+      m_tokens.sliderTrack = v;
+      changed = true;
+    } else if (k == QLatin1String("sliderTrackFilled")) {
+      m_tokens.sliderTrackFilled = v;
+      changed = true;
+    } else if (k == QLatin1String("sliderHandle")) {
+      m_tokens.sliderHandle = v;
+      changed = true;
+    } else if (k == QLatin1String("sliderHandleHover")) {
+      m_tokens.sliderHandleHover = v;
+      changed = true;
     }
   }
   if (changed) {
+    syncAppPalette();
     emit themeChanged();
   }
+}
+
+void ThemeLoader::syncAppPalette() {
+  QPalette pal;
+  QColor bg(m_tokens.background);
+  QColor surf(m_tokens.surface);
+  QColor surfElev(m_tokens.surfaceElevated);
+  QColor text(m_tokens.textPrimary);
+  QColor textSec(m_tokens.textSecondary);
+  QColor accent(m_tokens.accent);
+  QColor border(m_tokens.panelBorder);
+
+  pal.setColor(QPalette::Window, bg);
+  pal.setColor(QPalette::WindowText, text);
+  pal.setColor(QPalette::Base, surf);
+  pal.setColor(QPalette::AlternateBase, surfElev);
+  pal.setColor(QPalette::Text, text);
+  pal.setColor(QPalette::Button, surfElev);
+  pal.setColor(QPalette::ButtonText, text);
+  pal.setColor(QPalette::Highlight, accent);
+  pal.setColor(QPalette::HighlightedText, bg);
+  pal.setColor(QPalette::Mid, border);
+  pal.setColor(QPalette::Midlight, border);
+  pal.setColor(QPalette::Dark, surf);
+  pal.setColor(QPalette::PlaceholderText, textSec);
+
+  QGuiApplication::setPalette(pal);
 }
 
 } // namespace adapters

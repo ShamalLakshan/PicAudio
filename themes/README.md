@@ -46,7 +46,11 @@ Every theme is defined as a standalone `.json` file that complies with [`docs/th
     "selection": "#262626",
     "error": "#ef4444",
     "warning": "#f59e0b",
-    "success": "#22c55e"
+    "success": "#22c55e",
+    "sliderTrack": "#262626",
+    "sliderTrackFilled": "#ffffff",
+    "sliderHandle": "#ffffff",
+    "sliderHandleHover": "#e5e5e5"
   },
   "typography": {
     "fontFamily": "Inter, sans-serif",

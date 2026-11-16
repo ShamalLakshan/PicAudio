@@ -158,6 +158,7 @@ TEST_F(QmlComponentValidationTest, DialogComponentsInstantiateWithoutError) {
 TEST_F(QmlComponentValidationTest, ViewsAndComponentsInstantiateWithoutError) {
   const std::vector<QString> componentPaths = {
       "components/EqualizerOverlay.qml", "components/StyledComboBox.qml",
+      "components/StyledSlider.qml",     "components/StyledCheckBox.qml",
       "components/ToastBanner.qml",      "components/MovableHeaderArea.qml",
       "components/ResizeGrip.qml",       "player/MiniPlayer.qml",
       "player/PlayerDeck.qml",           "navigation/LeftSidebar.qml",

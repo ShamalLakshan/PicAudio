@@ -376,7 +376,7 @@ Item {
                             color: Theme.textSecondary
                         }
 
-                        Slider {
+                        StyledSlider {
                             id: trackSeekSlider
                             Layout.fillWidth: true
                             from: 0

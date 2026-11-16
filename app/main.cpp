@@ -5,6 +5,7 @@
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickStyle>
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <iostream>
@@ -23,6 +24,11 @@
 #include "theming/ThemeLoader.hpp"
 
 int main(int argc, char *argv[]) {
+  // Use Basic Qt Quick Controls style to prevent desktop platform styles (e.g.
+  // KDE Breeze) from overriding application theme tokens on unstyled
+  // components.
+  QQuickStyle::setStyle(QStringLiteral("Basic"));
+
   QApplication app(argc, argv);
   app.setOrganizationName("PicAudio");
   app.setApplicationName("PicAudio");

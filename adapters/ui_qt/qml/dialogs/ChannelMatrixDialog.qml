@@ -595,7 +595,7 @@ Dialog {
                     Layout.fillWidth: true
                     spacing: 8
 
-                    Slider {
+                    StyledSlider {
                         id: precisionSlider
                         Layout.fillWidth: true
                         from: 0.0

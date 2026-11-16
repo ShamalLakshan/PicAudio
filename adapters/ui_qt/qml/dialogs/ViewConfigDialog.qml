@@ -166,7 +166,7 @@ Dialog {
                     RowLayout {
                         Layout.fillWidth: true
                         Text { text: qsTr("Artwork / Thumbnail Size: %1 px").arg(thumbSlider.value); color: Theme.textPrimary; font.pixelSize: Theme.fontSizeSmall }
-                        Slider {
+                        StyledSlider {
                             id: thumbSlider
                             Layout.fillWidth: true
                             from: 80
@@ -210,37 +210,37 @@ Dialog {
                         rowSpacing: Math.round(6 * Theme.uiScale)
                         columnSpacing: Math.round(16 * Theme.uiScale)
 
-                        CheckBox {
+                        StyledCheckBox {
                             id: chkLeftSidebarHover
                             text: qsTr("Left Sidebar: Auto-Open on Edge Hover")
                             checked: (viewConfigDialog.viewDef.panelOverrides && viewConfigDialog.viewDef.panelOverrides.leftSidebar === "auto_open")
                         }
 
-                        CheckBox {
+                        StyledCheckBox {
                             id: chkRightSidebarHover
                             text: qsTr("Right Sidebar: Auto-Open on Edge Hover")
                             checked: (viewConfigDialog.viewDef.panelOverrides && viewConfigDialog.viewDef.panelOverrides.rightSidebar === "auto_open")
                         }
 
-                        CheckBox {
+                        StyledCheckBox {
                             id: chkHideLeftMain
                             text: qsTr("Collapse Left Main Panel")
                             checked: (viewConfigDialog.viewDef.panelOverrides && viewConfigDialog.viewDef.panelOverrides.leftMainPanel === "hidden")
                         }
 
-                        CheckBox {
+                        StyledCheckBox {
                             id: chkHideRightMain
                             text: qsTr("Collapse Right Main Panel")
                             checked: (viewConfigDialog.viewDef.panelOverrides && viewConfigDialog.viewDef.panelOverrides.rightMainPanel === "hidden")
                         }
 
-                        CheckBox {
+                        StyledCheckBox {
                             id: chkHideTopPanel
                             text: qsTr("Collapse Top Panel")
                             checked: (viewConfigDialog.viewDef.panelOverrides && viewConfigDialog.viewDef.panelOverrides.topPanel === "hidden")
                         }
 
-                        CheckBox {
+                        StyledCheckBox {
                             id: chkHideColumnBrowser
                             text: qsTr("Hide In-Tab Column Browser")
                             checked: (viewConfigDialog.viewDef.panelOverrides && viewConfigDialog.viewDef.panelOverrides.columnBrowser === "hidden")

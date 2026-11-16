@@ -88,12 +88,12 @@ Dialog {
             width: sldControl.availableWidth
             height: 4
             radius: 2
-            color: Theme.surfaceElevated
+            color: Theme.sliderTrack
 
             Rectangle {
                 width: sldControl.visualPosition * parent.width
                 height: parent.height
-                color: Theme.accent
+                color: Theme.sliderTrackFilled
                 radius: 2
             }
         }
@@ -103,8 +103,8 @@ Dialog {
             implicitWidth: 16
             implicitHeight: 16
             radius: 8
-            color: sldControl.pressed ? Theme.textPrimary : (sldControl.hovered ? Theme.accentHover : Theme.accent)
-            border.color: Theme.panelBorder
+            color: sldControl.pressed ? Theme.textPrimary : (sldControl.hovered ? Theme.sliderHandleHover : Theme.sliderHandle)
+            border.color: sldControl.hovered ? Theme.accentHover : Theme.panelBorder
             border.width: 1
         }
         MouseArea {

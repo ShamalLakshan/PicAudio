@@ -204,6 +204,8 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/components/MovableHeaderArea.qml
         ui_qt/qml/components/ResizeGrip.qml
         ui_qt/qml/components/StyledComboBox.qml
+        ui_qt/qml/components/StyledSlider.qml
+        ui_qt/qml/components/StyledCheckBox.qml
         ui_qt/qml/components/WaveVisualizer.qml
         ui_qt/qml/components/ToastBanner.qml
         ui_qt/qml/dialogs/PreferencesDialog.qml

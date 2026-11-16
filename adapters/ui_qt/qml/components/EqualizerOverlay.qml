@@ -763,7 +763,7 @@ Dialog {
                         color: Theme.textSecondary
                     }
 
-                    Slider {
+                    StyledSlider {
                         id: topPreampSlider
                         Layout.preferredWidth: 100
                         from: -15.0
@@ -890,7 +890,7 @@ Dialog {
                                 Layout.alignment: Qt.AlignHCenter
                             }
 
-                            Slider {
+                            StyledSlider {
                                 id: bandSlider
                                 Layout.fillHeight: true
                                 Layout.fillWidth: true
@@ -1055,7 +1055,7 @@ Dialog {
                                     Layout.fillWidth: true
                                     spacing: 8
 
-                                    Slider {
+                                    StyledSlider {
                                         id: filterGainSlider
                                         Layout.fillWidth: true
                                         from: -18.0
@@ -1131,7 +1131,7 @@ Dialog {
                                 }
 
                                 // Enabled Toggle Checkbox
-                                CheckBox {
+                                StyledCheckBox {
                                     id: filterEnabledCheck
                                     Layout.preferredWidth: 36
                                     checked: {
