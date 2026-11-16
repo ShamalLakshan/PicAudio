@@ -9,6 +9,35 @@
 namespace core {
 
 /**
+ * @brief Equalizer operating modes.
+ */
+enum class EqMode { Graphic = 0, Parametric = 1 };
+
+/**
+ * @brief Filter type for parametric equalizer bands.
+ */
+enum class EqFilterType {
+  Peaking = 0,
+  LowShelf,
+  HighShelf,
+  LowPass,
+  HighPass,
+  BandPass,
+  Notch
+};
+
+/**
+ * @brief Configuration for a single parametric biquad equalizer band.
+ */
+struct PeqFilterBand {
+  EqFilterType type{EqFilterType::Peaking};
+  float frequency{1000.0f};
+  float gainDb{0.0f};
+  float q{1.414f};
+  bool enabled{true};
+};
+
+/**
  * @brief Current playback stream parameters.
  */
 struct AudioStreamInfo {
@@ -214,6 +243,20 @@ public:
     return {"31 Hz", "63 Hz", "125 Hz", "250 Hz", "500 Hz",
             "1 kHz", "2 kHz", "4 kHz",  "8 kHz",  "16 kHz"};
   }
+
+  /**
+   * @brief Sets equalizer operating mode (0: Graphic, 1: Parametric).
+   */
+  virtual void setEqMode(int mode) { (void)mode; }
+  virtual int getEqMode() const { return 0; }
+
+  /**
+   * @brief Sets all parametric equalizer filter bands.
+   */
+  virtual void setPeqBands(const std::vector<PeqFilterBand> &bands) {
+    (void)bands;
+  }
+  virtual std::vector<PeqFilterBand> getPeqBands() const { return {}; }
 
   /**
    * @brief DSP processing chain routing order (0: EQ -> DSP, 1: DSP -> EQ).

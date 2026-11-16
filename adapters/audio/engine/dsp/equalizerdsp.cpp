@@ -87,6 +87,21 @@ void EqualizerDsp::reset() {
   m_resetPending.store(true, std::memory_order_release);
 }
 
+void EqualizerDsp::setEqMode(int mode) {
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  int newMode = (mode == 1) ? 1 : 0;
+  if (m_mode != newMode) {
+    m_mode = newMode;
+    m_resetPending.store(true, std::memory_order_release);
+    recalculateCoefficientsLocked();
+  }
+}
+
+int EqualizerDsp::eqMode() const {
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  return m_mode;
+}
+
 void EqualizerDsp::setBandCount(size_t count) {
   std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (count != 10 && count != 15 && count != 31) {
@@ -128,16 +143,35 @@ float EqualizerDsp::bandGain(size_t bandIndex) const {
 void EqualizerDsp::setBandGains(const std::vector<float> &gains) {
   std::lock_guard<std::recursive_mutex> lock(m_mutex);
   size_t count = std::min(gains.size(), m_bandGainsDb.size());
+  bool isAllFlat = true;
   for (size_t i = 0; i < count; ++i) {
     m_bandGainsDb[i] = std::clamp(gains[i], -15.0f, 15.0f);
+    if (std::abs(m_bandGainsDb[i]) > 0.001f) {
+      isAllFlat = false;
+    }
   }
-  m_preset = QStringLiteral("Custom");
+  m_preset = isAllFlat ? QStringLiteral("Flat") : QStringLiteral("Custom");
   recalculateCoefficientsLocked();
 }
 
 std::vector<float> EqualizerDsp::bandGains() const {
   std::lock_guard<std::recursive_mutex> lock(m_mutex);
   return m_bandGainsDb;
+}
+
+void EqualizerDsp::setPeqFilters(const std::vector<PeqFilterSpec> &filters) {
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  m_peqFilters = filters;
+  if (m_peqFilters.size() > kMaxBands) {
+    m_peqFilters.resize(kMaxBands);
+  }
+  m_resetPending.store(true, std::memory_order_release);
+  recalculateCoefficientsLocked();
+}
+
+std::vector<PeqFilterSpec> EqualizerDsp::peqFilters() const {
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  return m_peqFilters;
 }
 
 void EqualizerDsp::setPreampGain(float gainDb) {
@@ -257,36 +291,176 @@ void EqualizerDsp::recalculateCoefficientsLocked() {
   if (m_sampleRate <= 0) {
     m_sampleRate = 44100;
   }
-  double nyquist = static_cast<double>(m_sampleRate) * 0.5;
-  double Q = (m_bandCount == 31) ? 4.318 : (m_bandCount == 15 ? 2.145 : 1.414);
+  const double sr = static_cast<double>(m_sampleRate);
+  const double nyquist = sr * 0.5;
 
-  for (size_t i = 0; i < m_bandCount && i < kMaxBands; ++i) {
-    double f0 = static_cast<double>(m_bandFrequencies[i]);
-    double gainDb = (i < m_bandGainsDb.size())
-                        ? static_cast<double>(m_bandGainsDb[i])
-                        : 0.0;
+  for (auto &cf : m_stagingCoeffs) {
+    cf = BiquadCoeffs{1.0, 0.0, 0.0, 0.0, 0.0, true};
+  }
 
-    if (f0 >= nyquist * 0.99 || std::abs(gainDb) < 0.05) {
-      m_stagingCoeffs[i] = BiquadCoeffs{1.0, 0.0, 0.0, 0.0, 0.0, true};
-      continue;
+  if (m_mode == 1) {
+    // Parametric EQ mode
+    const size_t count = std::min(m_peqFilters.size(), kMaxBands);
+    for (size_t i = 0; i < count; ++i) {
+      const auto &f = m_peqFilters[i];
+      if (!f.enabled) {
+        continue;
+      }
+
+      double f0 =
+          std::clamp(static_cast<double>(f.frequency), 10.0, nyquist * 0.99);
+      double gainDb = static_cast<double>(f.gainDb);
+      double Q = std::clamp(static_cast<double>(f.q), 0.05, 30.0);
+
+      // Bypass near-zero gains for peaking and shelving
+      if ((f.type == PeqFilterType::Peaking ||
+           f.type == PeqFilterType::LowShelf ||
+           f.type == PeqFilterType::HighShelf) &&
+          std::abs(gainDb) < 0.05) {
+        continue;
+      }
+
+      double w0 = 2.0 * std::numbers::pi * (f0 / sr);
+      double cosw0 = std::cos(w0);
+      double sinw0 = std::sin(w0);
+      double alpha = sinw0 / (2.0 * Q);
+      double A = std::pow(10.0, gainDb / 40.0);
+
+      double b0 = 1.0, b1 = 0.0, b2 = 0.0, a0 = 1.0, a1 = 0.0, a2 = 0.0;
+
+      switch (f.type) {
+      case PeqFilterType::Peaking:
+        b0 = 1.0 + alpha * A;
+        b1 = -2.0 * cosw0;
+        b2 = 1.0 - alpha * A;
+        a0 = 1.0 + alpha / A;
+        a1 = -2.0 * cosw0;
+        a2 = 1.0 - alpha / A;
+        break;
+      case PeqFilterType::LowShelf: {
+        double beta = 2.0 * std::sqrt(A) * alpha;
+        b0 = A * ((A + 1.0) - (A - 1.0) * cosw0 + beta);
+        b1 = 2.0 * A * ((A - 1.0) - (A + 1.0) * cosw0);
+        b2 = A * ((A + 1.0) - (A - 1.0) * cosw0 - beta);
+        a0 = (A + 1.0) + (A - 1.0) * cosw0 + beta;
+        a1 = -2.0 * ((A - 1.0) + (A + 1.0) * cosw0);
+        a2 = (A + 1.0) + (A - 1.0) * cosw0 - beta;
+        break;
+      }
+      case PeqFilterType::HighShelf: {
+        double beta = 2.0 * std::sqrt(A) * alpha;
+        b0 = A * ((A + 1.0) + (A - 1.0) * cosw0 + beta);
+        b1 = -2.0 * A * ((A - 1.0) + (A + 1.0) * cosw0);
+        b2 = A * ((A + 1.0) + (A - 1.0) * cosw0 - beta);
+        a0 = (A + 1.0) - (A - 1.0) * cosw0 + beta;
+        a1 = 2.0 * ((A - 1.0) - (A + 1.0) * cosw0);
+        a2 = (A + 1.0) - (A - 1.0) * cosw0 - beta;
+        break;
+      }
+      case PeqFilterType::LowPass:
+        b0 = (1.0 - cosw0) * 0.5;
+        b1 = 1.0 - cosw0;
+        b2 = (1.0 - cosw0) * 0.5;
+        a0 = 1.0 + alpha;
+        a1 = -2.0 * cosw0;
+        a2 = 1.0 - alpha;
+        break;
+      case PeqFilterType::HighPass:
+        b0 = (1.0 + cosw0) * 0.5;
+        b1 = -(1.0 + cosw0);
+        b2 = (1.0 + cosw0) * 0.5;
+        a0 = 1.0 + alpha;
+        a1 = -2.0 * cosw0;
+        a2 = 1.0 - alpha;
+        break;
+      case PeqFilterType::BandPass:
+        b0 = alpha;
+        b1 = 0.0;
+        b2 = -alpha;
+        a0 = 1.0 + alpha;
+        a1 = -2.0 * cosw0;
+        a2 = 1.0 - alpha;
+        break;
+      case PeqFilterType::Notch:
+        b0 = 1.0;
+        b1 = -2.0 * cosw0;
+        b2 = 1.0;
+        a0 = 1.0 + alpha;
+        a1 = -2.0 * cosw0;
+        a2 = 1.0 - alpha;
+        break;
+      }
+
+      if (std::abs(a0) > 1e-12) {
+        double invA0 = 1.0 / a0;
+        double normB0 = b0 * invA0;
+        double normB1 = b1 * invA0;
+        double normB2 = b2 * invA0;
+        double normA1 = a1 * invA0;
+        double normA2 = a2 * invA0;
+
+        // Jury stability criterion: poles must lie strictly inside unit circle
+        bool isStable = (std::abs(normA2) < 0.999999) &&
+                        (std::abs(normA1) < (1.0 + normA2));
+
+        if (isStable && std::isfinite(normB0) && std::isfinite(normA1)) {
+          m_stagingCoeffs[i] =
+              BiquadCoeffs{normB0, normB1, normB2, normA1, normA2, false};
+        } else {
+          m_stagingCoeffs[i] = BiquadCoeffs{1.0, 0.0, 0.0, 0.0, 0.0, true};
+        }
+      }
     }
+  } else {
+    // Graphic EQ mode (10, 15, or 31 ISO standard octave bands)
+    double Q =
+        (m_bandCount == 31) ? 4.318 : (m_bandCount == 15 ? 2.145 : 1.414);
 
-    double A = std::pow(10.0, gainDb / 40.0);
-    double w0 =
-        2.0 * std::numbers::pi * (f0 / static_cast<double>(m_sampleRate));
-    double alpha = std::sin(w0) / (2.0 * Q);
-    double cosw0 = std::cos(w0);
+    for (size_t i = 0; i < m_bandCount && i < kMaxBands; ++i) {
+      double f0 = static_cast<double>(m_bandFrequencies[i]);
+      double gainDb = (i < m_bandGainsDb.size())
+                          ? static_cast<double>(m_bandGainsDb[i])
+                          : 0.0;
 
-    double b0 = 1.0 + alpha * A;
-    double b1 = -2.0 * cosw0;
-    double b2 = 1.0 - alpha * A;
-    double a0 = 1.0 + alpha / A;
-    double a1 = -2.0 * cosw0;
-    double a2 = 1.0 - alpha / A;
+      if (f0 >= nyquist * 0.99 || std::abs(gainDb) < 0.05) {
+        m_stagingCoeffs[i] = BiquadCoeffs{1.0, 0.0, 0.0, 0.0, 0.0, true};
+        continue;
+      }
 
-    double invA0 = 1.0 / a0;
-    m_stagingCoeffs[i] = BiquadCoeffs{b0 * invA0, b1 * invA0, b2 * invA0,
-                                      a1 * invA0, a2 * invA0, false};
+      double A = std::pow(10.0, gainDb / 40.0);
+      double w0 =
+          2.0 * std::numbers::pi * (f0 / static_cast<double>(m_sampleRate));
+      double alpha = std::sin(w0) / (2.0 * Q);
+      double cosw0 = std::cos(w0);
+
+      double b0 = 1.0 + alpha * A;
+      double b1 = -2.0 * cosw0;
+      double b2 = 1.0 - alpha * A;
+      double a0 = 1.0 + alpha / A;
+      double a1 = -2.0 * cosw0;
+      double a2 = 1.0 - alpha / A;
+
+      if (std::abs(a0) > 1e-12) {
+        double invA0 = 1.0 / a0;
+        double normB0 = b0 * invA0;
+        double normB1 = b1 * invA0;
+        double normB2 = b2 * invA0;
+        double normA1 = a1 * invA0;
+        double normA2 = a2 * invA0;
+
+        bool isStable = (std::abs(normA2) < 0.999999) &&
+                        (std::abs(normA1) < (1.0 + normA2));
+
+        if (isStable && std::isfinite(normB0) && std::isfinite(normA1)) {
+          m_stagingCoeffs[i] =
+              BiquadCoeffs{normB0, normB1, normB2, normA1, normA2, false};
+        } else {
+          m_stagingCoeffs[i] = BiquadCoeffs{1.0, 0.0, 0.0, 0.0, 0.0, true};
+        }
+      } else {
+        m_stagingCoeffs[i] = BiquadCoeffs{1.0, 0.0, 0.0, 0.0, 0.0, true};
+      }
+    }
   }
 
   publishConfigLocked();
@@ -297,7 +471,8 @@ void EqualizerDsp::publishConfigLocked() {
   uint32_t nextIdx = 1 - currentIdx;
 
   auto &cfg = m_configs[nextIdx];
-  cfg.bandCount = m_bandCount;
+  cfg.bandCount =
+      (m_mode == 1) ? std::min(m_peqFilters.size(), kMaxBands) : m_bandCount;
   cfg.channels = m_channels;
   cfg.preampLinear = m_preampLinear;
   cfg.bypassed = m_bypassed.load(std::memory_order_relaxed);
@@ -374,14 +549,25 @@ void EqualizerDsp::process(ProcessingBufferList &chunks) {
           double y = cf.b0 * sample + st.s1;
           st.s1 = cf.b1 * sample - cf.a1 * y + st.s2;
           st.s2 = cf.b2 * sample - cf.a2 * y;
-          sample = y;
+
+          if (!std::isfinite(y) || !std::isfinite(st.s1) ||
+              !std::isfinite(st.s2)) {
+            st.s1 = 0.0;
+            st.s2 = 0.0;
+            sample = 0.0;
+          } else {
+            sample = y;
+          }
         }
 
         // Soft-knee limiting for safety
-        if (sample > 1.25)
+        if (!std::isfinite(sample)) {
+          sample = 0.0;
+        } else if (sample > 1.25) {
           sample = 1.25;
-        else if (sample < -1.25)
+        } else if (sample < -1.25) {
           sample = -1.25;
+        }
 
         span[baseIdx + static_cast<size_t>(ch)] = sample;
       }
@@ -389,11 +575,142 @@ void EqualizerDsp::process(ProcessingBufferList &chunks) {
   }
 }
 
+std::vector<float> EqualizerDsp::calculateResponse(
+    const std::vector<PeqFilterSpec> &filters, float preampDb,
+    const std::vector<float> &frequencies, int sampleRate) {
+  if (sampleRate <= 0) {
+    sampleRate = 44100;
+  }
+  const double sr = static_cast<double>(sampleRate);
+  const double nyquist = sr * 0.5;
+
+  std::vector<float> response(frequencies.size(), preampDb);
+
+  for (const auto &f : filters) {
+    if (!f.enabled) {
+      continue;
+    }
+
+    double f0 =
+        std::clamp(static_cast<double>(f.frequency), 10.0, nyquist * 0.99);
+    double gainDb = static_cast<double>(f.gainDb);
+    double Q = std::clamp(static_cast<double>(f.q), 0.05, 30.0);
+
+    if ((f.type == PeqFilterType::Peaking ||
+         f.type == PeqFilterType::LowShelf ||
+         f.type == PeqFilterType::HighShelf) &&
+        std::abs(gainDb) < 0.05) {
+      continue;
+    }
+
+    double w0 = 2.0 * std::numbers::pi * (f0 / sr);
+    double cosw0 = std::cos(w0);
+    double sinw0 = std::sin(w0);
+    double alpha = sinw0 / (2.0 * Q);
+    double A = std::pow(10.0, gainDb / 40.0);
+
+    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a0 = 1.0, a1 = 0.0, a2 = 0.0;
+    switch (f.type) {
+    case PeqFilterType::Peaking:
+      b0 = 1.0 + alpha * A;
+      b1 = -2.0 * cosw0;
+      b2 = 1.0 - alpha * A;
+      a0 = 1.0 + alpha / A;
+      a1 = -2.0 * cosw0;
+      a2 = 1.0 - alpha / A;
+      break;
+    case PeqFilterType::LowShelf: {
+      double beta = 2.0 * std::sqrt(A) * alpha;
+      b0 = A * ((A + 1.0) - (A - 1.0) * cosw0 + beta);
+      b1 = 2.0 * A * ((A - 1.0) - (A + 1.0) * cosw0);
+      b2 = A * ((A + 1.0) - (A - 1.0) * cosw0 - beta);
+      a0 = (A + 1.0) + (A - 1.0) * cosw0 + beta;
+      a1 = -2.0 * ((A - 1.0) + (A + 1.0) * cosw0);
+      a2 = (A + 1.0) + (A - 1.0) * cosw0 - beta;
+      break;
+    }
+    case PeqFilterType::HighShelf: {
+      double beta = 2.0 * std::sqrt(A) * alpha;
+      b0 = A * ((A + 1.0) + (A - 1.0) * cosw0 + beta);
+      b1 = -2.0 * A * ((A - 1.0) + (A + 1.0) * cosw0);
+      b2 = A * ((A + 1.0) + (A - 1.0) * cosw0 - beta);
+      a0 = (A + 1.0) - (A - 1.0) * cosw0 + beta;
+      a1 = 2.0 * ((A - 1.0) - (A + 1.0) * cosw0);
+      a2 = (A + 1.0) - (A - 1.0) * cosw0 - beta;
+      break;
+    }
+    case PeqFilterType::LowPass:
+      b0 = (1.0 - cosw0) * 0.5;
+      b1 = 1.0 - cosw0;
+      b2 = (1.0 - cosw0) * 0.5;
+      a0 = 1.0 + alpha;
+      a1 = -2.0 * cosw0;
+      a2 = 1.0 - alpha;
+      break;
+    case PeqFilterType::HighPass:
+      b0 = (1.0 + cosw0) * 0.5;
+      b1 = -(1.0 + cosw0);
+      b2 = (1.0 + cosw0) * 0.5;
+      a0 = 1.0 + alpha;
+      a1 = -2.0 * cosw0;
+      a2 = 1.0 - alpha;
+      break;
+    case PeqFilterType::BandPass:
+      b0 = alpha * Q;
+      b1 = 0.0;
+      b2 = -alpha * Q;
+      a0 = 1.0 + alpha;
+      a1 = -2.0 * cosw0;
+      a2 = 1.0 - alpha;
+      break;
+    case PeqFilterType::Notch:
+      b0 = 1.0;
+      b1 = -2.0 * cosw0;
+      b2 = 1.0;
+      a0 = 1.0 + alpha;
+      a1 = -2.0 * cosw0;
+      a2 = 1.0 - alpha;
+      break;
+    }
+
+    if (std::abs(a0) < 1e-12) {
+      continue;
+    }
+    double invA0 = 1.0 / a0;
+    b0 *= invA0;
+    b1 *= invA0;
+    b2 *= invA0;
+    a1 *= invA0;
+    a2 *= invA0;
+
+    for (size_t p = 0; p < frequencies.size(); ++p) {
+      double ftest = static_cast<double>(frequencies[p]);
+      double w = 2.0 * std::numbers::pi * (ftest / sr);
+      double cosw = std::cos(w);
+      double sinw = std::sin(w);
+      double cos2w = std::cos(2.0 * w);
+      double sin2w = std::sin(2.0 * w);
+
+      double numR = b0 + b1 * cosw + b2 * cos2w;
+      double numI = -b1 * sinw - b2 * sin2w;
+      double denR = 1.0 + a1 * cosw + a2 * cos2w;
+      double denI = -a1 * sinw - a2 * sin2w;
+
+      double mag2 = (numR * numR + numI * numI) /
+                    std::max(1e-20, denR * denR + denI * denI);
+      double db = 10.0 * std::log10(std::max(1e-20, mag2));
+      response[p] += static_cast<float>(db);
+    }
+  }
+  return response;
+}
+
 QByteArray EqualizerDsp::saveSettings() const {
   std::lock_guard<std::recursive_mutex> lock(m_mutex);
   QJsonObject root;
   root[QStringLiteral("bypassed")] = m_bypassed.load(std::memory_order_relaxed);
   root[QStringLiteral("preampDb")] = static_cast<double>(m_preampDb);
+  root[QStringLiteral("mode")] = m_mode;
   root[QStringLiteral("bandCount")] = static_cast<int>(m_bandCount);
   root[QStringLiteral("preset")] = m_preset;
 
@@ -402,6 +719,18 @@ QByteArray EqualizerDsp::saveSettings() const {
     bands.append(static_cast<double>(g));
   }
   root[QStringLiteral("bands")] = bands;
+
+  QJsonArray filters;
+  for (const auto &f : m_peqFilters) {
+    QJsonObject obj;
+    obj[QStringLiteral("type")] = static_cast<int>(f.type);
+    obj[QStringLiteral("freq")] = static_cast<double>(f.frequency);
+    obj[QStringLiteral("gain")] = static_cast<double>(f.gainDb);
+    obj[QStringLiteral("q")] = static_cast<double>(f.q);
+    obj[QStringLiteral("enabled")] = f.enabled;
+    filters.append(obj);
+  }
+  root[QStringLiteral("filters")] = filters;
 
   return QJsonDocument(root).toJson(QJsonDocument::Compact);
 }
@@ -424,6 +753,9 @@ bool EqualizerDsp::loadSettings(const QByteArray &preset) {
     m_preampDb =
         static_cast<float>(root[QStringLiteral("preampDb")].toDouble());
     m_preampLinear = std::pow(10.0, static_cast<double>(m_preampDb) / 20.0);
+  }
+  if (root.contains(QStringLiteral("mode"))) {
+    m_mode = root[QStringLiteral("mode")].toInt();
   }
   if (root.contains(QStringLiteral("bandCount"))) {
     size_t count =
@@ -448,7 +780,32 @@ bool EqualizerDsp::loadSettings(const QByteArray &preset) {
           static_cast<float>(bands[static_cast<int>(i)].toDouble());
     }
   }
+  if (root.contains(QStringLiteral("filters"))) {
+    QJsonArray filters = root[QStringLiteral("filters")].toArray();
+    m_peqFilters.clear();
+    for (const auto &item : filters) {
+      if (!item.isObject()) {
+        continue;
+      }
+      QJsonObject obj = item.toObject();
+      PeqFilterSpec spec;
+      spec.type = static_cast<PeqFilterType>(
+          obj.value(QStringLiteral("type")).toInt(0));
+      spec.frequency = static_cast<float>(
+          obj.value(QStringLiteral("freq")).toDouble(1000.0));
+      spec.gainDb =
+          static_cast<float>(obj.value(QStringLiteral("gain")).toDouble(0.0));
+      spec.q =
+          static_cast<float>(obj.value(QStringLiteral("q")).toDouble(1.414));
+      spec.enabled = obj.value(QStringLiteral("enabled")).toBool(true);
+      m_peqFilters.push_back(spec);
+    }
+    if (!root.contains(QStringLiteral("mode"))) {
+      m_mode = 1;
+    }
+  }
 
+  m_resetPending.store(true, std::memory_order_release);
   recalculateCoefficientsLocked();
   return true;
 }

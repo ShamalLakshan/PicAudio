@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/autoeq">
+        <file>autoeq_base.json</file>
+    </qresource>
+</RCC>

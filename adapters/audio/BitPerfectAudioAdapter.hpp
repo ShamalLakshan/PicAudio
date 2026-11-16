@@ -103,6 +103,10 @@ public:
   void setEqBandCount(size_t bandCount) override;
   size_t getEqBandCount() const override;
   std::vector<std::string> getEqBandFrequencyLabels() const override;
+  void setEqMode(int mode) override;
+  int getEqMode() const override;
+  void setPeqBands(const std::vector<core::PeqFilterBand> &bands) override;
+  std::vector<core::PeqFilterBand> getPeqBands() const override;
 
   // DSP Routing & Master
   void setDspRoutingOrder(int order) override;

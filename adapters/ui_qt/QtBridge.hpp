@@ -329,6 +329,7 @@ class QtBridge : public QObject {
   // Settings (Equalizer & External DSP Plugins)
   Q_PROPERTY(bool eqEnabled READ isEqEnabled WRITE setEqEnabled NOTIFY
                  eqEnabledChanged)
+  Q_PROPERTY(int eqMode READ eqMode WRITE setEqMode NOTIFY eqModeChanged)
   Q_PROPERTY(qreal eqPreampDb READ eqPreampDb WRITE setEqPreampDb NOTIFY
                  eqPreampDbChanged)
   Q_PROPERTY(
@@ -339,6 +340,7 @@ class QtBridge : public QObject {
                  eqBandCountChanged)
   Q_PROPERTY(
       QVariantList eqBandLabels READ eqBandLabels NOTIFY eqBandCountChanged)
+  Q_PROPERTY(QVariantList peqBands READ peqBands NOTIFY peqBandsChanged)
   Q_PROPERTY(bool dspMasterEnabled READ isDspMasterEnabled WRITE
                  setDspMasterEnabled NOTIFY dspMasterEnabledChanged)
   Q_PROPERTY(int dspRoutingOrder READ dspRoutingOrder WRITE setDspRoutingOrder
@@ -1263,6 +1265,26 @@ public:
   Q_INVOKABLE void setEqBandCount(int count);
   [[nodiscard]] QVariantList eqBandLabels() const;
 
+  [[nodiscard]] int eqMode() const;
+  Q_INVOKABLE void setEqMode(int mode);
+  [[nodiscard]] QVariantList peqBands() const;
+  Q_INVOKABLE void setPeqBand(int index, int type, qreal freq, qreal gain,
+                              qreal q, bool enabled);
+  Q_INVOKABLE void addPeqBand(int type = 0, qreal freq = 1000.0,
+                              qreal gain = 0.0, qreal q = 1.414);
+  Q_INVOKABLE void removePeqBand(int index);
+  Q_INVOKABLE void resetPeq();
+  Q_INVOKABLE QVariantList calculateResponseCurve(int numPoints = 128) const;
+  Q_INVOKABLE bool importEqFile(const QString &filePath);
+  Q_INVOKABLE bool importEqText(const QString &content);
+  Q_INVOKABLE QString exportEqText() const;
+  Q_INVOKABLE bool exportEqFile(const QString &filePath) const;
+  Q_INVOKABLE QVariantList searchAutoEq(const QString &query) const;
+  Q_INVOKABLE bool applyAutoEqProfile(const QString &profileId);
+  Q_INVOKABLE void fetchOnlineAutoEq(const QString &url, const QString &model,
+                                     const QString &source);
+  Q_INVOKABLE QString autoEqAttribution() const;
+
   [[nodiscard]] bool isDspMasterEnabled() const;
   Q_INVOKABLE void setDspMasterEnabled(bool enabled);
   [[nodiscard]] int dspRoutingOrder() const;
@@ -1333,6 +1355,9 @@ signals:
   void eqBandGainsChanged();
   void eqPresetChanged();
   void eqBandCountChanged();
+  void eqModeChanged();
+  void peqBandsChanged();
+  void onlineAutoEqLoaded(bool success, const QString &message);
   void dspMasterEnabledChanged();
   void dspRoutingOrderChanged();
   void dspPluginsChanged();

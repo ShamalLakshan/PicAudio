@@ -59,10 +59,12 @@ struct BitPerfectAudioEngine::Impl {
 
   // Equalizer state
   bool eqEnabled{true};
+  int eqMode{0}; // 0: Graphic, 1: Parametric
   float eqPreampGain{0.0f};
   size_t eqBandCount{10};
   std::string eqPreset{"Flat"};
   std::vector<float> eqBands{10, 0.0f};
+  std::vector<core::PeqFilterBand> peqBands;
   int dspRoutingOrder{0};
   bool dspMasterEnabled{true};
 
@@ -106,6 +108,7 @@ struct BitPerfectAudioEngine::Impl {
     QJsonObject root;
     root[QStringLiteral("bypassed")] = !eqEnabled;
     root[QStringLiteral("preampDb")] = static_cast<double>(eqPreampGain);
+    root[QStringLiteral("mode")] = eqMode;
     root[QStringLiteral("bandCount")] = static_cast<int>(eqBandCount);
     root[QStringLiteral("preset")] = QString::fromStdString(eqPreset);
     QJsonArray bands;
@@ -113,6 +116,19 @@ struct BitPerfectAudioEngine::Impl {
       bands.append(static_cast<double>(g));
     }
     root[QStringLiteral("bands")] = bands;
+
+    QJsonArray filters;
+    for (const auto &b : peqBands) {
+      QJsonObject obj;
+      obj[QStringLiteral("type")] = static_cast<int>(b.type);
+      obj[QStringLiteral("freq")] = static_cast<double>(b.frequency);
+      obj[QStringLiteral("gain")] = static_cast<double>(b.gainDb);
+      obj[QStringLiteral("q")] = static_cast<double>(b.q);
+      obj[QStringLiteral("enabled")] = b.enabled;
+      filters.append(obj);
+    }
+    root[QStringLiteral("filters")] = filters;
+
     return QJsonDocument(root).toJson(QJsonDocument::Compact);
   }
 
@@ -797,7 +813,9 @@ float BitPerfectAudioEngine::getEqBandGain(size_t bandIndex) const {
 void BitPerfectAudioEngine::setEqBandGains(const std::vector<float> &gains) {
   if (m_impl) {
     m_impl->eqBands = gains;
-    m_impl->eqPreset = "Custom";
+    bool isAllFlat = std::all_of(gains.begin(), gains.end(),
+                                 [](float g) { return std::abs(g) < 0.001f; });
+    m_impl->eqPreset = isAllFlat ? "Flat" : "Custom";
     m_impl->dispatchLiveEqUpdate();
   }
 }
@@ -884,6 +902,29 @@ BitPerfectAudioEngine::getEqBandFrequencyLabels() const {
     labels.push_back(lbl.toStdString());
   }
   return labels;
+}
+
+void BitPerfectAudioEngine::setEqMode(int mode) {
+  if (m_impl) {
+    m_impl->eqMode = mode;
+    m_impl->dispatchLiveEqUpdate();
+  }
+}
+
+int BitPerfectAudioEngine::getEqMode() const {
+  return m_impl ? m_impl->eqMode : 0;
+}
+
+void BitPerfectAudioEngine::setPeqBands(
+    const std::vector<core::PeqFilterBand> &bands) {
+  if (m_impl) {
+    m_impl->peqBands = bands;
+    m_impl->dispatchLiveEqUpdate();
+  }
+}
+
+std::vector<core::PeqFilterBand> BitPerfectAudioEngine::getPeqBands() const {
+  return m_impl ? m_impl->peqBands : std::vector<core::PeqFilterBand>{};
 }
 
 void BitPerfectAudioEngine::setDspRoutingOrder(int order) {

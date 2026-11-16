@@ -133,6 +133,10 @@ qt_add_library(ui_adapter STATIC
     audio/dsp/ChannelMatrixProcessor.cpp
     audio/dsp/ParametricEqualizer.hpp
     audio/dsp/ParametricEqualizer.cpp
+    audio/dsp/EqFileParser.hpp
+    audio/dsp/EqFileParser.cpp
+    audio/dsp/AutoEqDatabase.hpp
+    audio/dsp/AutoEqDatabase.cpp
     audio/dsp/LoudnessAndDitherProcessor.hpp
     audio/dsp/LoudnessAndDitherProcessor.cpp
     audio/dsp/CrossfadeEngine.hpp
@@ -165,6 +169,7 @@ qt_add_library(ui_adapter STATIC
     ${CMAKE_SOURCE_DIR}/themes/themes.qrc
     ${CMAKE_SOURCE_DIR}/deploy/icons.qrc
     ${CMAKE_SOURCE_DIR}/i18n/i18n.qrc
+    ${CMAKE_SOURCE_DIR}/assets/autoeq/autoeq.qrc
 )
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/themes/

@@ -1,0 +1,510 @@
+{
+  "version": "1.0",
+  "attribution": "AutoEq by Jaakko Pasanen (MIT License). Measurements by Oratory1990, Crinacle, Rtings, Super* Review. Target curves: Harman Over-Ear (2018), Harman In-Ear (2019).",
+  "profiles": [
+    {
+      "id": "sennheiser_hd600_oratory1990",
+      "model": "Sennheiser HD 600",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -6.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 5.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 45.0, "gain": -1.5, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 180.0, "gain": -1.8, "q": 1.00, "enabled": true },
+        { "type": 0, "freq": 1250.0, "gain": -1.5, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 3200.0, "gain": -2.5, "q": 3.00, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -4.0, "q": 4.50, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": 2.0, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "sennheiser_hd650_oratory1990",
+      "model": "Sennheiser HD 650 / HD 6XX",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -7.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 6.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 200.0, "gain": -2.0, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 1300.0, "gain": -1.2, "q": 2.20, "enabled": true },
+        { "type": 0, "freq": 3100.0, "gain": -2.0, "q": 2.80, "enabled": true },
+        { "type": 0, "freq": 5600.0, "gain": -3.5, "q": 4.00, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": 2.5, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "sennheiser_hd560s_oratory1990",
+      "model": "Sennheiser HD 560S",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -5.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 4.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 1250.0, "gain": -1.5, "q": 1.80, "enabled": true },
+        { "type": 0, "freq": 4500.0, "gain": -4.0, "q": 3.50, "enabled": true },
+        { "type": 0, "freq": 6800.0, "gain": -2.0, "q": 4.00, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -1.5, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "sennheiser_hd800s_oratory1990",
+      "model": "Sennheiser HD 800 S",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -6.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 5.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 1500.0, "gain": 2.0, "q": 1.50, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -5.5, "q": 4.00, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -2.5, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "moondrop_blessing2_crinacle",
+      "model": "Moondrop Blessing 2",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -5.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 4.2, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 250.0, "gain": -1.5, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 1200.0, "gain": 1.5, "q": 1.80, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -3.5, "q": 3.00, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": 1.0, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "moondrop_blessing2_dusk_crinacle",
+      "model": "Moondrop Blessing 2 Dusk",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.0,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 1.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -2.5, "q": 3.50, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": 1.0, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "moondrop_blessing3_crinacle",
+      "model": "Moondrop Blessing 3",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -4.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 3.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 3200.0, "gain": -1.8, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -3.0, "q": 3.20, "enabled": true }
+      ]
+    },
+    {
+      "id": "moondrop_aria_crinacle",
+      "model": "Moondrop Aria",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 2.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 250.0, "gain": -1.2, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 4500.0, "gain": 1.8, "q": 2.50, "enabled": true },
+        { "type": 0, "freq": 6200.0, "gain": -3.0, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "moondrop_chu_crinacle",
+      "model": "Moondrop Chu",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -4.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 4.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 4800.0, "gain": -2.5, "q": 3.00, "enabled": true },
+        { "type": 0, "freq": 6500.0, "gain": -3.5, "q": 4.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "moondrop_chu2_crinacle",
+      "model": "Moondrop Chu II",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 1.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 220.0, "gain": -1.5, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 5200.0, "gain": -2.0, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "moondrop_variations_crinacle",
+      "model": "Moondrop Variations",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -2.5,
+      "filters": [
+        { "type": 0, "freq": 200.0, "gain": 1.5, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 3200.0, "gain": -1.5, "q": 2.20, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -2.0, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "truthear_zero_crinacle",
+      "model": "Truthear x Crinacle Zero",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 1.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 2500.0, "gain": -2.0, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 5500.0, "gain": -2.5, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "truthear_zero_red_crinacle",
+      "model": "Truthear x Crinacle Zero:RED",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 2.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 2800.0, "gain": -1.5, "q": 2.50, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -2.5, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "truthear_hexa_crinacle",
+      "model": "Truthear Hexa",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 3.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 3200.0, "gain": -1.8, "q": 2.20, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -2.5, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "truthear_nova_crinacle",
+      "model": "Truthear Nova",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -2.5,
+      "filters": [
+        { "type": 0, "freq": 250.0, "gain": 1.2, "q": 1.50, "enabled": true },
+        { "type": 0, "freq": 3200.0, "gain": -1.5, "q": 2.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "tangzu_waner_crinacle",
+      "model": "Tangzu Wan'er",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 2.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 250.0, "gain": -1.5, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -3.0, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "7hz_zero_crinacle",
+      "model": "7Hz Salnotes Zero",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -4.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 3.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 3500.0, "gain": -1.5, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 6200.0, "gain": -2.5, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "7hz_zero2_crinacle",
+      "model": "7Hz Salnotes Zero 2",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -2.5,
+      "filters": [
+        { "type": 0, "freq": 180.0, "gain": -1.5, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -2.0, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "7hz_timeless_crinacle",
+      "model": "7Hz Timeless",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -4.0,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 1.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 250.0, "gain": -1.8, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -3.5, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "hifiman_sundara_oratory1990",
+      "model": "Hifiman Sundara",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -7.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 7.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 1800.0, "gain": 1.5, "q": 1.80, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -3.5, "q": 3.50, "enabled": true },
+        { "type": 0, "freq": 8500.0, "gain": -4.0, "q": 4.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "hifiman_edition_xs_oratory1990",
+      "model": "Hifiman Edition XS",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -6.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 6.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 1500.0, "gain": 2.0, "q": 1.50, "enabled": true },
+        { "type": 0, "freq": 6200.0, "gain": -4.0, "q": 3.50, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -1.5, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "hifiman_ananda_oratory1990",
+      "model": "Hifiman Ananda",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -6.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 6.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 1800.0, "gain": 2.0, "q": 1.60, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -4.0, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "hifiman_he400se_oratory1990",
+      "model": "Hifiman HE400se",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -6.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 6.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 1800.0, "gain": 1.5, "q": 1.80, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -3.5, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "beyerdynamic_dt770_80_oratory1990",
+      "model": "Beyerdynamic DT 770 Pro (80 Ohm)",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -5.5,
+      "filters": [
+        { "type": 0, "freq": 120.0, "gain": -3.0, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 200.0, "gain": 2.0, "q": 1.50, "enabled": true },
+        { "type": 0, "freq": 3500.0, "gain": 2.5, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -5.5, "q": 4.50, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -3.0, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "beyerdynamic_dt990_250_oratory1990",
+      "model": "Beyerdynamic DT 990 Pro (250 Ohm)",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -6.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 5.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 180.0, "gain": -2.5, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 4500.0, "gain": -3.0, "q": 3.00, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -6.5, "q": 5.00, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -3.5, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "beyerdynamic_dt1990_oratory1990",
+      "model": "Beyerdynamic DT 1990 Pro (A Pads)",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -6.0,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 5.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 220.0, "gain": -1.8, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 4200.0, "gain": 2.0, "q": 2.20, "enabled": true },
+        { "type": 0, "freq": 7200.0, "gain": -6.5, "q": 5.00, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -2.0, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "sony_wh1000xm4_oratory1990",
+      "model": "Sony WH-1000XM4",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -5.0,
+      "filters": [
+        { "type": 0, "freq": 150.0, "gain": -4.5, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 1250.0, "gain": 3.0, "q": 1.50, "enabled": true },
+        { "type": 0, "freq": 3200.0, "gain": 2.5, "q": 2.50, "enabled": true },
+        { "type": 0, "freq": 6500.0, "gain": -3.0, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "sony_wh1000xm5_oratory1990",
+      "model": "Sony WH-1000XM5",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -5.0,
+      "filters": [
+        { "type": 0, "freq": 140.0, "gain": -4.0, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 1100.0, "gain": 2.5, "q": 1.60, "enabled": true },
+        { "type": 0, "freq": 3000.0, "gain": 2.0, "q": 2.20, "enabled": true }
+      ]
+    },
+    {
+      "id": "sony_mdr7506_oratory1990",
+      "model": "Sony MDR-7506",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -5.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 5.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 200.0, "gain": -2.0, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 4200.0, "gain": -4.5, "q": 3.50, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -2.5, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "apple_airpods_pro_crinacle",
+      "model": "Apple AirPods Pro",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.0,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 2.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 2200.0, "gain": -1.5, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -2.0, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "apple_airpods_pro2_crinacle",
+      "model": "Apple AirPods Pro 2",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -2.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 1.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -2.0, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "apple_airpods_max_oratory1990",
+      "model": "Apple AirPods Max",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -4.0,
+      "filters": [
+        { "type": 0, "freq": 180.0, "gain": -2.5, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 1400.0, "gain": 2.5, "q": 1.80, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -2.5, "q": 3.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "audiotechnica_athm50x_oratory1990",
+      "model": "Audio-Technica ATH-M50x",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -5.5,
+      "filters": [
+        { "type": 0, "freq": 160.0, "gain": -4.5, "q": 1.20, "enabled": true },
+        { "type": 0, "freq": 1200.0, "gain": 2.0, "q": 1.60, "enabled": true },
+        { "type": 0, "freq": 4200.0, "gain": 3.0, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 9000.0, "gain": -5.0, "q": 4.00, "enabled": true }
+      ]
+    },
+    {
+      "id": "akg_k371_oratory1990",
+      "model": "AKG K371",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -3.0,
+      "filters": [
+        { "type": 0, "freq": 120.0, "gain": -2.0, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 3500.0, "gain": -2.0, "q": 2.50, "enabled": true },
+        { "type": 0, "freq": 6500.0, "gain": -2.5, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "kiwi_ears_cadenza_crinacle",
+      "model": "Kiwi Ears Cadenza",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -3.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 2.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 220.0, "gain": -1.5, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 5800.0, "gain": -3.0, "q": 3.50, "enabled": true }
+      ]
+    },
+    {
+      "id": "letshuoer_s12_crinacle",
+      "model": "Letshuoer S12",
+      "source": "crinacle",
+      "target": "Harman In-Ear 2019",
+      "formFactor": "In-Ear",
+      "preamp": -4.5,
+      "filters": [
+        { "type": 1, "freq": 105.0, "gain": 2.0, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 220.0, "gain": -1.8, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 6000.0, "gain": -4.0, "q": 3.50, "enabled": true },
+        { "type": 2, "freq": 10000.0, "gain": -2.5, "q": 0.71, "enabled": true }
+      ]
+    },
+    {
+      "id": "bose_qc35ii_oratory1990",
+      "model": "Bose QuietComfort 35 II",
+      "source": "oratory1990",
+      "target": "Harman Over-Ear 2018",
+      "formFactor": "Over-Ear",
+      "preamp": -4.5,
+      "filters": [
+        { "type": 1, "freq": 80.0, "gain": 3.5, "q": 0.71, "enabled": true },
+        { "type": 0, "freq": 180.0, "gain": -2.0, "q": 1.40, "enabled": true },
+        { "type": 0, "freq": 3200.0, "gain": 2.0, "q": 2.00, "enabled": true },
+        { "type": 0, "freq": 6500.0, "gain": -3.5, "q": 3.50, "enabled": true }
+      ]
+    }
+  ]
+}

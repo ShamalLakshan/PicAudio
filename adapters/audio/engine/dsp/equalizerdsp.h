@@ -10,8 +10,33 @@
 namespace PicAudioEngine {
 
 /**
+ * @brief Filter type for parametric equalizer bands.
+ */
+enum class PeqFilterType : uint8_t {
+  Peaking = 0,
+  LowShelf,
+  HighShelf,
+  LowPass,
+  HighPass,
+  BandPass,
+  Notch
+};
+
+/**
+ * @brief Configuration for a single parametric biquad equalizer filter.
+ */
+struct PeqFilterSpec {
+  PeqFilterType type{PeqFilterType::Peaking};
+  float frequency{1000.0f};
+  float gainDb{0.0f};
+  float q{1.414f};
+  bool enabled{true};
+};
+
+/**
  * @brief Real-time 64-bit double precision parametric biquad equalizer node.
- * Supports 10, 15, and 31 ISO standard octave frequency bands.
+ * Supports 10, 15, and 31 ISO standard octave frequency bands, as well as
+ * fully arbitrary parametric (PEQ) biquad configurations.
  */
 class PICAUDIO_ENGINE_EXPORT EqualizerDsp : public DspNode {
 public:
@@ -33,6 +58,9 @@ public:
   [[nodiscard]] QByteArray saveSettings() const override;
   bool loadSettings(const QByteArray &preset) override;
 
+  void setEqMode(int mode);
+  [[nodiscard]] int eqMode() const;
+
   void setBandCount(size_t count);
   [[nodiscard]] size_t bandCount() const;
 
@@ -40,6 +68,9 @@ public:
   [[nodiscard]] float bandGain(size_t bandIndex) const;
   void setBandGains(const std::vector<float> &gains);
   [[nodiscard]] std::vector<float> bandGains() const;
+
+  void setPeqFilters(const std::vector<PeqFilterSpec> &filters);
+  [[nodiscard]] std::vector<PeqFilterSpec> peqFilters() const;
 
   void setPreampGain(float gainDb);
   [[nodiscard]] float preampGain() const;
@@ -55,6 +86,11 @@ public:
   static std::vector<QString> availablePresets();
   static std::vector<float> bandFrequenciesForCount(size_t count);
   static std::vector<QString> bandFrequencyLabelsForCount(size_t count);
+
+  static std::vector<float>
+  calculateResponse(const std::vector<PeqFilterSpec> &filters, float preampDb,
+                    const std::vector<float> &frequencies,
+                    int sampleRate = 44100);
 
 private:
   struct BiquadCoeffs {
@@ -85,11 +121,13 @@ private:
   mutable std::recursive_mutex m_mutex;
   int m_sampleRate{44100};
   int m_channels{2};
+  int m_mode{0}; // 0: Graphic, 1: Parametric
   size_t m_bandCount{10};
   float m_filterQ{1.41421356f};
 
   std::vector<float> m_bandFrequencies;
   std::vector<float> m_bandGainsDb;
+  std::vector<PeqFilterSpec> m_peqFilters;
   std::array<BiquadCoeffs, kMaxBands> m_stagingCoeffs{};
 
   float m_preampDb{0.0f};
