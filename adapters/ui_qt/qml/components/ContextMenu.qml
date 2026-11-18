@@ -84,6 +84,12 @@ Menu {
         id: rootMenuItem
         implicitHeight: visible ? 26 : 0
         implicitWidth: 230
+        arrow: Item { visible: false; width: 0; height: 0 }
+        indicator: Item { visible: false; width: 0; height: 0 }
+
+        HoverHandler {
+            cursorShape: Qt.PointingHandCursor
+        }
 
         contentItem: RowLayout {
             anchors.fill: parent
@@ -105,8 +111,9 @@ Menu {
             Text {
                 visible: rootMenuItem.subMenu !== null && rootMenuItem.subMenu !== undefined
                 text: "›"
-                font.pixelSize: 13
+                font.pixelSize: 14
                 font.bold: true
+                font.family: Theme.fontFamily
                 color: rootMenuItem.highlighted ? Theme.accent : Theme.textMuted
             }
         }
@@ -123,6 +130,12 @@ Menu {
         id: cItem
         implicitHeight: visible ? 26 : 0
         implicitWidth: 230
+        arrow: Item { visible: false; width: 0; height: 0 }
+        indicator: Item { visible: false; width: 0; height: 0 }
+
+        HoverHandler {
+            cursorShape: Qt.PointingHandCursor
+        }
 
         contentItem: RowLayout {
             anchors.fill: parent
@@ -153,8 +166,9 @@ Menu {
             Text {
                 visible: cItem.subMenu !== null && cItem.subMenu !== undefined
                 text: "›"
-                font.pixelSize: 13
+                font.pixelSize: 14
                 font.bold: true
+                font.family: Theme.fontFamily
                 color: cItem.highlighted ? Theme.accent : Theme.textMuted
             }
         }
@@ -186,6 +200,12 @@ Menu {
             id: sItem
             implicitHeight: visible ? 26 : 0
             implicitWidth: 230
+            arrow: Item { visible: false; width: 0; height: 0 }
+            indicator: Item { visible: false; width: 0; height: 0 }
+
+            HoverHandler {
+                cursorShape: Qt.PointingHandCursor
+            }
 
             contentItem: RowLayout {
                 anchors.fill: parent
@@ -216,8 +236,9 @@ Menu {
                 Text {
                     visible: sItem.subMenu !== null && sItem.subMenu !== undefined
                     text: "›"
-                    font.pixelSize: 13
+                    font.pixelSize: 14
                     font.bold: true
+                    font.family: Theme.fontFamily
                     color: sItem.highlighted ? Theme.accent : Theme.textMuted
                 }
             }

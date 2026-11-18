@@ -1,7 +1,9 @@
 #include "core/services/LibraryService.hpp"
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -18,29 +20,72 @@ size_t LibraryService::scanDirectory(
     return 0;
   }
 
-  // Collect all supported audio files first
+  // Collect all supported audio files and .cue files
   std::vector<std::string> audioFiles;
+  std::vector<std::string> cueFiles;
   for (const auto &entry : fs::recursive_directory_iterator(
            directoryPath, fs::directory_options::skip_permission_denied)) {
     if (entry.is_regular_file()) {
       std::string ext = entry.path().extension().string();
-      if (m_metadataExtractor.supportsFormat(ext)) {
+      std::string lowerExt = ext;
+      std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (lowerExt == ".cue") {
+        cueFiles.push_back(entry.path().string());
+      } else if (m_metadataExtractor.supportsFormat(ext)) {
         audioFiles.push_back(entry.path().string());
       }
     }
   }
 
-  const size_t totalFiles = audioFiles.size();
+  const size_t totalFiles = cueFiles.size() + audioFiles.size();
   if (totalFiles == 0) {
     return 0;
   }
 
-  // Extract tags and flush to DB in batches of 50
   std::vector<Track> batch;
   batch.reserve(50);
   size_t scannedCount = 0;
+  std::unordered_set<std::string> coveredAudioFiles;
 
+  // Process CUE sheets first to split monolithic files into virtual tracks
+  for (const auto &cueFile : cueFiles) {
+    auto cueTracks = m_metadataExtractor.extractMultiple(cueFile);
+    if (!cueTracks.empty()) {
+      for (const auto &t : cueTracks) {
+        batch.push_back(t);
+        if (batch.size() >= 50) {
+          m_dbPort.saveTracks(batch);
+          batch.clear();
+        }
+      }
+
+      std::string companion = cueTracks.front().filePath;
+      auto tagPos = companion.find("#cue:");
+      if (tagPos != std::string::npos) {
+        companion = companion.substr(0, tagPos);
+      }
+      coveredAudioFiles.insert(companion);
+
+      auto existing = m_dbPort.getTrackByPath(companion);
+      if (existing.has_value() && !existing->isVirtualTrack) {
+        m_dbPort.deleteTrack(existing->id);
+      }
+    }
+    scannedCount++;
+    if (progressCallback &&
+        (scannedCount % 10 == 0 || scannedCount == totalFiles)) {
+      progressCallback(scannedCount, totalFiles);
+    }
+  }
+
+  // Process standalone audio files, skipping those already handled by CUE
+  // sheets
   for (const auto &file : audioFiles) {
+    if (coveredAudioFiles.find(file) != coveredAudioFiles.end()) {
+      scannedCount++;
+      continue;
+    }
     auto trackOpt = m_metadataExtractor.extract(file);
     if (trackOpt.has_value()) {
       batch.push_back(trackOpt.value());
@@ -71,17 +116,23 @@ size_t LibraryService::incrementalQuickScan(
   }
 
   std::vector<std::string> audioFiles;
+  std::vector<std::string> cueFiles;
   for (const auto &entry : fs::recursive_directory_iterator(
            directoryPath, fs::directory_options::skip_permission_denied)) {
     if (entry.is_regular_file()) {
       std::string ext = entry.path().extension().string();
-      if (m_metadataExtractor.supportsFormat(ext)) {
+      std::string lowerExt = ext;
+      std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (lowerExt == ".cue") {
+        cueFiles.push_back(entry.path().string());
+      } else if (m_metadataExtractor.supportsFormat(ext)) {
         audioFiles.push_back(entry.path().string());
       }
     }
   }
 
-  const size_t totalFiles = audioFiles.size();
+  const size_t totalFiles = cueFiles.size() + audioFiles.size();
   if (totalFiles == 0) {
     return 0;
   }
@@ -90,8 +141,48 @@ size_t LibraryService::incrementalQuickScan(
   batch.reserve(50);
   size_t scannedCount = 0;
   size_t newlyAdded = 0;
+  std::unordered_set<std::string> coveredAudioFiles;
 
+  // Process CUE sheets first
+  for (const auto &cueFile : cueFiles) {
+    auto cueTracks = m_metadataExtractor.extractMultiple(cueFile);
+    if (!cueTracks.empty()) {
+      std::string companion = cueTracks.front().filePath;
+      auto tagPos = companion.find("#cue:");
+      if (tagPos != std::string::npos) {
+        companion = companion.substr(0, tagPos);
+      }
+      coveredAudioFiles.insert(companion);
+
+      auto existing = m_dbPort.getTrackByPath(companion);
+      if (existing.has_value() && !existing->isVirtualTrack) {
+        m_dbPort.deleteTrack(existing->id);
+      }
+
+      for (const auto &t : cueTracks) {
+        if (!m_dbPort.getTrackByPath(t.filePath).has_value()) {
+          batch.push_back(t);
+          if (batch.size() >= 50) {
+            m_dbPort.saveTracks(batch);
+            batch.clear();
+          }
+          newlyAdded++;
+        }
+      }
+    }
+    scannedCount++;
+    if (progressCallback &&
+        (scannedCount % 10 == 0 || scannedCount == totalFiles)) {
+      progressCallback(scannedCount, totalFiles);
+    }
+  }
+
+  // Process standalone audio files, skipping covered companion files
   for (const auto &file : audioFiles) {
+    if (coveredAudioFiles.find(file) != coveredAudioFiles.end()) {
+      scannedCount++;
+      continue;
+    }
     if (!m_dbPort.getTrackByPath(file).has_value()) {
       auto trackOpt = m_metadataExtractor.extract(file);
       if (trackOpt.has_value()) {

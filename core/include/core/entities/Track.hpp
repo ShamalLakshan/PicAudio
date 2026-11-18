@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -10,6 +12,10 @@ namespace core {
  * @brief Represents a single audio track.
  */
 struct Track {
+  static constexpr const char *UNKNOWN_ARTIST = "Unknown Artist";
+  static constexpr const char *UNKNOWN_ALBUM = "Unknown Album";
+  static constexpr const char *UNKNOWN_GENRE = "Unknown Genre";
+
   std::string id;
   std::string filePath;
   std::string title;
@@ -53,6 +59,49 @@ struct Track {
   uint64_t startTimeMs{0};    ///< Virtual track start offset in milliseconds
   uint64_t endTimeMs{0};      ///< Virtual track end boundary (0 if full file)
   bool isVirtualTrack{false}; ///< True if this track maps to a CUE sub-index
+
+  /**
+   * @brief Checks if the track's album is missing, empty, or an unknown
+   * placeholder.
+   */
+  [[nodiscard]] bool isUnknownAlbum() const {
+    if (album.empty())
+      return true;
+    std::string s;
+    s.reserve(album.size());
+    for (char c : album)
+      s += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return (s == "unknown album" || s == "unknown" || s == "<unknown>" ||
+            s == "[unknown album]" || s == "untitled" || s == "none" ||
+            s == "n/a");
+  }
+
+  /**
+   * @brief Checks if the track's artist is missing, empty, or an unknown
+   * placeholder.
+   */
+  [[nodiscard]] bool isUnknownArtist() const {
+    if (artist.empty())
+      return true;
+    std::string s;
+    s.reserve(artist.size());
+    for (char c : artist)
+      s += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return (s == "unknown artist" || s == "unknown" || s == "<unknown>" ||
+            s == "[unknown artist]" || s == "none" || s == "n/a");
+  }
+
+  /**
+   * @brief Returns true if the track lacks a proper album or artist tag.
+   */
+  [[nodiscard]] bool isUntagged() const {
+    return isUnknownAlbum() || isUnknownArtist();
+  }
+
+  /**
+   * @brief Returns true if the track has proper, identifying tags.
+   */
+  [[nodiscard]] bool hasProperTags() const { return !isUntagged(); }
 
   /**
    * @brief Formats duration into MM:SS format.

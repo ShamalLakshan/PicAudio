@@ -21,8 +21,18 @@ void AlbumListModel::reload() {
   beginResetModel();
   m_allAlbums.clear();
   m_filteredAlbums.clear();
+  m_untaggedCount = 0;
+  m_untaggedAlbum = core::Album{};
   if (m_dbPort) {
     m_allAlbums = m_dbPort->getAllAlbums();
+    m_untaggedCount = static_cast<int>(m_dbPort->getUntaggedTrackCount());
+    if (m_untaggedCount > 0) {
+      m_untaggedAlbum = m_dbPort->getUntaggedAlbumSummary();
+      m_untaggedAlbum.title = "Unknown Album";
+      m_untaggedAlbum.artist = "Various / Unknown";
+      m_untaggedAlbum.isSpecialUntagged = true;
+      m_allAlbums.insert(m_allAlbums.begin(), m_untaggedAlbum);
+    }
   }
   applyFilter();
   endResetModel();
@@ -86,13 +96,10 @@ void AlbumListModel::setHiResOnly(bool hiResOnly) {
   emit countChanged();
 }
 
-void AlbumListModel::resetAllFilters() {
-  m_filterText.clear();
-  m_searchQuery.clear();
-  m_genreFilter.clear();
-  m_artistFilter.clear();
-  m_letterFilter.clear();
-  m_hiResOnly = false;
+void AlbumListModel::setShowUntaggedOnly(bool enable) {
+  if (m_showUntaggedOnly == enable)
+    return;
+  m_showUntaggedOnly = enable;
   beginResetModel();
   applyFilter();
   endResetModel();
@@ -100,11 +107,60 @@ void AlbumListModel::resetAllFilters() {
   emit filterChanged();
 }
 
+void AlbumListModel::resetAllFilters() {
+  m_filterText.clear();
+  m_searchQuery.clear();
+  m_genreFilter.clear();
+  m_artistFilter.clear();
+  m_letterFilter.clear();
+  m_hiResOnly = false;
+  m_showUntaggedOnly = false;
+  beginResetModel();
+  applyFilter();
+  endResetModel();
+  emit countChanged();
+  emit filterChanged();
+}
+
+QVariantMap AlbumListModel::untaggedSummary() const {
+  QVariantMap map;
+  map["id"] = QString::fromStdString(
+      m_untaggedAlbum.id.empty() ? "alb_special_untagged" : m_untaggedAlbum.id);
+  map["title"] = QString::fromStdString(
+      m_untaggedAlbum.title.empty() ? "Unknown Album" : m_untaggedAlbum.title);
+  map["artist"] = QString::fromStdString(m_untaggedAlbum.artist.empty()
+                                             ? "Various / Unknown"
+                                             : m_untaggedAlbum.artist);
+  map["year"] = m_untaggedAlbum.year;
+  map["genre"] = QString::fromStdString(m_untaggedAlbum.genre);
+  map["trackCount"] = m_untaggedCount;
+  map["durationFormatted"] =
+      QString::fromStdString(m_untaggedAlbum.durationFormatted());
+  map["artHash"] = QString::fromStdString(m_untaggedAlbum.artHash);
+  map["codec"] = QString::fromStdString(m_untaggedAlbum.primaryCodec);
+  map["sampleRate"] = m_untaggedAlbum.maxSampleRate;
+  map["bitDepth"] = m_untaggedAlbum.maxBitDepth;
+  map["qualityBadge"] = QString::fromStdString(m_untaggedAlbum.qualityBadge);
+  map["audiophileSummary"] =
+      QString::fromStdString(m_untaggedAlbum.audiophileSummary());
+  map["isSpecialUntagged"] = true;
+  map["isUnknownAlbum"] = true;
+  return map;
+}
+
 void AlbumListModel::setAlbumsFromTracks(
     const std::vector<core::Track> &tracks) {
   beginResetModel();
   m_allAlbums.clear();
   m_filteredAlbums.clear();
+  m_untaggedCount = 0;
+  m_untaggedAlbum = core::Album{};
+  m_untaggedAlbum.id = "alb_special_untagged";
+  m_untaggedAlbum.title = "Unknown Album";
+  m_untaggedAlbum.artist = "Various / Unknown";
+  m_untaggedAlbum.genre = "Various";
+  m_untaggedAlbum.isSpecialUntagged = true;
+  m_untaggedAlbum.qualityBadge = "Mixed";
 
   struct AlbumAccumulator {
     std::string title;
@@ -121,7 +177,20 @@ void AlbumListModel::setAlbumsFromTracks(
 
   std::unordered_map<std::string, AlbumAccumulator> accMap;
   for (const auto &t : tracks) {
-    std::string albTitle = t.album.empty() ? "Unknown Album" : t.album;
+    if (t.isUnknownAlbum()) {
+      m_untaggedCount++;
+      m_untaggedAlbum.trackCount++;
+      m_untaggedAlbum.totalDurationMs += t.durationMs;
+      if (t.sampleRate > m_untaggedAlbum.maxSampleRate)
+        m_untaggedAlbum.maxSampleRate = t.sampleRate;
+      if (t.bitDepth > m_untaggedAlbum.maxBitDepth)
+        m_untaggedAlbum.maxBitDepth = t.bitDepth;
+      if (!t.codec.empty() && m_untaggedAlbum.primaryCodec.empty())
+        m_untaggedAlbum.primaryCodec = t.codec;
+      continue;
+    }
+
+    std::string albTitle = t.album;
     std::string albArtist =
         (!t.albumArtist.empty() && t.albumArtist != "Unknown Artist")
             ? t.albumArtist
@@ -181,12 +250,24 @@ void AlbumListModel::setAlbumsFromTracks(
                                       Qt::CaseInsensitive) < 0;
             });
 
+  if (m_untaggedCount > 0) {
+    m_allAlbums.insert(m_allAlbums.begin(), m_untaggedAlbum);
+  }
+
   applyFilter();
   endResetModel();
   emit countChanged();
 }
 
 void AlbumListModel::applyFilter() {
+  if (m_showUntaggedOnly) {
+    m_filteredAlbums.clear();
+    if (m_untaggedCount > 0) {
+      m_filteredAlbums.push_back(m_untaggedAlbum);
+    }
+    return;
+  }
+
   const bool hasSearch = !m_searchQuery.trimmed().isEmpty();
   const bool hasLegacyFilter = !m_filterText.trimmed().isEmpty() && !hasSearch;
   const bool hasGenre =
@@ -312,6 +393,10 @@ QVariant AlbumListModel::data(const QModelIndex &index, int role) const {
     return QString::fromStdString(album.qualityBadge);
   case AudiophileSummaryRole:
     return QString::fromStdString(album.audiophileSummary());
+  case IsSpecialUntaggedRole:
+    return album.isSpecialUntagged;
+  case IsUnknownAlbumRole:
+    return album.isUnknown();
   default:
     return QVariant();
   }
@@ -332,6 +417,8 @@ QHash<int, QByteArray> AlbumListModel::roleNames() const {
   roles[BitDepthRole] = "bitDepth";
   roles[QualityBadgeRole] = "qualityBadge";
   roles[AudiophileSummaryRole] = "audiophileSummary";
+  roles[IsSpecialUntaggedRole] = "isSpecialUntagged";
+  roles[IsUnknownAlbumRole] = "isUnknownAlbum";
   return roles;
 }
 
@@ -354,5 +441,7 @@ QVariantMap AlbumListModel::getAlbumAt(int index) const {
   map["bitDepth"] = album.maxBitDepth;
   map["qualityBadge"] = QString::fromStdString(album.qualityBadge);
   map["audiophileSummary"] = QString::fromStdString(album.audiophileSummary());
+  map["isSpecialUntagged"] = album.isSpecialUntagged;
+  map["isUnknownAlbum"] = album.isUnknown();
   return map;
 }

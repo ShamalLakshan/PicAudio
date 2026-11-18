@@ -332,7 +332,7 @@ Item {
                                     spacing: 4
                                     visible: cellItem.colKey === "trackNumber"
                                     Text {
-                                        text: rowRect.rowTrackNumber > 0 ? rowRect.rowTrackNumber : (rowRect.rowIndex + 1)
+                                        text: rowRect.rowTrackNumber > 0 ? rowRect.rowTrackNumber : (root.isPlaylistView ? (rowRect.rowIndex + 1) : "-")
                                         font.pixelSize: 10
                                         color: (bridge.currentFilePath === rowRect.rowFilePath) ? Theme.accent : Theme.textMuted
                                         verticalAlignment: Text.AlignVCenter
@@ -367,9 +367,10 @@ Item {
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     visible: cellItem.colKey === "artist"
-                                    text: rowRect.rowArtist
+                                    text: (rowRect.rowArtist && rowRect.rowArtist !== "Unknown Artist") ? rowRect.rowArtist : qsTr("Unknown Artist")
                                     font.pixelSize: 11
-                                    color: (bridge.currentFilePath === rowRect.rowFilePath) ? Theme.textSecondary : Theme.textMuted
+                                    font.italic: (!rowRect.rowArtist || rowRect.rowArtist === "Unknown Artist")
+                                    color: (bridge.currentFilePath === rowRect.rowFilePath) ? Theme.textSecondary : ((!rowRect.rowArtist || rowRect.rowArtist === "Unknown Artist") ? Theme.textMuted : Theme.textSecondary)
                                     elide: Text.ElideRight
                                 }
 
@@ -382,9 +383,10 @@ Item {
                                         anchors.verticalCenter: parent.verticalCenter
                                         anchors.left: parent.left
                                         anchors.right: parent.right
-                                        text: rowRect.rowAlbum
+                                        text: (rowRect.rowAlbum && rowRect.rowAlbum !== "Unknown Album") ? rowRect.rowAlbum : qsTr("No Album")
                                         font.pixelSize: 11
-                                        font.underline: albTextMouse.containsMouse
+                                        font.italic: (!rowRect.rowAlbum || rowRect.rowAlbum === "Unknown Album")
+                                        font.underline: albTextMouse.containsMouse && (rowRect.rowAlbum && rowRect.rowAlbum !== "Unknown Album")
                                         color: albTextMouse.containsMouse ? Theme.accentHover : Theme.textMuted
                                         elide: Text.ElideRight
                                     }
@@ -419,8 +421,9 @@ Item {
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     visible: cellItem.colKey === "genre"
-                                    text: rowRect.rowGenre
+                                    text: (rowRect.rowGenre && rowRect.rowGenre !== "Unknown Genre") ? rowRect.rowGenre : qsTr("Unknown Genre")
                                     font.pixelSize: 10
+                                    font.italic: (!rowRect.rowGenre || rowRect.rowGenre === "Unknown Genre")
                                     color: Theme.textMuted
                                     elide: Text.ElideRight
                                 }
@@ -429,7 +432,7 @@ Item {
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     visible: cellItem.colKey === "year"
-                                    text: rowRect.rowYear > 0 ? rowRect.rowYear : ""
+                                    text: rowRect.rowYear > 0 ? rowRect.rowYear : "-"
                                     font.pixelSize: 10
                                     color: Theme.textMuted
                                 }

@@ -56,6 +56,7 @@ Item {
                     delegate: Rectangle {
                         id: albItem
                         required property var model
+                        readonly property bool isUnknown: albItem.model.isSpecialUntagged || albItem.model.isUnknownAlbum || albItem.model.title === "Unknown Album" || albItem.model.title === "Untagged & Loose Tracks"
                         width: albList.width
                         height: Math.round(52 * Theme.uiScale)
                         color: (bridge.selectedAlbumTitle === albItem.model.title && bridge.selectedAlbumArtist === albItem.model.artist) ?
@@ -77,11 +78,22 @@ Item {
                                 radius: Math.round(2 * Theme.uiScale)
                                 clip: true
 
+                                VectorIcon {
+                                    anchors.centerIn: parent
+                                    name: "album"
+                                    width: Math.round(20 * Theme.uiScale)
+                                    height: Math.round(20 * Theme.uiScale)
+                                    color: albHover.hovered ? Theme.accent : Theme.textSecondary
+                                    visible: albItem.isUnknown || albImg.status !== Image.Ready
+                                }
+
                                 Image {
+                                    id: albImg
                                     anchors.fill: parent
-                                    source: "image://albumart/" + (albItem.model.artHash ? albItem.model.artHash : albItem.model.id)
+                                    source: (!albItem.isUnknown && albItem.model.artHash) ? ("image://albumart/" + albItem.model.artHash) : (!albItem.isUnknown ? ("image://albumart/" + albItem.model.id) : "")
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
+                                    visible: !albItem.isUnknown && status === Image.Ready
                                 }
                             }
 
@@ -149,11 +161,22 @@ Item {
                             radius: Math.round(4 * Theme.uiScale)
                             clip: true
 
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                name: "album"
+                                width: Math.round(44 * Theme.uiScale)
+                                height: Math.round(44 * Theme.uiScale)
+                                color: Theme.accent
+                                visible: (bridge.selectedAlbumTitle === "Unknown Album" || bridge.selectedAlbumTitle === "Untagged & Loose Tracks") || albumHeaderImg.status !== Image.Ready
+                            }
+
                             Image {
+                                id: albumHeaderImg
                                 anchors.fill: parent
-                                source: "image://albumart/" + bridge.selectedAlbumTitle
+                                source: (bridge.selectedAlbumTitle !== "Unknown Album" && bridge.selectedAlbumTitle !== "Untagged & Loose Tracks") ? ("image://albumart/" + bridge.selectedAlbumTitle) : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                visible: (bridge.selectedAlbumTitle !== "Unknown Album" && bridge.selectedAlbumTitle !== "Untagged & Loose Tracks") && status === Image.Ready
                             }
                         }
 
@@ -220,18 +243,32 @@ Item {
                             spacing: Math.round(12 * Theme.uiScale)
 
                             Text {
-                                text: model.trackNumber > 0 ? model.trackNumber : ""
+                                text: model.displayTrackNumber || (model.trackNumber > 0 ? model.trackNumber : "-")
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontSizeSmall
                                 Layout.preferredWidth: Math.round(28 * Theme.uiScale)
                             }
 
-                            Text {
-                                text: model.title
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontSizeSmall
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                elide: Text.ElideRight
+                                spacing: 2
+
+                                Text {
+                                    text: model.title
+                                    color: Theme.textPrimary
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    visible: bridge.selectedAlbumTitle === "Untagged & Loose Tracks"
+                                    text: (model.artist && model.artist !== "Unknown Artist") ? model.artist : qsTr("Unknown Artist")
+                                    color: Theme.textMuted
+                                    font.pixelSize: Math.round(10 * Theme.uiScale)
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
                             }
 
                             Text {

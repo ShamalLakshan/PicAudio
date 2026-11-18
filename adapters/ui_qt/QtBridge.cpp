@@ -460,8 +460,8 @@ void QtBridge::setupPositionTimer() {
       // CUE virtual track boundary check
       auto curOpt = m_player.getCurrentTrack();
       if (curOpt.has_value() && curOpt->isVirtualTrack &&
-          curOpt->endTimeMs > curOpt->startTimeMs) {
-        if (m_positionMs >= static_cast<qint64>(curOpt->endTimeMs)) {
+          curOpt->durationMs > 0) {
+        if (m_positionMs >= static_cast<qint64>(curOpt->durationMs)) {
           nextTrack();
         }
       }
@@ -703,6 +703,9 @@ void QtBridge::refreshLibraryStats() {
         artists.insert(a.toStdString());
         m_artistTrackCounts[a.toLower().toStdString()]++;
       }
+    } else {
+      artists.insert(core::Track::UNKNOWN_ARTIST);
+      m_artistTrackCounts["unknown artist"]++;
     }
   }
 
@@ -720,8 +723,19 @@ void QtBridge::refreshLibraryStats() {
     m_genresList.append(QString::fromStdString(g));
 
   m_artistsList.clear();
+  bool hasUnknownArtist = false;
+  if (artists.find(core::Track::UNKNOWN_ARTIST) != artists.end()) {
+    hasUnknownArtist = true;
+    artists.erase(core::Track::UNKNOWN_ARTIST);
+  }
+  if (hasUnknownArtist || m_totalUntaggedTracks > 0) {
+    m_artistsList.append(QString::fromStdString(core::Track::UNKNOWN_ARTIST));
+  }
   for (const auto &a : artists)
     m_artistsList.append(QString::fromStdString(a));
+
+  m_totalUntaggedTracks =
+      static_cast<int>(m_library.getDatabasePort().getUntaggedTrackCount());
 
   emit libraryStatsChanged();
 }
@@ -1033,8 +1047,46 @@ void QtBridge::applyLayoutPreset(const QString &presetId) {
   }
 }
 
+void QtBridge::openUntaggedTracks() {
+  m_selectedAlbumTitle = QStringLiteral("Unknown Album");
+  m_selectedAlbumArtist = QStringLiteral("Various / Unknown");
+  m_selectedAlbumYear = "";
+  m_selectedAlbumGenre = QStringLiteral("Various");
+  m_selectedAlbumQuality = QStringLiteral("Mixed");
+  m_selectedAlbumDuration = "";
+  m_selectedAlbumTrackCount = m_totalUntaggedTracks;
+  m_selectedAlbumArtHash = "";
+
+  m_albumDetailTrackModel->loadUntaggedTracks();
+  emit selectedAlbumChanged();
+}
+
+void QtBridge::playUntaggedTracks() {
+  auto untagged = m_library.getDatabasePort().getUntaggedTracks();
+  if (!untagged.empty()) {
+    m_player.playQueue(untagged, 0);
+    updatePlaybackState(untagged[0]);
+    syncQueueModel();
+  }
+}
+
+void QtBridge::queueUntaggedTracks() {
+  auto untagged = m_library.getDatabasePort().getUntaggedTracks();
+  if (!untagged.empty()) {
+    m_player.queueLast(untagged);
+    syncQueueModel();
+  }
+}
+
 void QtBridge::openAlbumDetails(const QString &albumTitle,
                                 const QString &albumArtist) {
+  if (albumTitle == "Unknown Album" ||
+      albumTitle == "Untagged & Loose Tracks" ||
+      albumTitle == "alb_special_untagged") {
+    openUntaggedTracks();
+    return;
+  }
+
   auto albumOpt = m_library.getDatabasePort().getAlbumById(
       "alb_" + albumTitle.toStdString() + "_" + albumArtist.toStdString());
   if (albumOpt) {
@@ -1532,10 +1584,6 @@ void QtBridge::updatePlaybackState(const core::Track &track) {
       track.hasReplayGain, track.replayGainTrackGain, track.replayGainTrackPeak,
       track.replayGainAlbumGain, track.replayGainAlbumPeak, true);
 
-  if (track.isVirtualTrack && track.startTimeMs > 0) {
-    seek(track.startTimeMs);
-  }
-
   m_positionTimer->start();
   emit playbackChanged();
   emit positionChanged();
@@ -1788,8 +1836,13 @@ void QtBridge::setSleepSmoothFadeOut(bool enable) {
 void QtBridge::loadWaveform(const QString &filePath) {
   if (filePath.isEmpty() || !m_waveformExtractor)
     return;
+  QString cleanPath = filePath;
+  int cueIdx = cleanPath.indexOf("#cue:");
+  if (cueIdx >= 0) {
+    cleanPath = cleanPath.left(cueIdx);
+  }
   m_waveformExtractor->extractPeaksAsync(
-      filePath.toStdString(), 128, [this](std::vector<float> peaks) {
+      cleanPath.toStdString(), 128, [this](std::vector<float> peaks) {
         QMetaObject::invokeMethod(
             this,
             [this, peaks = std::move(peaks)]() {
@@ -2746,6 +2799,14 @@ void QtBridge::handleDropOnQueue(const QList<QUrl> &urls) {
   tracks.reserve(files.size());
 
   for (const QString &file : files) {
+    if (file.endsWith(QStringLiteral(".cue"), Qt::CaseInsensitive)) {
+      auto cueTracks = adapters::CueSheetParser::parseFile(file.toStdString());
+      for (const auto &ct : cueTracks) {
+        m_library.getDatabasePort().saveTrack(ct);
+        tracks.push_back(ct);
+      }
+      continue;
+    }
     auto trackOpt =
         m_library.getMetadataExtractor().extract(file.toStdString());
     if (trackOpt) {
@@ -2844,6 +2905,16 @@ void QtBridge::openCueSheet(const QString &cueFilePath) {
   auto cueTracks = adapters::CueSheetParser::parseFile(cleanPath.toStdString());
   if (cueTracks.empty())
     return;
+
+  std::string companionPath = cueTracks.front().filePath;
+  auto cueTagPos = companionPath.find("#cue:");
+  if (cueTagPos != std::string::npos) {
+    companionPath = companionPath.substr(0, cueTagPos);
+  }
+  auto existingOpt = m_library.getDatabasePort().getTrackByPath(companionPath);
+  if (existingOpt.has_value() && !existingOpt->isVirtualTrack) {
+    m_library.getDatabasePort().deleteTrack(existingOpt->id);
+  }
 
   for (const auto &t : cueTracks) {
     m_library.getDatabasePort().saveTrack(t);
@@ -5546,7 +5617,13 @@ void QtBridge::loadLyricsForTrack(const QString &filePath) {
     return;
   }
 
-  QFileInfo fileInfo(filePath);
+  QString cleanPath = filePath;
+  int cueIdx = cleanPath.indexOf("#cue:");
+  if (cueIdx >= 0) {
+    cleanPath = cleanPath.left(cueIdx);
+  }
+
+  QFileInfo fileInfo(cleanPath);
   QString basePath = fileInfo.path() + "/" + fileInfo.completeBaseName();
 
   // Try sidecar .lrc or .txt first

@@ -353,8 +353,14 @@ bool BitPerfectAudioEngine::load(const std::string &filePath) {
     return false;
   }
 
+  std::string physicalPath = filePath;
+  auto cuePos = physicalPath.find("#cue:");
+  if (cuePos != std::string::npos) {
+    physicalPath = physicalPath.substr(0, cuePos);
+  }
+
   m_impl->currentFilePath = filePath;
-  PicAudioEngine::Track track{QString::fromStdString(filePath)};
+  PicAudioEngine::Track track{QString::fromStdString(physicalPath)};
 
   // Read metadata & audio specs via AudioLoader reader
   if (auto reader = m_impl->audioLoader->loadReaderForTrack(track);

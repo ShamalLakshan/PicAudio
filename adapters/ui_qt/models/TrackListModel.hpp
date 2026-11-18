@@ -53,7 +53,12 @@ public:
     SkipCountRole,
     LastPlayedRole,
     LastPlayedFormattedRole,
-    CommentRole
+    CommentRole,
+    IsUntaggedRole,
+    IsUnknownArtistRole,
+    IsUnknownAlbumRole,
+    DisplayTrackNumberRole,
+    DisplayYearRole
   };
 
   explicit TrackListModel(core::IMusicDatabasePort *dbPort = nullptr,
@@ -73,6 +78,7 @@ public:
   [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
   Q_INVOKABLE void loadAllTracks();
+  Q_INVOKABLE void loadUntaggedTracks();
   Q_INVOKABLE void loadAlbumTracks(const QString &albumTitle,
                                    const QString &albumArtist);
   Q_INVOKABLE void loadArtistTracks(const QString &artist);

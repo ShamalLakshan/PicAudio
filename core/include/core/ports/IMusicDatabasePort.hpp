@@ -60,6 +60,11 @@ public:
   virtual std::vector<Track> queryTracksDynamic(const std::string &whereClause,
                                                 const std::string &orderBy = "",
                                                 size_t limit = 0) = 0;
+
+  // Untagged / Loose Tracks & Tag Identification
+  virtual std::vector<Track> getUntaggedTracks() = 0;
+  virtual Album getUntaggedAlbumSummary() = 0;
+  virtual size_t getUntaggedTrackCount() = 0;
 };
 
 } // namespace core

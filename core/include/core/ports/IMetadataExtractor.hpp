@@ -27,6 +27,20 @@ public:
   /** @brief Reads audio tags and stream properties from a file. */
   virtual std::optional<Track> extract(const std::string &filePath) = 0;
 
+  /**
+   * @brief Reads audio tags or CUE sheet splits from a file.
+   * If the file is a CUE sheet or maps to virtual tracks,
+   * returns all parsed virtual tracks; otherwise returns single extracted
+   * track.
+   */
+  virtual std::vector<Track> extractMultiple(const std::string &filePath) {
+    auto opt = extract(filePath);
+    if (opt.has_value()) {
+      return {*opt};
+    }
+    return {};
+  }
+
   /** @brief Extracts embedded cover art from a file if present. */
   virtual std::optional<ExtractedArtwork>
   extractArtwork(const std::string &filePath) = 0;

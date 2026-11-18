@@ -17,8 +17,15 @@ struct Track;
 class AlbumListModel : public QAbstractListModel {
   Q_OBJECT
   Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+  Q_PROPERTY(int untaggedCount READ untaggedCount NOTIFY countChanged)
+  Q_PROPERTY(
+      bool hasUntaggedContent READ hasUntaggedContent NOTIFY countChanged)
+  Q_PROPERTY(
+      QVariantMap untaggedSummary READ untaggedSummary NOTIFY countChanged)
   Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY filterChanged)
   Q_PROPERTY(QString letterFilter READ letterFilter NOTIFY filterChanged)
+  Q_PROPERTY(bool showUntaggedOnly READ showUntaggedOnly WRITE
+                 setShowUntaggedOnly NOTIFY filterChanged)
 
 public:
   enum AlbumRoles {
@@ -34,7 +41,9 @@ public:
     SampleRateRole,
     BitDepthRole,
     QualityBadgeRole,
-    AudiophileSummaryRole
+    AudiophileSummaryRole,
+    IsSpecialUntaggedRole,
+    IsUnknownAlbumRole
   };
 
   explicit AlbumListModel(core::IMusicDatabasePort *dbPort = nullptr,
@@ -56,6 +65,7 @@ public:
   Q_INVOKABLE void setArtistFilter(const QString &artist);
   Q_INVOKABLE void setLetterFilter(const QString &letter);
   Q_INVOKABLE void setHiResOnly(bool hiResOnly);
+  Q_INVOKABLE void setShowUntaggedOnly(bool enable);
   Q_INVOKABLE void resetAllFilters();
 
   void setAlbumsFromTracks(const std::vector<core::Track> &tracks);
@@ -65,6 +75,13 @@ public:
   [[nodiscard]] QString artistFilter() const { return m_artistFilter; }
   [[nodiscard]] QString letterFilter() const { return m_letterFilter; }
   [[nodiscard]] bool hiResOnly() const { return m_hiResOnly; }
+  [[nodiscard]] int untaggedCount() const { return m_untaggedCount; }
+  [[nodiscard]] bool hasUntaggedContent() const { return m_untaggedCount > 0; }
+  [[nodiscard]] bool showUntaggedOnly() const { return m_showUntaggedOnly; }
+  [[nodiscard]] QVariantMap untaggedSummary() const;
+  [[nodiscard]] Q_INVOKABLE QVariantMap getUntaggedSummary() const {
+    return untaggedSummary();
+  }
   [[nodiscard]] Q_INVOKABLE QVariantMap getAlbumAt(int index) const;
 
 signals:
@@ -77,6 +94,9 @@ private:
   core::IMusicDatabasePort *m_dbPort{nullptr};
   std::vector<core::Album> m_allAlbums;
   std::vector<core::Album> m_filteredAlbums;
+  int m_untaggedCount{0};
+  core::Album m_untaggedAlbum;
+  bool m_showUntaggedOnly{false};
   QString m_filterText;
   QString m_searchQuery;
   QString m_genreFilter;

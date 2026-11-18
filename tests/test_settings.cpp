@@ -137,6 +137,9 @@ public:
                                               size_t) override {
     return tracks;
   }
+  std::vector<core::Track> getUntaggedTracks() override { return {}; }
+  core::Album getUntaggedAlbumSummary() override { return {}; }
+  size_t getUntaggedTrackCount() override { return 0; }
 
 private:
   bool m_groupAlbumsByTitle{true};

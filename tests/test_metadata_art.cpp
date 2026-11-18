@@ -1,3 +1,4 @@
+#include "adapters/audio/CueSheetParser.hpp"
 #include "adapters/metadata/TagLibMetadataAdapter.hpp"
 #include "adapters/storage/SqliteDatabaseAdapter.hpp"
 #include "adapters/ui_qt/models/TrackListModel.hpp"
@@ -5,6 +6,8 @@
 #include "adapters/ui_qt/providers/ArtistArtImageProvider.hpp"
 #include "adapters/ui_qt/providers/ArtistImageManager.hpp"
 #include "adapters/ui_qt/providers/DeezerArtistImageService.hpp"
+#include "core/services/PlayerService.hpp"
+#include "mocks/MockAudioEnginePort.hpp"
 #include <QBuffer>
 #include <QImage>
 #include <filesystem>
@@ -560,4 +563,126 @@ TEST_F(MetadataArtTest, ArtistArtImageProviderResolutionAndFallback) {
   QPixmap loadedPix =
       provider.requestPixmap("The%20Beatles?v=2", &sz, QSize(100, 100));
   EXPECT_FALSE(loadedPix.isNull());
+}
+
+TEST_F(MetadataArtTest, CueSheetParserTimestampAndRollover) {
+  // Test basic timestamp parsing
+  EXPECT_EQ(adapters::CueSheetParser::parseIndexTimestampMs("00:00:00"), 0u);
+  // 01:23:45 -> (1*60 + 23)*1000 + 45*1000/75 = 83000 + 600 = 83600 ms
+  EXPECT_EQ(adapters::CueSheetParser::parseIndexTimestampMs("01:23:45"),
+            83600u);
+
+  // Test CUE sheet with rollover past 60 minutes
+  std::string cueContent = "PERFORMER \"Live Artist\"\n"
+                           "TITLE \"Concert\"\n"
+                           "FILE \"concert.flac\" WAVE\n"
+                           "  TRACK 01 AUDIO\n"
+                           "    TITLE \"Track 1\"\n"
+                           "    INDEX 01 55:00:00\n"
+                           "  TRACK 02 AUDIO\n"
+                           "    TITLE \"Track 2\"\n"
+                           "    INDEX 01 05:00:00\n";
+
+  auto tracks = adapters::CueSheetParser::parseString(
+      cueContent, "/music/concert.flac", 7200000);
+  ASSERT_EQ(tracks.size(), 2u);
+  EXPECT_EQ(tracks[0].title, "Track 1");
+  EXPECT_EQ(tracks[0].startTimeMs, 55u * 60u * 1000u); // 3,300,000 ms
+  EXPECT_EQ(tracks[1].title, "Track 2");
+  // Track 2 rolled over 60 mins -> 60*60*1000 + 5*60*1000 = 3,900,000 ms
+  EXPECT_EQ(tracks[1].startTimeMs, (60u + 5u) * 60u * 1000u);
+  EXPECT_GT(tracks[1].startTimeMs, tracks[0].startTimeMs);
+  EXPECT_EQ(tracks[0].durationMs,
+            tracks[1].startTimeMs - tracks[0].startTimeMs);
+}
+
+TEST_F(MetadataArtTest, CueSheetParserCompanionResolution) {
+  fs::path albumDir = m_testDir / "cue_album";
+  fs::create_directories(albumDir);
+
+  fs::path companion = albumDir / "Tribute_Live.m4a";
+  std::vector<uint8_t> dummyData = {1, 2, 3, 4};
+  writeDummyFile(companion, dummyData);
+
+  fs::path cuePath = albumDir / "Tribute_Live.cue";
+  std::string cueContent = "FILE \"output_video.mp4\" WAVE\n"
+                           "  TRACK 01 AUDIO\n"
+                           "    TITLE \"Opening\"\n"
+                           "    INDEX 01 00:00:00\n";
+  std::ofstream ofs(cuePath);
+  ofs << cueContent;
+  ofs.close();
+
+  std::string resolved = adapters::CueSheetParser::resolveAudioFile(
+      cuePath.string(), "output_video.mp4");
+  EXPECT_EQ(resolved, companion.string());
+}
+
+TEST_F(MetadataArtTest, TagLibSupportsCueFormatAndExtractMultiple) {
+  adapters::TagLibMetadataAdapter adapter;
+  EXPECT_TRUE(adapter.supportsFormat(".cue"));
+  EXPECT_TRUE(adapter.supportsFormat("CUE"));
+  EXPECT_TRUE(adapter.supportsFormat(".CUE"));
+
+  fs::path albumDir = m_testDir / "cue_multi";
+  fs::create_directories(albumDir);
+  fs::path audioPath = albumDir / "album.flac";
+  std::vector<uint8_t> dummyAudio = {1, 2, 3, 4};
+  writeDummyFile(audioPath, dummyAudio);
+
+  fs::path cuePath = albumDir / "album.cue";
+  std::string cueContent = "PERFORMER \"Test Artist\"\n"
+                           "TITLE \"Test Album\"\n"
+                           "FILE \"album.flac\" WAVE\n"
+                           "  TRACK 01 AUDIO\n"
+                           "    TITLE \"Track 1\"\n"
+                           "    INDEX 01 00:00:00\n"
+                           "  TRACK 02 AUDIO\n"
+                           "    TITLE \"Track 2\"\n"
+                           "    INDEX 01 03:00:00\n";
+  std::ofstream ofs(cuePath);
+  ofs << cueContent;
+  ofs.close();
+
+  auto multi = adapter.extractMultiple(cuePath.string());
+  ASSERT_EQ(multi.size(), 2u);
+  EXPECT_TRUE(multi[0].isVirtualTrack);
+  EXPECT_TRUE(multi[1].isVirtualTrack);
+  EXPECT_EQ(multi[0].title, "Track 1");
+  EXPECT_EQ(multi[1].title, "Track 2");
+  EXPECT_EQ(multi[0].artist, "Test Artist");
+  EXPECT_EQ(multi[0].album, "Test Album");
+}
+
+TEST_F(MetadataArtTest, PlayerServiceVirtualTrackSeekAndPosition) {
+  auto mockAudio = std::make_shared<tests::MockAudioEnginePort>();
+  core::PlayerService player(mockAudio);
+
+  core::Track virtualTrack;
+  virtualTrack.id = "cue_trk_2";
+  virtualTrack.filePath = "/music/album.flac#cue:2";
+  virtualTrack.title = "Second Track";
+  virtualTrack.isVirtualTrack = true;
+  virtualTrack.startTimeMs = 60000; // 1:00
+  virtualTrack.endTimeMs = 240000;  // 4:00
+  virtualTrack.durationMs = 180000; // 3:00
+
+  player.play(virtualTrack);
+
+  // Audio engine should load file and seek to startTimeMs
+  EXPECT_EQ(mockAudio->m_loadedFilePath, virtualTrack.filePath);
+  EXPECT_EQ(mockAudio->m_positionMs, 60000u);
+  EXPECT_TRUE(player.isPlaying());
+
+  // Seeking to relative 30s within track should seek engine to 90s
+  player.seek(30000);
+  EXPECT_EQ(mockAudio->m_positionMs, 90000u);
+
+  // Position query when engine is at 75s (15s into track)
+  mockAudio->m_positionMs = 75000;
+  EXPECT_EQ(player.getPositionMs(), 15000u);
+
+  // Track duration should report virtual track duration (180s), not full
+  // container
+  EXPECT_EQ(player.getDurationMs(), 180000u);
 }

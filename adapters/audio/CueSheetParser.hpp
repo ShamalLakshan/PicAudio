@@ -42,6 +42,19 @@ public:
    * @return Milliseconds timestamp.
    */
   static uint64_t parseIndexTimestampMs(const std::string &timestamp);
+
+  /**
+   * @brief Resolves companion audio file from a CUE sheet path and referenced
+   * filename.
+   * @param cueFilePath Absolute path to the .cue sheet file.
+   * @param referencedFilename Filename specified in the CUE sheet's FILE
+   * command (if any).
+   * @return Absolute path to the companion audio file, or empty string if not
+   * found.
+   */
+  static std::string
+  resolveAudioFile(const std::string &cueFilePath,
+                   const std::string &referencedFilename = "");
 };
 
 } // namespace adapters

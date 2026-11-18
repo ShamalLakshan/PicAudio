@@ -18,6 +18,9 @@ void PlayerService::play(const Track &track) {
 
   if (m_audioEngine) {
     m_audioEngine->load(track.filePath);
+    if (track.isVirtualTrack && track.startTimeMs > 0) {
+      m_audioEngine->seek(track.startTimeMs);
+    }
     m_audioEngine->play();
   }
 
@@ -40,6 +43,9 @@ void PlayerService::playQueue(const std::vector<Track> &tracks,
 
   if (m_audioEngine) {
     m_audioEngine->load(m_currentTrack->filePath);
+    if (m_currentTrack->isVirtualTrack && m_currentTrack->startTimeMs > 0) {
+      m_audioEngine->seek(m_currentTrack->startTimeMs);
+    }
     m_audioEngine->play();
   }
 
@@ -65,8 +71,12 @@ void PlayerService::restoreSession(const std::optional<Track> &currentTrack,
   if (currentTrack.has_value()) {
     if (m_audioEngine) {
       m_audioEngine->load(currentTrack->filePath);
-      if (positionMs > 0) {
-        m_audioEngine->seek(positionMs);
+      uint64_t seekPos = positionMs;
+      if (currentTrack->isVirtualTrack) {
+        seekPos += currentTrack->startTimeMs;
+      }
+      if (seekPos > 0) {
+        m_audioEngine->seek(seekPos);
       }
       if (autoResume) {
         m_audioEngine->play();
@@ -142,6 +152,9 @@ void PlayerService::next() {
     m_state = PlaybackState::Playing;
     if (m_audioEngine) {
       m_audioEngine->load(m_currentTrack->filePath);
+      if (m_currentTrack->isVirtualTrack && m_currentTrack->startTimeMs > 0) {
+        m_audioEngine->seek(m_currentTrack->startTimeMs);
+      }
       m_audioEngine->play();
     }
     if (m_trackChangedCallback) {
@@ -162,6 +175,9 @@ void PlayerService::previous() {
     m_state = PlaybackState::Playing;
     if (m_audioEngine) {
       m_audioEngine->load(m_currentTrack->filePath);
+      if (m_currentTrack->isVirtualTrack && m_currentTrack->startTimeMs > 0) {
+        m_audioEngine->seek(m_currentTrack->startTimeMs);
+      }
       m_audioEngine->play();
     }
     if (m_trackChangedCallback) {
@@ -175,7 +191,11 @@ void PlayerService::previous() {
 
 void PlayerService::seek(uint64_t positionMs) {
   if (m_audioEngine) {
-    m_audioEngine->seek(positionMs);
+    uint64_t targetPos = positionMs;
+    if (m_currentTrack.has_value() && m_currentTrack->isVirtualTrack) {
+      targetPos += m_currentTrack->startTimeMs;
+    }
+    m_audioEngine->seek(targetPos);
   }
 }
 
@@ -226,12 +246,23 @@ void PlayerService::setShuffleMode(ShuffleMode mode) {
 
 uint64_t PlayerService::getPositionMs() const {
   if (m_audioEngine) {
-    return m_audioEngine->getPositionMs();
+    uint64_t rawPos = m_audioEngine->getPositionMs();
+    if (m_currentTrack.has_value() && m_currentTrack->isVirtualTrack) {
+      if (rawPos >= m_currentTrack->startTimeMs) {
+        return rawPos - m_currentTrack->startTimeMs;
+      }
+      return 0;
+    }
+    return rawPos;
   }
   return 0;
 }
 
 uint64_t PlayerService::getDurationMs() const {
+  if (m_currentTrack.has_value() && m_currentTrack->isVirtualTrack &&
+      m_currentTrack->durationMs > 0) {
+    return m_currentTrack->durationMs;
+  }
   if (m_audioEngine) {
     return m_audioEngine->getDurationMs();
   }

@@ -164,6 +164,10 @@ class QtBridge : public QObject {
   Q_PROPERTY(QStringList genresList READ genresList NOTIFY libraryStatsChanged)
   Q_PROPERTY(
       QStringList artistsList READ artistsList NOTIFY libraryStatsChanged)
+  Q_PROPERTY(int totalUntaggedTracks READ totalUntaggedTracks NOTIFY
+                 libraryStatsChanged)
+  Q_PROPERTY(
+      bool hasUntaggedTracks READ hasUntaggedTracks NOTIFY libraryStatsChanged)
 
   // Scanning State
   Q_PROPERTY(bool isScanning READ isScanning NOTIFY scanningChanged)
@@ -482,6 +486,12 @@ public:
   [[nodiscard]] QString totalLibrarySizeStr() const;
   [[nodiscard]] QStringList genresList() const { return m_genresList; }
   [[nodiscard]] QStringList artistsList() const { return m_artistsList; }
+  [[nodiscard]] int totalUntaggedTracks() const {
+    return m_totalUntaggedTracks;
+  }
+  [[nodiscard]] bool hasUntaggedTracks() const {
+    return m_totalUntaggedTracks > 0;
+  }
 
   [[nodiscard]] bool isScanning() const { return m_isScanning; }
   [[nodiscard]] QString scanStatusText() const { return m_scanStatusText; }
@@ -695,6 +705,9 @@ public:
                                const QString &albumArtist) {
     openAlbumDetails(albumTitle, albumArtist);
   }
+  Q_INVOKABLE void openUntaggedTracks();
+  Q_INVOKABLE void playUntaggedTracks();
+  Q_INVOKABLE void queueUntaggedTracks();
   Q_INVOKABLE void playAlbum(const QString &albumTitle,
                              const QString &albumArtist);
   Q_INVOKABLE void playTrack(const QString &trackId);
@@ -1451,6 +1464,7 @@ private:
   // Filter lists
   QStringList m_genresList;
   QStringList m_artistsList;
+  int m_totalUntaggedTracks{0};
   std::unordered_map<std::string, int> m_artistTrackCounts;
   std::unordered_map<std::string, int> m_artistAlbumCounts;
 
