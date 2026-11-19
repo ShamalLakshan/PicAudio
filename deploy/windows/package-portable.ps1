@@ -19,10 +19,24 @@ $BuildPath = Join-Path $RepoRoot $BuildDir
 $OutputPath = Join-Path $RepoRoot $OutputDir
 $StagePath = Join-Path $BuildPath "portable-stage"
 
-Write-Host "=== PicAudio Windows Portable Packager ===" -ForegroundColor Cyan
+# Extract project version from CMakeLists.txt or environment
+$Version = "0.1.0"
+$CMakeListsPath = Join-Path $RepoRoot "CMakeLists.txt"
+if (Test-Path $CMakeListsPath) {
+    $CMakeContent = Get-Content $CMakeListsPath -Raw
+    if ($CMakeContent -match 'project\(PicAudio VERSION\s+([0-9.]+)') {
+        $Version = $Matches[1]
+    }
+}
+if ($env:PICAUDIO_VERSION) {
+    $Version = $env:PICAUDIO_VERSION
+}
+
+Write-Host "=== PicAudio Windows Portable & Setup Packager ===" -ForegroundColor Cyan
 Write-Host "Repo Root: $RepoRoot"
 Write-Host "Build Dir: $BuildPath"
 Write-Host "Architecture: $Arch"
+Write-Host "Version: $Version"
 
 # Check executable across common CMake generator layouts
 $CandidatePaths = @(
@@ -111,7 +125,7 @@ if (-not (Get-Command windeployqt -ErrorAction SilentlyContinue)) {
         $WindeployqtCmd = Join-Path $env:Qt6_DIR "bin\windeployqt.exe"
     }
 }
-& $WindeployqtCmd --release --qmldir $QmlDir --compiler-runtime --no-translations (Join-Path $StagePath "PicAudio.exe")
+& $WindeployqtCmd --release --qmldir $QmlDir --compiler-runtime --no-translations --include-plugins qsqlite (Join-Path $StagePath "PicAudio.exe")
 
 # 3. Copy themes
 Write-Host "--> Bundling themes..."
@@ -135,18 +149,43 @@ if (Test-Path "$PSScriptRoot\PicAudio.ico") {
     Copy-Item "$PSScriptRoot\PicAudio.ico" -Destination $StagePath -Force
 }
 
-# 6. Create ZIP archive
-$ZipFile = Join-Path $OutputPath "PicAudio-windows-$Arch-portable.zip"
-if (Test-Path $ZipFile) {
-    Remove-Item -Force $ZipFile
+# 6. Create versioned and standard portable ZIP archives
+$VersionedZip = Join-Path $OutputPath "PicAudio-$Version-windows-$Arch-portable.zip"
+$StandardZip = Join-Path $OutputPath "PicAudio-windows-$Arch-portable.zip"
+
+Write-Host "--> Compressing to $VersionedZip..."
+Compress-Archive -Path "$StagePath\*" -DestinationPath $VersionedZip -Force
+Copy-Item -Path $VersionedZip -Destination $StandardZip -Force
+
+Write-Host "=== Windows Portable ZIP created successfully! ===" -ForegroundColor Green
+Write-Host "Versioned File: $VersionedZip"
+Write-Host "Standard File:  $StandardZip"
+
+# 7. Build NSIS Setup Installer if makensis is available
+$MakensisCmd = $null
+if (Get-Command makensis -ErrorAction SilentlyContinue) {
+    $MakensisCmd = "makensis"
+} elseif (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
+    $MakensisCmd = "C:\Program Files (x86)\NSIS\makensis.exe"
+} elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") {
+    $MakensisCmd = "C:\Program Files\NSIS\makensis.exe"
 }
 
-Write-Host "--> Compressing to $ZipFile..."
-Compress-Archive -Path "$StagePath\*" -DestinationPath $ZipFile -Force
-Write-Host "=== Windows Portable ZIP created successfully! ===" -ForegroundColor Green
-Write-Host "File: $ZipFile"
+if ($MakensisCmd -and (Test-Path "$PSScriptRoot\installer.nsi")) {
+    $VersionedSetup = Join-Path $OutputPath "PicAudio-$Version-windows-$Arch-setup.exe"
+    $StandardSetup = Join-Path $OutputPath "PicAudio-windows-$Arch-setup.exe"
+    Write-Host "--> Building NSIS Setup Installer: $VersionedSetup..."
 
-# 7. Create self-extracting portable EXE if 7-Zip is available
+    & $MakensisCmd "/DVERSION=$Version" "/DARCH=$Arch" "/DINPUTDIR=$StagePath" "/DOUTPUTFILE=$VersionedSetup" "$PSScriptRoot\installer.nsi"
+    if (Test-Path $VersionedSetup) {
+        Copy-Item -Path $VersionedSetup -Destination $StandardSetup -Force
+        Write-Host "=== Windows Setup Installer created successfully! ===" -ForegroundColor Green
+        Write-Host "Versioned Setup: $VersionedSetup"
+        Write-Host "Standard Setup:  $StandardSetup"
+    }
+}
+
+# 8. Create self-extracting portable EXE if 7-Zip is available
 $7z = $null
 if (Get-Command 7z -ErrorAction SilentlyContinue) {
     $7z = "7z"
@@ -155,14 +194,16 @@ if (Get-Command 7z -ErrorAction SilentlyContinue) {
 }
 
 if ($7z) {
-    $ExeArchive = Join-Path $OutputPath "PicAudio-windows-$Arch-portable.exe"
-    if (Test-Path $ExeArchive) {
-        Remove-Item -Force $ExeArchive
-    }
+    $ExeArchive = Join-Path $OutputPath "PicAudio-$Version-windows-$Arch-portable.exe"
     Write-Host "--> Creating self-extracting portable EXE: $ExeArchive..."
     & $7z a -sfx -r "$ExeArchive" "$StagePath\*"
-    if (Test-Path $ExeArchive) {
-        Write-Host "=== Windows Portable SFX EXE created successfully! ===" -ForegroundColor Green
-        Write-Host "File: $ExeArchive"
-    }
 }
+
+# 9. Generate SHA256 checksums for all release packages in OutputPath
+Write-Host "--> Generating SHA256 checksums..."
+Get-ChildItem -Path $OutputPath -Include "PicAudio*.zip", "PicAudio*.exe" -File | ForEach-Object {
+    $Hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+    $ShaFile = "$($_.FullName).sha256"
+    "$Hash  $($_.Name)" | Set-Content -Path $ShaFile -Encoding ASCII
+}
+Write-Host "All Windows artifacts generated in $OutputPath"
