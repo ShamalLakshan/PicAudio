@@ -6,7 +6,7 @@ on:
 jobs:
   linux-appimage:
     name: Linux AppImage (x86_64)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     env:
       APPIMAGE_EXTRACT_AND_RUN: 1
@@ -31,7 +31,6 @@ jobs:
             libegl1-mesa-dev \
             libxkbcommon-dev \
             libvulkan-dev \
-            libfuse2 \
             patchelf \
             ffmpeg \
             libavcodec-dev \
@@ -60,6 +59,7 @@ jobs:
             file \
             curl \
             zlib1g-dev
+          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2 || true
 
       - name: Compile and install GoogleTest
         run: |

@@ -177,3 +177,29 @@ private:
 } // namespace PicAudioEngine
 
 #endif // __cpp_lib_atomic_shared_ptr
+
+#if __has_include(<QtGlobal>)
+#include <QtGlobal>
+#if defined(QT_CORE_LIB) && (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
+#include <QString>
+#include <QLatin1StringView>
+#include <QLatin1Char>
+#include <QByteArray>
+#include <cstddef>
+namespace Qt::StringLiterals {
+inline QString operator""_s(const char16_t *str, std::size_t size) noexcept {
+    return QString(reinterpret_cast<const QChar *>(str), static_cast<qsizetype>(size));
+}
+inline QLatin1StringView operator""_L1(const char *str, std::size_t size) noexcept {
+    return QLatin1StringView(str, static_cast<qsizetype>(size));
+}
+inline QLatin1Char operator""_L1(char ch) noexcept {
+    return QLatin1Char(ch);
+}
+inline QByteArray operator""_ba(const char *str, std::size_t size) noexcept {
+    return QByteArray(str, static_cast<qsizetype>(size));
+}
+} // namespace Qt::StringLiterals
+#endif
+#endif
+

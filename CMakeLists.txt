@@ -11,6 +11,12 @@ set(CMAKE_AUTOUIC ON)
 
 include(CTest)
 option(BUILD_TESTING "Build unit tests" ON)
+option(BUILD_STANDALONE_SDK_ONLY "Configure only the SDK targets" OFF)
+
+if(BUILD_STANDALONE_SDK_ONLY)
+    add_subdirectory(sdk)
+    return()
+endif()
 
 add_subdirectory(sdk)
 add_subdirectory(core)
