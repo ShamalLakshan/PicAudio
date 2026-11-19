@@ -56,6 +56,9 @@ if(PkgConfig_FOUND)
     pkg_check_modules(PIPEWIRE QUIET libpipewire-0.3)
 endif()
 
+# LibArchive for plugin bundles
+find_package(LibArchive REQUIRED)
+
 if(ALSA_FOUND)
     add_compile_definitions(PICAUDIO_ENABLE_ALSA)
 endif()
@@ -164,6 +167,8 @@ qt_add_library(ui_adapter STATIC
     desktop/GlobalMediaKeysHook.cpp
     desktop/DesktopIntegrationManager.hpp
     desktop/DesktopIntegrationManager.cpp
+    plugin/PluginInstaller.hpp
+    plugin/PluginInstaller.cpp
     plugin/PluginManager.hpp
     plugin/PluginManager.cpp
     ${CMAKE_SOURCE_DIR}/themes/themes.qrc
@@ -213,6 +218,7 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/dialogs/OpenUrlDialog.qml
         ui_qt/qml/dialogs/ShortcutsDialog.qml
         ui_qt/qml/dialogs/DiagnosticsDialog.qml
+        ui_qt/qml/dialogs/VisualizerDialog.qml
         ui_qt/qml/dialogs/ChannelMatrixDialog.qml
         ui_qt/qml/dialogs/AboutDialog.qml
         ui_qt/qml/dialogs/SleepTimerDialog.qml
@@ -265,6 +271,7 @@ target_link_libraries(ui_adapter PUBLIC
     $<$<BOOL:${PIPEWIRE_FOUND}>:${PIPEWIRE_LIBRARIES}>
     ${SQLITE_LIBRARIES}
     ${TAGLIB_LIBRARIES}
+    LibArchive::LibArchive
     ${CMAKE_DL_LIBS}
 )
 

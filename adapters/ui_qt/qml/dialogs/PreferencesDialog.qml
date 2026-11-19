@@ -17,6 +17,7 @@ Dialog {
     property int activeCategory: 1 // default to Themes & Appearance
     property var discoveredPluginsList: []
     property var selectedPluginDetail: null
+    property var pluginToRemove: null
     signal requestLibraryHealth()
 
     function refreshPlugins() {
@@ -169,6 +170,57 @@ Dialog {
         nameFilters: ["JSON Theme files (*.json)"]
         onAccepted: {
             bridge.theme.installTheme(selectedFile.toString());
+        }
+    }
+
+    FileDialog {
+        id: pluginBundleFileDialog
+        title: "Select Plugin Bundle (.paplugin, .zip)"
+        nameFilters: ["PicAudio Plugin Bundles (*.paplugin *.zip)", "All Files (*)"]
+        onAccepted: {
+            bridge.installPlugin(selectedFile.toString());
+            root.refreshPlugins();
+        }
+    }
+
+    Dialog {
+        id: pluginRemoveConfirmDialog
+        title: "Remove Plugin"
+        modal: true
+        standardButtons: Dialog.Yes | Dialog.No
+        x: Math.round(((Overlay.overlay ? Overlay.overlay.width : 800) - width) / 2)
+        y: Math.round(((Overlay.overlay ? Overlay.overlay.height : 600) - height) / 2)
+        width: 440
+        background: Rectangle {
+            color: Theme.surface
+            border.color: Theme.panelBorder
+            border.width: 1
+            radius: Theme.cornerRadiusMedium
+        }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: "Are you sure you want to remove the plugin \"" + (root.pluginToRemove ? root.pluginToRemove.name : "") + "\"?"
+                color: Theme.textPrimary
+                font.bold: true
+                font.pixelSize: Theme.fontSizeBase
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+            Text {
+                text: "This will remove the plugin files from disk. If the files are locked by the operating system, removal will complete on next application start."
+                color: Theme.textMuted
+                font.pixelSize: Theme.fontSizeSmall
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+        }
+        onAccepted: {
+            if (root.pluginToRemove) {
+                bridge.removePlugin(root.pluginToRemove.id);
+                root.pluginToRemove = null;
+                root.refreshPlugins();
+            }
         }
     }
 
@@ -425,6 +477,30 @@ Dialog {
                     font.pixelSize: Theme.fontSizeSmall
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
+                }
+            }
+
+            RowLayout {
+                visible: root.selectedPluginDetail && root.selectedPluginDetail.capabilities && root.selectedPluginDetail.capabilities.indexOf("visualizer") >= 0
+                Layout.alignment: Qt.AlignRight
+                spacing: 8
+
+                StyledButton {
+                    text: "Open Visualizer View"
+                    enabled: root.selectedPluginDetail && root.selectedPluginDetail.enabled
+                    onClicked: {
+                        pluginConfigDialog.close();
+                        root.close();
+                        bridge.openVisualizerView();
+                    }
+                }
+
+                StyledButton {
+                    text: "Visualizer Window..."
+                    enabled: root.selectedPluginDetail && root.selectedPluginDetail.enabled
+                    onClicked: {
+                        bridge.openVisualizerWindow();
+                    }
                 }
             }
 
@@ -3772,50 +3848,115 @@ Dialog {
             }
 
             // Plugins & Extensions (Issue #33)
-            ScrollView {
-                id: pluginsScrollView
+            Item {
+                id: pluginsContainer
                 anchors.fill: parent
                 anchors.margins: 24
                 visible: activeCategory === 9
-                clip: true
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                contentWidth: availableWidth
 
-                ColumnLayout {
-                    width: pluginsScrollView.availableWidth
-                    spacing: 16
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 4
-                            Text {
-                                text: "Plugins & Extensions (PicAudio SDK)"
-                                font.pixelSize: Theme.fontSizeLarge
-                                font.bold: true
-                                color: Theme.textPrimary
-                            }
-                            Text {
-                                text: "Public C-ABI dynamic extensions for spectrum visualization, lyrics, scrobbling, and DSP effects."
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.textMuted
-                            }
-                        }
-
-                        StyledButton {
-                            text: "Open Plugins Directory"
-                            onClicked: bridge.openPluginsDirectory()
-                        }
-
-                        StyledButton {
-                            text: "Rescan Plugins"
-                            onClicked: bridge.scanPlugins()
+                DropArea {
+                    id: pluginDropArea
+                    anchors.fill: parent
+                    enabled: activeCategory === 9
+                    onEntered: (drag) => {
+                        if (drag.hasUrls) {
+                            drag.acceptProposedAction();
                         }
                     }
+                    onDropped: (drop) => {
+                        if (drop.hasUrls && drop.urls.length > 0) {
+                            for (var i = 0; i < drop.urls.length; ++i) {
+                                var rawUrl = drop.urls[i].toString();
+                                var lower = rawUrl.toLowerCase();
+                                if (lower.endsWith(".paplugin") || lower.endsWith(".zip")) {
+                                    bridge.installPlugin(rawUrl);
+                                }
+                            }
+                            root.refreshPlugins();
+                            drop.acceptProposedAction();
+                        }
+                    }
+                }
 
-                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
+                Rectangle {
+                    anchors.fill: parent
+                    visible: pluginDropArea.containsDrag
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.15)
+                    border.color: Theme.accent
+                    border.width: 2
+                    radius: Theme.cornerRadiusMedium
+                    z: 99
+
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: 12
+                        VectorIcon {
+                            name: "folder"
+                            width: 48
+                            height: 48
+                            color: Theme.accent
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                        Text {
+                            text: "Drop plugin bundle (.paplugin or .zip) to install"
+                            font.bold: true
+                            font.pixelSize: Theme.fontSizeLarge
+                            color: Theme.textPrimary
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                    }
+                }
+
+                ScrollView {
+                    id: pluginsScrollView
+                    anchors.fill: parent
+                    clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                    contentWidth: availableWidth
+
+                    ColumnLayout {
+                        width: pluginsScrollView.availableWidth
+                        spacing: 16
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Text {
+                                    text: "Plugins & Extensions (PicAudio SDK)"
+                                    font.pixelSize: Theme.fontSizeLarge
+                                    font.bold: true
+                                    color: Theme.textPrimary
+                                }
+                                Text {
+                                    text: "Public C-ABI dynamic extensions for spectrum visualization, lyrics, scrobbling, and DSP effects."
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.textMuted
+                                }
+                            }
+
+                            StyledButton {
+                                text: "Install Plugin..."
+                                onClicked: pluginBundleFileDialog.open()
+                            }
+
+                            StyledButton {
+                                text: "Open Plugins Directory"
+                                onClicked: bridge.openPluginsDirectory()
+                            }
+
+                            StyledButton {
+                                text: "Rescan Plugins"
+                                onClicked: {
+                                    bridge.scanPlugins();
+                                    root.refreshPlugins();
+                                }
+                            }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.panelBorder }
 
                     // Empty state placeholder
                     Rectangle {
@@ -3917,6 +4058,14 @@ Dialog {
                                     Item { Layout.fillWidth: true }
 
                                     Badge {
+                                        visible: modelData.isPendingRemoval
+                                        text: "Pending Removal"
+                                        badgeColor: "#3d2e14"
+                                        textColor: "#ffb84d"
+                                        badgeBorderColor: "#ff9900"
+                                    }
+
+                                    Badge {
                                         visible: !modelData.isCompatible
                                         text: "Incompatible API"
                                         badgeColor: "#3d1414"
@@ -3927,6 +4076,7 @@ Dialog {
                                     StyledCheckBox {
                                         text: modelData.enabled ? "Enabled" : "Disabled"
                                         checked: modelData.enabled
+                                        enabled: !modelData.isPendingRemoval
                                         onToggled: bridge.setPluginEnabled(modelData.id, checked)
                                     }
                                 }
@@ -3962,6 +4112,7 @@ Dialog {
                                         delegate: StyledButton {
                                             required property var modelData
                                             text: modelData.label
+                                            enabled: !pluginCard.modelData.isPendingRemoval
                                             ToolTip.visible: (hovered || activeFocus) && modelData.tooltip && modelData.tooltip.length > 0
                                             ToolTip.text: modelData.tooltip ? modelData.tooltip : ""
                                             onClicked: bridge.triggerPluginAction(pluginCard.modelData.id, modelData.id)
@@ -3969,10 +4120,42 @@ Dialog {
                                     }
 
                                     StyledButton {
+                                        visible: modelData.capabilities && modelData.capabilities.indexOf("visualizer") >= 0
+                                        text: "Open Visualizer View"
+                                        enabled: modelData.enabled && !modelData.isPendingRemoval
+                                        ToolTip.visible: hovered || activeFocus
+                                        ToolTip.text: "Navigate to Now Playing visualizer stage for " + modelData.name
+                                        onClicked: {
+                                            root.close();
+                                            bridge.openVisualizerView();
+                                        }
+                                    }
+
+                                    StyledButton {
+                                        visible: modelData.capabilities && modelData.capabilities.indexOf("visualizer") >= 0
+                                        text: "Visualizer Window..."
+                                        enabled: modelData.enabled && !modelData.isPendingRemoval
+                                        ToolTip.visible: hovered || activeFocus
+                                        ToolTip.text: "Open floating visualizer window for " + modelData.name
+                                        onClicked: {
+                                            bridge.openVisualizerWindow();
+                                        }
+                                    }
+
+                                    StyledButton {
+                                        text: "Remove"
+                                        enabled: !modelData.isPendingRemoval
+                                        onClicked: {
+                                            root.pluginToRemove = modelData;
+                                            pluginRemoveConfirmDialog.open();
+                                        }
+                                    }
+
+                                    StyledButton {
                                         text: "Configure..."
                                         onClicked: {
-                                            root.selectedPluginDetail = modelData
-                                            pluginConfigDialog.open()
+                                            root.selectedPluginDetail = modelData;
+                                            pluginConfigDialog.open();
                                         }
                                     }
                                 }
@@ -3981,6 +4164,7 @@ Dialog {
                     }
                 }
             }
+        }
         }
     }
 

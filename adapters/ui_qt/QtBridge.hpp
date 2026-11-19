@@ -112,6 +112,12 @@ class QtBridge : public QObject {
                  visualizerDataChanged)
   Q_PROPERTY(
       float visualizerLevel READ visualizerLevel NOTIFY visualizerDataChanged)
+  Q_PROPERTY(int visualizerStyle READ visualizerStyle WRITE setVisualizerStyle
+                 NOTIFY visualizerStyleChanged)
+  Q_PROPERTY(QString activeVisualizerName READ activeVisualizerName NOTIFY
+                 pluginsChanged)
+  Q_PROPERTY(bool hasActiveVisualizerPlugin READ hasActiveVisualizerPlugin
+                 NOTIFY pluginsChanged)
 
   // Queue & Playback Modes
   Q_PROPERTY(int repeatMode READ repeatMode WRITE setRepeatMode NOTIFY
@@ -472,6 +478,12 @@ public:
     return m_visualizerWaveform;
   }
   [[nodiscard]] float visualizerLevel() const { return m_visualizerLevel; }
+  [[nodiscard]] int visualizerStyle() const;
+  void setVisualizerStyle(int style);
+  [[nodiscard]] QString activeVisualizerName() const;
+  [[nodiscard]] bool hasActiveVisualizerPlugin() const;
+  Q_INVOKABLE void openVisualizerView();
+  Q_INVOKABLE void openVisualizerWindow();
 
   [[nodiscard]] int repeatMode() const;
   [[nodiscard]] int shuffleMode() const;
@@ -1255,6 +1267,11 @@ public:
   Q_INVOKABLE bool setPluginEnabled(const QString &pluginId, bool enabled);
   Q_INVOKABLE void openPluginsDirectory();
   Q_INVOKABLE void scanPlugins();
+  Q_INVOKABLE bool installPlugin(const QString &filePath);
+  Q_INVOKABLE bool removePlugin(const QString &pluginId);
+  [[nodiscard]] Q_INVOKABLE bool
+  isPluginPendingRemoval(const QString &pluginId) const;
+  [[nodiscard]] Q_INVOKABLE QStringList getPendingRemovalPlugins() const;
   [[nodiscard]] Q_INVOKABLE QVariantMap
   getPluginDetails(const QString &pluginId) const;
   Q_INVOKABLE bool triggerPluginAction(const QString &pluginId,
@@ -1345,6 +1362,7 @@ signals:
   void channelMatrixChanged();
   void channelLevelsChanged();
   void openChannelMatrixRequested();
+  void openVisualizerWindowRequested();
   void undoRedoChanged();
   void playbackRateChanged();
   void loopPointsChanged();
@@ -1361,6 +1379,7 @@ signals:
   void lyricsChanged();
   void activeLyricIndexChanged();
   void visualizerDataChanged();
+  void visualizerStyleChanged();
   void toastRequested(const QString &message, const QString &type);
   void pluginsChanged();
   void eqEnabledChanged();

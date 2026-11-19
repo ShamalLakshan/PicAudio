@@ -94,6 +94,13 @@ ApplicationWindow {
             root.selectedArtistFilter = "All";
             topToolbar.clearSearch();
         }
+        function onOpenVisualizerWindowRequested() {
+            if (visualizerDialogInstance.visible) {
+                visualizerDialogInstance.close();
+            } else {
+                visualizerDialogInstance.open();
+            }
+        }
     }
 
     onClosing: (close) => {
@@ -253,6 +260,10 @@ ApplicationWindow {
 
     FloatingWindow {
         id: floatingWindowInstance
+    }
+
+    VisualizerDialog {
+        id: visualizerDialogInstance
     }
 
     AboutDialog {
@@ -736,6 +747,16 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+-"; onActivated: zoomOut() }
     Shortcut { sequence: "Ctrl+0"; onActivated: zoomReset() }
     Shortcut { sequence: "Ctrl+Shift+E"; onActivated: showEqualizer = !showEqualizer }
+    Shortcut {
+        sequence: "Ctrl+Shift+V"
+        onActivated: {
+            if (visualizerDialogInstance.visible) {
+                visualizerDialogInstance.close();
+            } else {
+                visualizerDialogInstance.open();
+            }
+        }
+    }
     Shortcut { sequence: "F1"; onActivated: Qt.openUrlExternally("https://github.com/ShamalLakshan/PicAudio") }
     Shortcut { sequence: "Ctrl+/"; onActivated: shortcutsDialog.open() }
     Shortcut { sequence: "Ctrl+?"; onActivated: shortcutsDialog.open() }
@@ -858,6 +879,13 @@ ApplicationWindow {
                     }
                     onRequestLibraryHealth: libraryHealthDialog.open()
                     onRequestArrangePanels: arrangePanelsDialogInstance.open()
+                    onRequestVisualizerDialog: {
+                        if (visualizerDialogInstance.visible) {
+                            visualizerDialogInstance.close();
+                        } else {
+                            visualizerDialogInstance.open();
+                        }
+                    }
                     onRequestImportPlaylist: importPlaylistDialog.open()
                     onRequestSleepTimer: sleepTimerDialog.open()
                     onRequestShortcuts: shortcutsDialog.open()
@@ -1152,6 +1180,13 @@ ApplicationWindow {
             onRequestVolumeContextMenu: volumeContextMenu.popup()
             onRequestSleepTimer: sleepTimerDialog.open()
             onRequestDiagnostics: diagnosticsDialog.open()
+            onRequestVisualizer: {
+                if (visualizerDialogInstance.visible) {
+                    visualizerDialogInstance.close();
+                } else {
+                    visualizerDialogInstance.open();
+                }
+            }
         }
 
         // Status bar

@@ -554,6 +554,56 @@ void QtBridge::updateVisualizerData() {
   emit channelLevelsChanged();
 }
 
+int QtBridge::visualizerStyle() const {
+  QSettings s(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
+  return s.value(QStringLiteral("visualizer/style"), 1).toInt();
+}
+
+void QtBridge::setVisualizerStyle(int style) {
+  if (style != visualizerStyle()) {
+    QSettings s(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
+    s.setValue(QStringLiteral("visualizer/style"), style);
+    emit visualizerStyleChanged();
+  }
+}
+
+QString QtBridge::activeVisualizerName() const {
+  if (m_pluginManager) {
+    const auto plugins = m_pluginManager->getDiscoveredPlugins();
+    for (const auto &p : plugins) {
+      if (p.loaded && p.enabled &&
+          p.capabilities.contains(QStringLiteral("visualizer"))) {
+        return p.name;
+      }
+    }
+  }
+  return QStringLiteral("Internal Spectrum");
+}
+
+bool QtBridge::hasActiveVisualizerPlugin() const {
+  if (m_pluginManager) {
+    const auto plugins = m_pluginManager->getDiscoveredPlugins();
+    for (const auto &p : plugins) {
+      if (p.loaded && p.enabled &&
+          p.capabilities.contains(QStringLiteral("visualizer"))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void QtBridge::openVisualizerView() {
+  setVisualizerStyle(1);
+  if (m_tabModel) {
+    m_tabModel->updateActiveView(QStringLiteral("now_playing_default"));
+  }
+  showToast(tr("Switched to Visualizer view (%1)").arg(activeVisualizerName()),
+            QStringLiteral("info"));
+}
+
+void QtBridge::openVisualizerWindow() { emit openVisualizerWindowRequested(); }
+
 QString QtBridge::formatTime(qint64 ms) {
   if (ms < 0)
     return "00:00";
@@ -5815,7 +5865,7 @@ void QtBridge::setPluginManager(adapters::PluginManager *manager) {
   m_pluginManager = manager;
   if (m_pluginManager) {
     connect(m_pluginManager, &adapters::PluginManager::pluginsChanged, this,
-            &QtBridge::pluginsChanged);
+            &QtBridge::pluginsChanged, Qt::QueuedConnection);
   }
 }
 
@@ -5840,6 +5890,7 @@ QVariantList QtBridge::getDiscoveredPlugins() const {
     map[QStringLiteral("libraryPath")] = p.libraryPath;
     map[QStringLiteral("enabled")] = p.enabled;
     map[QStringLiteral("loaded")] = p.loaded;
+    map[QStringLiteral("isPendingRemoval")] = p.isPendingRemoval;
     map[QStringLiteral("loadError")] = p.loadError;
     map[QStringLiteral("isCompatible")] =
         p.loadError.isEmpty() ||
@@ -5889,6 +5940,69 @@ void QtBridge::scanPlugins() {
     emit pluginsChanged();
     showToast(tr("Rescanned plugins directory"), QStringLiteral("success"));
   }
+}
+
+bool QtBridge::installPlugin(const QString &filePath) {
+  if (!m_pluginManager) {
+    showToast(tr("Plugin manager is not initialized."),
+              QStringLiteral("error"));
+    return false;
+  }
+
+  QString cleanPath = filePath.trimmed();
+  const QUrl url(cleanPath);
+  if (url.isValid() &&
+      (url.isLocalFile() || cleanPath.startsWith(QLatin1String("file:")))) {
+    cleanPath = url.toLocalFile();
+  }
+
+  adapters::PluginInstallResult result;
+  const bool ok = m_pluginManager->installPluginBundle(cleanPath, result);
+  emit pluginsChanged();
+
+  if (ok) {
+    showToast(
+        result.message.isEmpty()
+            ? tr("Plugin '%1' installed successfully.").arg(result.pluginName)
+            : result.message,
+        QStringLiteral("success"));
+  } else {
+    showToast(result.message.isEmpty() ? tr("Failed to install plugin bundle.")
+                                       : result.message,
+              QStringLiteral("error"));
+  }
+  return ok;
+}
+
+bool QtBridge::removePlugin(const QString &pluginId) {
+  if (!m_pluginManager) {
+    return false;
+  }
+  QString err;
+  const bool ok = m_pluginManager->removePlugin(pluginId, err);
+  emit pluginsChanged();
+  if (ok) {
+    if (err.isEmpty()) {
+      showToast(tr("Plugin '%1' removed successfully.").arg(pluginId),
+                QStringLiteral("info"));
+    } else {
+      showToast(err, QStringLiteral("warning"));
+    }
+  } else {
+    showToast(err.isEmpty() ? tr("Failed to remove plugin '%1'.").arg(pluginId)
+                            : err,
+              QStringLiteral("error"));
+  }
+  return ok;
+}
+
+bool QtBridge::isPluginPendingRemoval(const QString &pluginId) const {
+  return m_pluginManager && m_pluginManager->isPluginPendingRemoval(pluginId);
+}
+
+QStringList QtBridge::getPendingRemovalPlugins() const {
+  return m_pluginManager ? m_pluginManager->getPendingRemovals()
+                         : QStringList{};
 }
 
 QVariantMap QtBridge::getPluginDetails(const QString &pluginId) const {

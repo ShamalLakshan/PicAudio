@@ -9,6 +9,7 @@ Rectangle {
     signal requestSwitchToNowPlaying()
     signal requestToggleFullscreen()
     signal requestToggleEqualizer()
+    signal requestVisualizer()
     signal requestSeekBarContextMenu()
     signal requestCodecContextMenu()
     signal requestVolumeContextMenu()
@@ -27,6 +28,35 @@ Rectangle {
         anchors.rightMargin: 16
 
         // Context Menus for Bottom Bar Controls
+        Menu {
+            id: vizContextMenu
+            title: "Audio Visualizer"
+            MenuItem {
+                text: "Open Floating Visualizer Window..."
+                onTriggered: root.requestVisualizer()
+            }
+            MenuItem {
+                text: "Switch to Now Playing Stage"
+                onTriggered: {
+                    bridge.openVisualizerView();
+                    root.requestSwitchToNowPlaying();
+                }
+            }
+            MenuSeparator {}
+            MenuItem {
+                text: "Bars / Spectrum Mode"
+                checkable: true
+                checked: bridge.visualizerStyle === 1
+                onTriggered: bridge.setVisualizerStyle(1)
+            }
+            MenuItem {
+                text: "Fluid Waveform Mode"
+                checkable: true
+                checked: bridge.visualizerStyle === 0
+                onTriggered: bridge.setVisualizerStyle(0)
+            }
+        }
+
         Menu {
             id: shuffleMenu
             title: "Shuffle Mode"
@@ -1354,6 +1384,51 @@ Rectangle {
                 Layout.rightMargin: 2
                 Layout.alignment: Qt.AlignVCenter
                 color: Theme.panelBorder
+            }
+
+            // Audio Visualizer Toggle Button
+            Rectangle {
+                id: vizBtn
+                Layout.preferredWidth: 26
+                Layout.preferredHeight: 24
+                Layout.minimumWidth: 26
+                Layout.alignment: Qt.AlignVCenter
+                width: 26
+                height: 24
+                radius: Theme.cornerRadiusSmall
+                color: vizMouse.containsMouse ? Theme.surfaceElevated : "transparent"
+                border.color: vizBtn.activeFocus ? Theme.accent : "transparent"
+                border.width: vizBtn.activeFocus ? 2 : 0
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: "Audio Visualizer"
+
+                VectorIcon {
+                    anchors.centerIn: parent
+                    name: "wave"
+                    width: 14
+                    height: 14
+                    color: (vizMouse.containsMouse || vizBtn.activeFocus) ? Theme.accent : Theme.textSecondary
+                }
+
+                MouseArea {
+                    id: vizMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: (mouse) => {
+                        vizBtn.forceActiveFocus();
+                        if (mouse.button === Qt.RightButton) {
+                            vizContextMenu.popup();
+                        } else {
+                            root.requestVisualizer();
+                        }
+                    }
+                }
+
+                ToolTip.visible: vizMouse.containsMouse || vizBtn.activeFocus
+                ToolTip.text: "Audio Visualizer • " + bridge.activeVisualizerName + " (Click: Window, Right-Click: Options)"
             }
 
             // Parametric DSP Equalizer Toggle

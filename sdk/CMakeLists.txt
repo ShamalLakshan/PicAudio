@@ -11,3 +11,4 @@ add_library(parakeet_sdk ALIAS picaudio_sdk)
 
 install(TARGETS picaudio_sdk EXPORT PicAudioSdkConfig)
 install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY cmake/ DESTINATION share/picaudio/cmake)
