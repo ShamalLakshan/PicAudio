@@ -26,7 +26,7 @@ jobs:
   # =========================================================================
   build-linux-appimage:
     name: Linux AppImage (x86_64)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       APPIMAGE_EXTRACT_AND_RUN: 1
       QT_QPA_PLATFORM: offscreen
@@ -52,7 +52,6 @@ jobs:
             libegl1-mesa-dev \
             libxkbcommon-dev \
             libvulkan-dev \
-            libfuse2 \
             patchelf \
             ffmpeg \
             libavcodec-dev \
@@ -81,6 +80,7 @@ jobs:
             file \
             curl \
             zlib1g-dev
+          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2 || true
 
       - name: Compile and install GoogleTest
         run: |
@@ -179,7 +179,7 @@ jobs:
   # =========================================================================
   build-plugin-sdk:
     name: Plugin SDK Package
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -187,7 +187,7 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake -B build -S . -DBUILD_STANDALONE_SDK_ONLY=ON
 
       - name: Build SDK Package
         run: |

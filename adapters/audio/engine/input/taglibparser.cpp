@@ -18,6 +18,7 @@
 #include <core/track.h>
 #include <utils/helpers.h>
 #include <utils/stringutils.h>
+#include <utils/compatutils.h>
 
 #include <taglib/aifffile.h>
 #include <taglib/apefile.h>
