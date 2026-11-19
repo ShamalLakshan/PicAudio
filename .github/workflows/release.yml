@@ -1,0 +1,269 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark this release as a pre-release (e.g. beta)'
+        required: true
+        type: boolean
+        default: true
+      draft:
+        description: 'Create release as a draft'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  # =========================================================================
+  # 1. Linux AppImage Build & Test
+  # =========================================================================
+  build-linux-appimage:
+    name: Linux AppImage (x86_64)
+    runs-on: ubuntu-22.04
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: 1
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libsqlite3-dev \
+            libtag1-dev \
+            libgtest-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libxkbcommon-dev \
+            libvulkan-dev \
+            libfuse2 \
+            patchelf \
+            ffmpeg \
+            libavcodec-dev \
+            libavformat-dev \
+            libswresample-dev \
+            libavutil-dev \
+            libarchive-dev \
+            zsync \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            qt6-declarative-dev \
+            qt6-multimedia-dev \
+            qt6-tools-dev \
+            qt6-tools-dev-tools \
+            qt6-wayland \
+            qt6-wayland-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qt-labs-platform \
+            qml6-module-qtcore \
+            libpulse-dev \
+            libasound2-dev \
+            file \
+            curl \
+            zlib1g-dev
+
+      - name: Compile and install GoogleTest
+        run: |
+          sudo cmake -B /tmp/gtest-build -S /usr/src/googletest
+          sudo cmake --build /tmp/gtest-build --parallel
+          sudo cmake --install /tmp/gtest-build
+
+      - name: Build unit tests and run verification
+        run: |
+          cmake -B build-test -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build-test --parallel
+          ctest --test-dir build-test --output-on-failure
+
+      - name: Package AppImage with .zsync delta metadata
+        run: |
+          chmod +x deploy/linux/build-appimage.sh
+          ./deploy/linux/build-appimage.sh
+
+      - name: Upload Linux Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicAudio-Linux-x86_64
+          path: |
+            dist/PicAudio-*.AppImage
+            dist/PicAudio-*.AppImage.zsync
+            dist/PicAudio-*.AppImage.sha256
+          if-no-files-found: error
+
+  # =========================================================================
+  # 2. Windows Portable ZIP & Setup Installer Build
+  # =========================================================================
+  build-windows-release:
+    name: Windows Release (x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.6.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtmultimedia'
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis -y
+
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg install sqlite3:x64-windows taglib:x64-windows ffmpeg:x64-windows icu:x64-windows libarchive:x64-windows
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          cmake -B build -S . `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DBUILD_TESTING=OFF
+
+      - name: Build PicAudio (Release)
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Package Windows Release (Portable ZIP & NSIS Setup)
+        shell: pwsh
+        run: |
+          deploy/windows/package-portable.ps1 -BuildDir "build" -OutputDir "dist" -Arch "x64"
+
+      - name: Upload Windows Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicAudio-Windows-x64
+          path: |
+            dist/PicAudio*.zip
+            dist/PicAudio*.exe
+            dist/PicAudio*.sha256
+          if-no-files-found: error
+
+  # =========================================================================
+  # 3. Plugin SDK Package
+  # =========================================================================
+  build-plugin-sdk:
+    name: Plugin SDK Package
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+
+      - name: Build SDK Package
+        run: |
+          cmake --build build --target package_sdk
+          (
+            cd build/sdk
+            sha256sum picaudio-sdk-*.zip > picaudio-sdk.zip.sha256
+          )
+
+      - name: Upload SDK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicAudio-Plugin-SDK
+          path: |
+            build/sdk/picaudio-sdk-*.zip
+            build/sdk/picaudio-sdk.zip.sha256
+          if-no-files-found: error
+
+  # =========================================================================
+  # 4. Publish Release to GitHub Releases
+  # =========================================================================
+  publish-release:
+    name: Publish Release
+    needs: [build-linux-appimage, build-windows-release, build-plugin-sdk]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Flatten release assets directory
+        run: |
+          mkdir -p dist-release
+          find release-assets/ -type f -exec cp -v {} dist-release/ \;
+          ls -lh dist-release/
+
+      - name: Extract Release Notes from CHANGELOG
+        id: release-notes
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          VERSION="${TAG#v}"
+          NOTES_FILE="/tmp/release_notes.md"
+          
+          if [ -f CHANGELOG.md ] && [ -n "$VERSION" ]; then
+            awk -v ver="$VERSION" '
+              index($0, "## [" ver "]") || index($0, "## " ver) {start=1; next}
+              /^## / && start {exit}
+              start {print}
+            ' CHANGELOG.md > "$NOTES_FILE"
+          fi
+
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "### PicAudio Release ${TAG:-Latest}" > "$NOTES_FILE"
+            echo "" >> "$NOTES_FILE"
+            echo "Automated release build for PicAudio." >> "$NOTES_FILE"
+          fi
+
+          cat "$NOTES_FILE"
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: PicAudio ${{ github.ref_name }}
+          body_path: ${{ steps.release-notes.outputs.notes_file }}
+          prerelease: ${{ inputs.prerelease || startsWith(github.ref_name, 'v0.') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          draft: ${{ inputs.draft || false }}
+          files: |
+            dist-release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

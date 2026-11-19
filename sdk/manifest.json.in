@@ -1,0 +1,8 @@
+{
+  "name": "PicAudio Plugin SDK",
+  "version": "@SDK_VERSION@",
+  "api_version": "1.0.0",
+  "git_commit": "@PICAUDIO_GIT_COMMIT@",
+  "os": "@CMAKE_SYSTEM_NAME@",
+  "arch": "@SDK_ARCH@"
+}

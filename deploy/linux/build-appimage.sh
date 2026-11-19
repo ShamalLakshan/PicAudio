@@ -76,11 +76,10 @@ cp "${SCRIPT_DIR}/picaudio.desktop" "${APP_DIR}/picaudio.desktop"
 cp "${SCRIPT_DIR}/icons/picaudio.svg" "${APP_DIR}/picaudio.svg"
 cp "${SCRIPT_DIR}/icons/picaudio.svg" "${APP_DIR}/.DirIcon"
 
-# 3. Fetch linuxdeploy, Qt plugin and GStreamer plugin if not present
+# 3. Fetch linuxdeploy and Qt plugin if not present
 echo "--> Setting up linuxdeploy..."
 LINUXDEPLOY="${TOOLS_DIR}/linuxdeploy-x86_64.AppImage"
 LINUXDEPLOY_QT="${TOOLS_DIR}/linuxdeploy-plugin-qt-x86_64.AppImage"
-LINUXDEPLOY_GST="${TOOLS_DIR}/linuxdeploy-plugin-gstreamer"
 export LINUXDEPLOY
 
 if [ ! -f "${LINUXDEPLOY}" ]; then
@@ -95,13 +94,6 @@ if [ ! -f "${LINUXDEPLOY_QT}" ]; then
     curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o "${LINUXDEPLOY_QT}" \
         "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
     chmod +x "${LINUXDEPLOY_QT}"
-fi
-
-if [ ! -f "${LINUXDEPLOY_GST}" ]; then
-    echo "Downloading linuxdeploy-plugin-gstreamer..."
-    curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o "${LINUXDEPLOY_GST}" \
-        "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gstreamer/master/linuxdeploy-plugin-gstreamer.sh"
-    chmod +x "${LINUXDEPLOY_GST}"
 fi
 
 if ! command -v patchelf &> /dev/null && [ ! -f "${TOOLS_DIR}/patchelf" ]; then
@@ -223,49 +215,38 @@ else
     echo "--> No Wayland platform plugins detected; continuing with default xcb"
 fi
 
-# Locate GStreamer plugins and scanner directories dynamically
-if [ -z "${GSTREAMER_HELPERS_DIR:-}" ]; then
-    if [ -d "/usr/lib/$(uname -m)-linux-gnu/gstreamer1.0/gstreamer-1.0" ]; then
-        export GSTREAMER_HELPERS_DIR="/usr/lib/$(uname -m)-linux-gnu/gstreamer1.0/gstreamer-1.0"
-    elif [ -d "/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0" ]; then
-        export GSTREAMER_HELPERS_DIR="/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0"
-    elif [ -d "/usr/lib/gstreamer-1.0" ]; then
-        export GSTREAMER_HELPERS_DIR="/usr/lib/gstreamer-1.0"
-    else
-        SCANNER_BIN="$(which gst-plugin-scanner 2>/dev/null || find /usr/lib -name gst-plugin-scanner 2>/dev/null | head -n1 || true)"
-        if [ -n "${SCANNER_BIN}" ] && [ -f "${SCANNER_BIN}" ]; then
-            export GSTREAMER_HELPERS_DIR="$(dirname "${SCANNER_BIN}")"
-        fi
-    fi
-fi
-
-if [ -z "${GSTREAMER_PLUGINS_DIR:-}" ]; then
-    if [ -d "/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0" ]; then
-        export GSTREAMER_PLUGINS_DIR="/usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0"
-    elif [ -d "/usr/lib/gstreamer-1.0" ]; then
-        export GSTREAMER_PLUGINS_DIR="/usr/lib/gstreamer-1.0"
-    else
-        GST_DIR="$(find /usr/lib -maxdepth 3 -type d -name "gstreamer-1.0" 2>/dev/null | head -n1 || true)"
-        [ -n "${GST_DIR}" ] && export GSTREAMER_PLUGINS_DIR="${GST_DIR}"
-    fi
-fi
-
-echo "--> GStreamer Plugins Directory: ${GSTREAMER_PLUGINS_DIR:-not found}"
-echo "--> GStreamer Helpers Directory: ${GSTREAMER_HELPERS_DIR:-not found}"
-
-# Run linuxdeploy with Qt and GStreamer plugins
+# Run linuxdeploy with Qt plugin
+echo "--> Bundling Qt and dynamic dependencies with linuxdeploy..."
 "${LINUXDEPLOY}" \
     --appdir "${APP_DIR}" \
     --executable "${APP_DIR}/usr/bin/PicAudio" \
     --desktop-file "${APP_DIR}/usr/share/applications/picaudio.desktop" \
     --icon-file "${APP_DIR}/usr/share/icons/hicolor/scalable/apps/picaudio.svg" \
-    --plugin qt \
-    --plugin gstreamer
+    --plugin qt
 
-# Ensure gst-plugin-scanner has execute permissions if deployed
-find "${APP_DIR}/usr/lib" -type f -name gst-plugin-scanner -exec chmod +x {} + 2>/dev/null || true
+# 5. Bundle core multimedia, archive, and storage runtime libraries
+echo "--> Bundling core engine libraries (FFmpeg, LibArchive, SQLite3, TagLib)..."
+mkdir -p "${APP_DIR}/usr/lib"
+for libprefix in "libavformat" "libavcodec" "libswresample" "libavutil" "libarchive" "libtag" "libsqlite3"; do
+    found="$(ldconfig -p | grep -E "${libprefix}\.so\.[0-9]+" | awk '{print $NF}' | head -n1 || true)"
+    if [ -n "${found}" ] && [ -f "${found}" ]; then
+        echo "    Bundling ${found}..."
+        cp -uL "${found}"* "${APP_DIR}/usr/lib/" 2>/dev/null || true
+    fi
+done
 
-# 5. Bundle Wayland shell integrations
+# Patch RPATH on all bundled libraries in AppDir
+if command -v patchelf &>/dev/null || [ -f "${TOOLS_DIR}/patchelf" ]; then
+    PATCHELF_CMD="$(command -v patchelf || echo "${TOOLS_DIR}/patchelf")"
+    echo "--> Patching library RPATHs with patchelf..."
+    for lib in "${APP_DIR}/usr/lib"/*.so*; do
+        if [ -f "$lib" ] && [ ! -L "$lib" ]; then
+            "${PATCHELF_CMD}" --set-rpath '$ORIGIN:$ORIGIN/../lib' "$lib" 2>/dev/null || true
+        fi
+    done
+fi
+
+# Bundle Wayland shell and platform integrations
 echo "--> Bundling Wayland shell and graphics integrations..."
 mkdir -p "${APP_DIR}/usr/plugins/platforms"
 if [ -n "${PLATFORMS_DIR}" ]; then
@@ -287,7 +268,7 @@ fi
 # Remove system crypto libraries that cause TLS/dlopen segmentation faults on modern distros
 rm -f "${APP_DIR}/usr/lib/libleancrypto"* "${APP_DIR}/usr/lib/libcrypt."* 2>/dev/null || true
 
-# 6. Create custom AppRun launcher with Wayland/X11 fallback and isolated GStreamer registry
+# 6. Create custom AppRun launcher with Wayland/X11 fallback
 echo "--> Setting up AppRun launcher..."
 rm -f "${APP_DIR}/AppRun" "${APP_DIR}/AppRun.wrapped"
 cat << 'EOF' > "${APP_DIR}/AppRun"
@@ -316,38 +297,40 @@ if [ -d "${HERE}/apprun-hooks" ]; then
     done
 fi
 
-# Ensure bundled GStreamer plugins and scanner take priority
-GST_DIR=""
-if [ -d "${HERE}/usr/lib/gstreamer-1.0" ]; then
-    GST_DIR="${HERE}/usr/lib/gstreamer-1.0"
-else
-    GST_DIR="$(find "${HERE}/usr/lib" -maxdepth 3 -type d -name "gstreamer-1.0" 2>/dev/null | head -n1)"
-fi
-
-if [ -n "${GST_DIR}" ] && [ -d "${GST_DIR}" ]; then
-    export GST_REGISTRY_REUSE_PLUGIN_SCANNER="no"
-    export GST_PLUGIN_SYSTEM_PATH_1_0="${GST_DIR}"
-    export GST_PLUGIN_PATH_1_0="${GST_DIR}"
-    GST_SCANNER="$(find "${HERE}/usr/lib" -type f -name gst-plugin-scanner 2>/dev/null | head -n1)"
-    [ -n "$GST_SCANNER" ] && export GST_PLUGIN_SCANNER_1_0="$GST_SCANNER"
-fi
-
-# Isolate GStreamer registry cache to standard user cache directory
-export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/picaudio/gstreamer-1.0/registry.x86_64.bin"
-mkdir -p "$(dirname "${GST_REGISTRY_1_0}")" 2>/dev/null || true
-
 exec "${HERE}/usr/bin/PicAudio" "$@"
 EOF
 chmod +x "${APP_DIR}/AppRun"
 
-# 7. Generate final AppImage using appimagetool
+# 7. Generate final AppImage using appimagetool with .zsync delta update metadata
 echo "--> Packaging final AppImage with appimagetool..."
-ARCH=x86_64 "${TOOLS_DIR}/appimagetool-prefix/AppRun" "${APP_DIR}" "${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
+VERSION="${PICAUDIO_VERSION:-$(grep -m1 'project(PicAudio VERSION' "${REPO_ROOT}/CMakeLists.txt" | sed -E 's/.*VERSION[[:space:]]+([0-9.]+).*/\1/')}"
+ARCH="x86_64"
+UPDATE_REPO="${GITHUB_REPOSITORY:-ShamalLakshan/PicAudio}"
+UPDATE_CHANNEL="${PICAUDIO_UPDATE_CHANNEL:-latest}"
+UPINFO="gh-releases-zsync|${UPDATE_REPO%/*}|${UPDATE_REPO#*/}|${UPDATE_CHANNEL}|PicAudio-*-$ARCH.AppImage.zsync"
+export UPINFO
 
-if [ -f "${OUTPUT_DIR}/PicAudio-x86_64.AppImage" ]; then
+FINAL_APPIMAGE="${OUTPUT_DIR}/PicAudio-${VERSION}-${ARCH}.AppImage"
+STANDARD_APPIMAGE="${OUTPUT_DIR}/PicAudio-${ARCH}.AppImage"
+
+ARCH="${ARCH}" "${TOOLS_DIR}/appimagetool-prefix/AppRun" -u "${UPINFO}" "${APP_DIR}" "${FINAL_APPIMAGE}"
+cp -f "${FINAL_APPIMAGE}" "${STANDARD_APPIMAGE}"
+if [ -f "${FINAL_APPIMAGE}.zsync" ]; then
+    cp -f "${FINAL_APPIMAGE}.zsync" "${STANDARD_APPIMAGE}.zsync"
+fi
+
+# Generate SHA256 checksums
+(
+    cd "${OUTPUT_DIR}"
+    sha256sum "$(basename "${FINAL_APPIMAGE}")" > "$(basename "${FINAL_APPIMAGE}").sha256"
+    sha256sum "$(basename "${STANDARD_APPIMAGE}")" > "$(basename "${STANDARD_APPIMAGE}").sha256"
+)
+
+if [ -f "${FINAL_APPIMAGE}" ]; then
     echo "=== AppImage created successfully! ==="
-    echo "Location: ${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
-    ls -lh "${OUTPUT_DIR}/PicAudio-x86_64.AppImage"
+    echo "Versioned AppImage: ${FINAL_APPIMAGE}"
+    echo "Standard AppImage:  ${STANDARD_APPIMAGE}"
+    ls -lh "${OUTPUT_DIR}"/PicAudio-*.AppImage*
 else
     echo "ERROR: PicAudio AppImage was not generated in ${OUTPUT_DIR}" >&2
     exit 1
