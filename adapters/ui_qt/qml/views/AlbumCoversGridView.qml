@@ -47,7 +47,7 @@ Item {
                     font.pixelSize: Theme.fontSizeSmall
                 }
 
-                Slider {
+                StyledSlider {
                     id: sizeSlider
                     Layout.preferredWidth: Math.round(120 * Theme.uiScale)
                     from: 100
@@ -83,6 +83,7 @@ Item {
                 delegate: Rectangle {
                     id: cardItem
                     required property var model
+                    readonly property bool isUnknown: cardItem.model.isSpecialUntagged || cardItem.model.isUnknownAlbum || cardItem.model.title === "Unknown Album" || cardItem.model.title === "Untagged & Loose Tracks"
                     width: grid.cellWidth - Math.round(10 * Theme.uiScale)
                     height: grid.cellHeight - Math.round(10 * Theme.uiScale)
                     radius: Math.round(4 * Theme.uiScale)
@@ -105,11 +106,22 @@ Item {
                             clip: true
                             radius: Math.round(2 * Theme.uiScale)
 
+                            VectorIcon {
+                                anchors.centerIn: parent
+                                width: Math.round(48 * Theme.uiScale)
+                                height: Math.round(48 * Theme.uiScale)
+                                name: "album"
+                                color: cardHover.hovered ? Theme.accent : Theme.textSecondary
+                                visible: cardItem.isUnknown || albumImg.status !== Image.Ready
+                            }
+
                             Image {
+                                id: albumImg
                                 anchors.fill: parent
-                                source: "image://albumart/" + (cardItem.model.artHash ? cardItem.model.artHash : cardItem.model.id)
+                                source: (!cardItem.isUnknown && cardItem.model.artHash) ? ("image://albumart/" + cardItem.model.artHash) : (!cardItem.isUnknown ? ("image://albumart/" + cardItem.model.id) : "")
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                visible: !cardItem.isUnknown && status === Image.Ready
                             }
 
                             // Play Button Hover Overlay
@@ -165,7 +177,7 @@ Item {
                             } else {
                                 albumCoversRoot.selectedAlbumTitle = cardItem.model.title
                                 albumCoversRoot.selectedAlbumArtist = cardItem.model.artist
-                                albumCoversRoot.selectedAlbumArtSource = "image://albumart/" + (cardItem.model.artHash ? cardItem.model.artHash : cardItem.model.id)
+                                albumCoversRoot.selectedAlbumArtSource = cardItem.isUnknown ? "" : ("image://albumart/" + (cardItem.model.artHash ? cardItem.model.artHash : cardItem.model.id))
                                 bridge.selectAlbum(cardItem.model.title, cardItem.model.artist)
                             }
                         }
@@ -221,13 +233,23 @@ Item {
                                 radius: Math.round(4 * Theme.uiScale)
                                 clip: true
 
+                                VectorIcon {
+                                    anchors.centerIn: parent
+                                    name: "album"
+                                    width: Math.round(52 * Theme.uiScale)
+                                    height: Math.round(52 * Theme.uiScale)
+                                    color: Theme.accent
+                                    visible: (albumCoversRoot.selectedAlbumTitle === "Unknown Album" || albumCoversRoot.selectedAlbumTitle === "Untagged & Loose Tracks") || albumDrawerImg.status !== Image.Ready
+                                }
+
                                 Image {
+                                    id: albumDrawerImg
                                     anchors.fill: parent
-                                    source: albumCoversRoot.selectedAlbumArtSource.length > 0 ?
-                                            albumCoversRoot.selectedAlbumArtSource :
-                                            ("image://albumart/" + bridge.selectedAlbumArtHash)
+                                    source: (albumCoversRoot.selectedAlbumTitle !== "Unknown Album" && albumCoversRoot.selectedAlbumTitle !== "Untagged & Loose Tracks") ?
+                                            (albumCoversRoot.selectedAlbumArtSource.length > 0 ? albumCoversRoot.selectedAlbumArtSource : ("image://albumart/" + bridge.selectedAlbumArtHash)) : ""
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
+                                    visible: (albumCoversRoot.selectedAlbumTitle !== "Unknown Album" && albumCoversRoot.selectedAlbumTitle !== "Untagged & Loose Tracks") && status === Image.Ready
                                 }
 
                                 Rectangle {

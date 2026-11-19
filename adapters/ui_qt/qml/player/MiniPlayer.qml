@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../components"
 
 Rectangle {
     id: root
@@ -202,7 +203,7 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                Slider {
+                StyledSlider {
                     id: miniSeekSlider
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
@@ -327,7 +328,7 @@ Rectangle {
                     }
                 }
 
-                Slider {
+                StyledSlider {
                     id: miniVolSlider
                     Layout.preferredWidth: 70
                     from: 0.0

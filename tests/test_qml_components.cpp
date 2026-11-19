@@ -74,6 +74,8 @@ protected:
 
   void TearDown() override {
     if (m_bridge) {
+      m_bridge->resetEq();
+      m_bridge->resetPeq();
       m_bridge->stop();
     }
     if (m_engine) {
@@ -156,6 +158,7 @@ TEST_F(QmlComponentValidationTest, DialogComponentsInstantiateWithoutError) {
 TEST_F(QmlComponentValidationTest, ViewsAndComponentsInstantiateWithoutError) {
   const std::vector<QString> componentPaths = {
       "components/EqualizerOverlay.qml", "components/StyledComboBox.qml",
+      "components/StyledSlider.qml",     "components/StyledCheckBox.qml",
       "components/ToastBanner.qml",      "components/MovableHeaderArea.qml",
       "components/ResizeGrip.qml",       "player/MiniPlayer.qml",
       "player/PlayerDeck.qml",           "navigation/LeftSidebar.qml",
@@ -230,6 +233,10 @@ TEST_F(QmlComponentValidationTest, EqualizerOverlayComboBoxHoverTest) {
   // Activate index 1 ("Rock")
   QMetaObject::invokeMethod(presetCombo, "activated", Q_ARG(int, 1));
   EXPECT_EQ(m_playerService->getEqPreset(), "Rock");
+
+  // Restore preset to Flat so test does not contaminate user settings
+  QMetaObject::invokeMethod(presetCombo, "activated", Q_ARG(int, 0));
+  EXPECT_EQ(m_playerService->getEqPreset(), "Flat");
 
   // Close popup and overlay cleanly
   QMetaObject::invokeMethod(popup, "close");

@@ -56,6 +56,9 @@ if(PkgConfig_FOUND)
     pkg_check_modules(PIPEWIRE QUIET libpipewire-0.3)
 endif()
 
+# LibArchive for plugin bundles
+find_package(LibArchive REQUIRED)
+
 if(ALSA_FOUND)
     add_compile_definitions(PICAUDIO_ENABLE_ALSA)
 endif()
@@ -133,14 +136,14 @@ qt_add_library(ui_adapter STATIC
     audio/dsp/ChannelMatrixProcessor.cpp
     audio/dsp/ParametricEqualizer.hpp
     audio/dsp/ParametricEqualizer.cpp
+    audio/dsp/EqFileParser.hpp
+    audio/dsp/EqFileParser.cpp
+    audio/dsp/AutoEqDatabase.hpp
+    audio/dsp/AutoEqDatabase.cpp
     audio/dsp/LoudnessAndDitherProcessor.hpp
     audio/dsp/LoudnessAndDitherProcessor.cpp
     audio/dsp/CrossfadeEngine.hpp
     audio/dsp/CrossfadeEngine.cpp
-    audio/dsp/ClapPluginHost.hpp
-    audio/dsp/ClapPluginHost.cpp
-    audio/dsp/DspManager.hpp
-    audio/dsp/DspManager.cpp
     audio/CueSheetParser.hpp
     audio/CueSheetParser.cpp
     audio/WaveformExtractor.hpp
@@ -164,11 +167,14 @@ qt_add_library(ui_adapter STATIC
     desktop/GlobalMediaKeysHook.cpp
     desktop/DesktopIntegrationManager.hpp
     desktop/DesktopIntegrationManager.cpp
+    plugin/PluginInstaller.hpp
+    plugin/PluginInstaller.cpp
     plugin/PluginManager.hpp
     plugin/PluginManager.cpp
     ${CMAKE_SOURCE_DIR}/themes/themes.qrc
     ${CMAKE_SOURCE_DIR}/deploy/icons.qrc
     ${CMAKE_SOURCE_DIR}/i18n/i18n.qrc
+    ${CMAKE_SOURCE_DIR}/assets/autoeq/autoeq.qrc
 )
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/themes/
@@ -203,6 +209,8 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/components/MovableHeaderArea.qml
         ui_qt/qml/components/ResizeGrip.qml
         ui_qt/qml/components/StyledComboBox.qml
+        ui_qt/qml/components/StyledSlider.qml
+        ui_qt/qml/components/StyledCheckBox.qml
         ui_qt/qml/components/WaveVisualizer.qml
         ui_qt/qml/components/ToastBanner.qml
         ui_qt/qml/dialogs/PreferencesDialog.qml
@@ -210,6 +218,7 @@ qt_add_qml_module(ui_adapter
         ui_qt/qml/dialogs/OpenUrlDialog.qml
         ui_qt/qml/dialogs/ShortcutsDialog.qml
         ui_qt/qml/dialogs/DiagnosticsDialog.qml
+        ui_qt/qml/dialogs/VisualizerDialog.qml
         ui_qt/qml/dialogs/ChannelMatrixDialog.qml
         ui_qt/qml/dialogs/AboutDialog.qml
         ui_qt/qml/dialogs/SleepTimerDialog.qml
@@ -262,6 +271,7 @@ target_link_libraries(ui_adapter PUBLIC
     $<$<BOOL:${PIPEWIRE_FOUND}>:${PIPEWIRE_LIBRARIES}>
     ${SQLITE_LIBRARIES}
     ${TAGLIB_LIBRARIES}
+    LibArchive::LibArchive
     ${CMAKE_DL_LIBS}
 )
 
@@ -290,7 +300,6 @@ target_include_directories(ui_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/playlist
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/engine/utils
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp
-    ${CMAKE_CURRENT_SOURCE_DIR}/audio/dsp/clap/include
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/wasapi
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/coreaudio
     ${CMAKE_CURRENT_SOURCE_DIR}/audio/decoders

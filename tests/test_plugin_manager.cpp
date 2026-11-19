@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QSettings>
 #include <QTemporaryDir>
 #include <gtest/gtest.h>
 #include <vector>
@@ -8,6 +9,9 @@
 #include "plugin/PluginManager.hpp"
 #include "theming/ThemeLoader.hpp"
 #include <picaudio/plugin/Defines.hpp>
+
+#include <archive.h>
+#include <archive_entry.h>
 
 class PluginManagerTest : public ::testing::Test {
 protected:
@@ -326,4 +330,222 @@ TEST_F(PluginManagerTest, RoutesUiCustomActionsAndWindowLifecycle) {
   EXPECT_TRUE(manager.isPluginWindowVisible("com.picaudio.lyrics_scrobbler"));
   EXPECT_TRUE(manager.hidePluginWindow("com.picaudio.lyrics_scrobbler"));
   EXPECT_FALSE(manager.isPluginWindowVisible("com.picaudio.lyrics_scrobbler"));
+}
+
+namespace {
+void createTestZip(const QString &zipPath,
+                   const std::vector<std::pair<QString, QByteArray>> &entries) {
+  archive *a = archive_write_new();
+  archive_write_set_format_zip(a);
+  archive_write_open_filename(a, zipPath.toUtf8().constData());
+  for (const auto &[name, data] : entries) {
+    archive_entry *entry = archive_entry_new();
+    archive_entry_set_pathname(entry, name.toUtf8().constData());
+    archive_entry_set_size(entry, data.size());
+    archive_entry_set_filetype(entry, AE_IFREG);
+    archive_entry_set_perm(entry, 0644);
+    archive_write_header(a, entry);
+    archive_write_data(a, data.constData(), data.size());
+    archive_entry_free(entry);
+  }
+  archive_write_close(a);
+  archive_write_free(a);
+}
+} // namespace
+
+TEST_F(PluginManagerTest, ReturnsCurrentPlatformTag) {
+  const QString platform = adapters::PluginInstaller::currentPlatformTag();
+  EXPECT_FALSE(platform.isEmpty());
+  EXPECT_TRUE(platform.contains("x64") || platform.contains("arm64"));
+}
+
+TEST_F(PluginManagerTest, RejectsCorruptBundleArchive) {
+  adapters::PluginInstallResult result;
+  // Non-existent file
+  EXPECT_FALSE(adapters::PluginInstaller::installBundle(
+      "/non/existent/path/plugin.paplugin", m_tempDir->path(), result));
+  EXPECT_EQ(result.status, adapters::PluginInstallStatus::FileNotFound);
+
+  // Corrupt non-zip file
+  const QString badFile = m_tempDir->path() + "/corrupt.paplugin";
+  QFile f(badFile);
+  ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+  f.write("This is not a zip archive");
+  f.close();
+
+  EXPECT_FALSE(adapters::PluginInstaller::installBundle(
+      badFile, m_tempDir->path(), result));
+  EXPECT_EQ(result.status, adapters::PluginInstallStatus::InvalidArchive);
+}
+
+TEST_F(PluginManagerTest, RejectsBundleWithMaliciousPathTraversal) {
+  const QString zipPath = m_tempDir->path() + "/malicious.paplugin";
+  createTestZip(zipPath, {{"../escape.txt", "Malicious content"}});
+
+  adapters::PluginInstallResult result;
+  EXPECT_FALSE(adapters::PluginInstaller::installBundle(
+      zipPath, m_tempDir->path(), result));
+  EXPECT_EQ(result.status, adapters::PluginInstallStatus::InvalidArchive);
+  EXPECT_TRUE(result.message.contains("Malicious or unsafe path"));
+}
+
+TEST_F(PluginManagerTest,
+       InstallsValidPluginBundleAndExtractsMatchingPlatform) {
+  const QString platform = adapters::PluginInstaller::currentPlatformTag();
+  const QString zipPath = m_tempDir->path() + "/sample.paplugin";
+  const QString destDir = m_tempDir->path() + "/installed_plugins";
+
+  const QByteArray manifest = "{\n"
+                              "  \"id\": \"com.test.samplebundle\",\n"
+                              "  \"name\": \"Sample Bundle Plugin\",\n"
+                              "  \"version\": \"1.0.0\",\n"
+                              "  \"author\": \"Test Suite\",\n"
+                              "  \"targetApiVersion\": \"1.0.0\",\n"
+                              "  \"entryPoint\": \"sample.so\",\n"
+                              "  \"capabilities\": [\"visualizer\"]\n"
+                              "}";
+
+  createTestZip(
+      zipPath,
+      {{"plugin.json", manifest},
+       {platform + "/sample.so", QByteArray("MOCK_BINARY_DATA_FOR_PLATFORM")},
+       {"windows-x64/sample.dll", QByteArray("MOCK_WINDOWS_BINARY")},
+       {"README.md", QByteArray("Plugin Readme")}});
+
+  adapters::PluginInstallResult result;
+  EXPECT_TRUE(
+      adapters::PluginInstaller::installBundle(zipPath, destDir, result));
+  EXPECT_TRUE(result.isSuccess());
+  EXPECT_EQ(result.pluginId, "com.test.samplebundle");
+  EXPECT_EQ(result.pluginName, "Sample Bundle Plugin");
+  EXPECT_EQ(result.version, "1.0.0");
+
+  const QString pluginDir = destDir + "/com.test.samplebundle";
+  EXPECT_TRUE(QFile::exists(pluginDir + "/plugin.json"));
+  EXPECT_TRUE(QFile::exists(pluginDir + "/sample.so"));
+  EXPECT_TRUE(QFile::exists(pluginDir + "/README.md"));
+  // Incompatible platform binary must NOT be extracted
+  EXPECT_FALSE(QFile::exists(pluginDir + "/sample.dll"));
+}
+
+TEST_F(PluginManagerTest, RemovesPluginAndCleansStagedPendingRemovals) {
+  const QString pluginsDir = m_tempDir->path() + "/removal_test_plugins";
+  const QString pluginId = "com.test.removable";
+  const QString targetFolder = pluginsDir + "/" + pluginId;
+  QDir().mkpath(targetFolder);
+
+  QFile f(targetFolder + "/plugin.json");
+  ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+  f.write("{}");
+  f.close();
+
+  EXPECT_TRUE(QDir(targetFolder).exists());
+
+  QString err;
+  EXPECT_TRUE(
+      adapters::PluginInstaller::removePlugin(pluginId, targetFolder, err));
+  EXPECT_FALSE(QDir(targetFolder).exists());
+  EXPECT_FALSE(adapters::PluginInstaller::isPendingRemoval(pluginId));
+
+  // Test staging removal
+  const QString stagedFolder = pluginsDir + "/com.test.staged";
+  QDir().mkpath(stagedFolder);
+  QSettings settings(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
+  settings.setValue(QStringLiteral("plugins/pendingRemoval"),
+                    QStringList{"com.test.staged"});
+
+  EXPECT_TRUE(adapters::PluginInstaller::isPendingRemoval("com.test.staged"));
+  const int processed =
+      adapters::PluginInstaller::processPendingRemovals(pluginsDir);
+  EXPECT_EQ(processed, 1);
+  EXPECT_FALSE(QDir(stagedFolder).exists());
+  EXPECT_FALSE(adapters::PluginInstaller::isPendingRemoval("com.test.staged"));
+}
+
+TEST_F(PluginManagerTest, PluginManagerInstallAndRemoveLifecycle) {
+  adapters::PluginManager manager;
+  const QString customPluginsDir = m_tempDir->path() + "/mgr_plugins";
+  QDir().mkpath(customPluginsDir);
+  manager.initialize({customPluginsDir});
+
+  const QString platform = adapters::PluginInstaller::currentPlatformTag();
+  const QString zipPath = m_tempDir->path() + "/lifecycle.paplugin";
+
+  const QByteArray manifest = "{\n"
+                              "  \"id\": \"com.test.lifecycle\",\n"
+                              "  \"name\": \"Lifecycle Plugin\",\n"
+                              "  \"version\": \"2.1.0\",\n"
+                              "  \"author\": \"QA\",\n"
+                              "  \"targetApiVersion\": \"1.0.0\",\n"
+                              "  \"entryPoint\": \"plugin.so\",\n"
+                              "  \"capabilities\": [\"lyrics\"]\n"
+                              "}";
+
+  createTestZip(zipPath,
+                {{"plugin.json", manifest},
+                 {platform + "/plugin.so", QByteArray("MOCK_DYNLIB_BYTES")}});
+
+  adapters::PluginInstallResult result;
+  EXPECT_TRUE(manager.installPluginBundle(zipPath, result));
+  EXPECT_TRUE(result.isSuccess());
+
+  auto plugins = manager.getDiscoveredPlugins();
+  bool found = false;
+  for (const auto &p : plugins) {
+    if (p.id == "com.test.lifecycle") {
+      found = true;
+      EXPECT_EQ(p.version, "2.1.0");
+      EXPECT_EQ(p.name, "Lifecycle Plugin");
+    }
+  }
+  EXPECT_TRUE(found);
+
+  // Now remove plugin
+  QString err;
+  EXPECT_TRUE(manager.removePlugin("com.test.lifecycle", err));
+  plugins = manager.getDiscoveredPlugins();
+  for (const auto &p : plugins) {
+    EXPECT_NE(p.id, "com.test.lifecycle");
+  }
+}
+
+TEST_F(PluginManagerTest, ReentrantPluginsChangedDoesNotDeadlock) {
+  adapters::PluginManager manager;
+  const QString customPluginsDir = m_tempDir->path() + "/reentrant_plugins";
+  QDir().mkpath(customPluginsDir);
+  manager.initialize({customPluginsDir});
+
+  int reentrantQueries = 0;
+  QObject::connect(&manager, &adapters::PluginManager::pluginsChanged, [&]() {
+    // Re-entrant call on the same thread inside pluginsChanged emission
+    auto list = manager.getDiscoveredPlugins();
+    (void)list;
+    ++reentrantQueries;
+  });
+
+  const QString platform = adapters::PluginInstaller::currentPlatformTag();
+  const QString zipPath = m_tempDir->path() + "/reentrant.paplugin";
+
+  const QByteArray manifest = "{\n"
+                              "  \"id\": \"com.test.reentrant\",\n"
+                              "  \"name\": \"Reentrant Test Plugin\",\n"
+                              "  \"version\": \"1.0.0\",\n"
+                              "  \"author\": \"QA\",\n"
+                              "  \"targetApiVersion\": \"1.0.0\",\n"
+                              "  \"capabilities\": [\"visualizer\"]\n"
+                              "}";
+
+  createTestZip(zipPath, {{"plugin.json", manifest},
+                          {platform + "/plugin.so", QByteArray("MOCK_BYTES")}});
+
+  adapters::PluginInstallResult result;
+  EXPECT_TRUE(manager.installPluginBundle(zipPath, result));
+  EXPECT_GT(reentrantQueries, 0);
+
+  EXPECT_TRUE(manager.setPluginEnabled("com.test.reentrant", false));
+  EXPECT_GT(reentrantQueries, 1);
+
+  QString err;
+  EXPECT_TRUE(manager.removePlugin("com.test.reentrant", err));
+  EXPECT_GT(reentrantQueries, 2);
 }

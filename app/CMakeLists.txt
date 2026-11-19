@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets QuickControls2)
 
 set(PICAUDIO_SOURCES
     main.cpp
@@ -15,6 +15,7 @@ target_link_libraries(PicAudio PRIVATE
     player_core
     ui_adapter
     Qt6::Widgets
+    Qt6::QuickControls2
     ${SQLITE_LIBRARIES}
     ${TAGLIB_LIBRARIES}
 )

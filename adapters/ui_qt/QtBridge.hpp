@@ -26,7 +26,6 @@
 
 namespace adapters {
 class PluginManager;
-class DspManager;
 class WaveformExtractor;
 class ArtistImageManager;
 } // namespace adapters
@@ -113,6 +112,12 @@ class QtBridge : public QObject {
                  visualizerDataChanged)
   Q_PROPERTY(
       float visualizerLevel READ visualizerLevel NOTIFY visualizerDataChanged)
+  Q_PROPERTY(int visualizerStyle READ visualizerStyle WRITE setVisualizerStyle
+                 NOTIFY visualizerStyleChanged)
+  Q_PROPERTY(QString activeVisualizerName READ activeVisualizerName NOTIFY
+                 pluginsChanged)
+  Q_PROPERTY(bool hasActiveVisualizerPlugin READ hasActiveVisualizerPlugin
+                 NOTIFY pluginsChanged)
 
   // Queue & Playback Modes
   Q_PROPERTY(int repeatMode READ repeatMode WRITE setRepeatMode NOTIFY
@@ -165,6 +170,10 @@ class QtBridge : public QObject {
   Q_PROPERTY(QStringList genresList READ genresList NOTIFY libraryStatsChanged)
   Q_PROPERTY(
       QStringList artistsList READ artistsList NOTIFY libraryStatsChanged)
+  Q_PROPERTY(int totalUntaggedTracks READ totalUntaggedTracks NOTIFY
+                 libraryStatsChanged)
+  Q_PROPERTY(
+      bool hasUntaggedTracks READ hasUntaggedTracks NOTIFY libraryStatsChanged)
 
   // Scanning State
   Q_PROPERTY(bool isScanning READ isScanning NOTIFY scanningChanged)
@@ -330,6 +339,7 @@ class QtBridge : public QObject {
   // Settings (Equalizer & External DSP Plugins)
   Q_PROPERTY(bool eqEnabled READ isEqEnabled WRITE setEqEnabled NOTIFY
                  eqEnabledChanged)
+  Q_PROPERTY(int eqMode READ eqMode WRITE setEqMode NOTIFY eqModeChanged)
   Q_PROPERTY(qreal eqPreampDb READ eqPreampDb WRITE setEqPreampDb NOTIFY
                  eqPreampDbChanged)
   Q_PROPERTY(
@@ -340,6 +350,7 @@ class QtBridge : public QObject {
                  eqBandCountChanged)
   Q_PROPERTY(
       QVariantList eqBandLabels READ eqBandLabels NOTIFY eqBandCountChanged)
+  Q_PROPERTY(QVariantList peqBands READ peqBands NOTIFY peqBandsChanged)
   Q_PROPERTY(bool dspMasterEnabled READ isDspMasterEnabled WRITE
                  setDspMasterEnabled NOTIFY dspMasterEnabledChanged)
   Q_PROPERTY(int dspRoutingOrder READ dspRoutingOrder WRITE setDspRoutingOrder
@@ -467,6 +478,12 @@ public:
     return m_visualizerWaveform;
   }
   [[nodiscard]] float visualizerLevel() const { return m_visualizerLevel; }
+  [[nodiscard]] int visualizerStyle() const;
+  void setVisualizerStyle(int style);
+  [[nodiscard]] QString activeVisualizerName() const;
+  [[nodiscard]] bool hasActiveVisualizerPlugin() const;
+  Q_INVOKABLE void openVisualizerView();
+  Q_INVOKABLE void openVisualizerWindow();
 
   [[nodiscard]] int repeatMode() const;
   [[nodiscard]] int shuffleMode() const;
@@ -481,6 +498,12 @@ public:
   [[nodiscard]] QString totalLibrarySizeStr() const;
   [[nodiscard]] QStringList genresList() const { return m_genresList; }
   [[nodiscard]] QStringList artistsList() const { return m_artistsList; }
+  [[nodiscard]] int totalUntaggedTracks() const {
+    return m_totalUntaggedTracks;
+  }
+  [[nodiscard]] bool hasUntaggedTracks() const {
+    return m_totalUntaggedTracks > 0;
+  }
 
   [[nodiscard]] bool isScanning() const { return m_isScanning; }
   [[nodiscard]] QString scanStatusText() const { return m_scanStatusText; }
@@ -694,6 +717,9 @@ public:
                                const QString &albumArtist) {
     openAlbumDetails(albumTitle, albumArtist);
   }
+  Q_INVOKABLE void openUntaggedTracks();
+  Q_INVOKABLE void playUntaggedTracks();
+  Q_INVOKABLE void queueUntaggedTracks();
   Q_INVOKABLE void playAlbum(const QString &albumTitle,
                              const QString &albumArtist);
   Q_INVOKABLE void playTrack(const QString &trackId);
@@ -1241,6 +1267,11 @@ public:
   Q_INVOKABLE bool setPluginEnabled(const QString &pluginId, bool enabled);
   Q_INVOKABLE void openPluginsDirectory();
   Q_INVOKABLE void scanPlugins();
+  Q_INVOKABLE bool installPlugin(const QString &filePath);
+  Q_INVOKABLE bool removePlugin(const QString &pluginId);
+  [[nodiscard]] Q_INVOKABLE bool
+  isPluginPendingRemoval(const QString &pluginId) const;
+  [[nodiscard]] Q_INVOKABLE QStringList getPendingRemovalPlugins() const;
   [[nodiscard]] Q_INVOKABLE QVariantMap
   getPluginDetails(const QString &pluginId) const;
   Q_INVOKABLE bool triggerPluginAction(const QString &pluginId,
@@ -1250,12 +1281,7 @@ public:
   [[nodiscard]] Q_INVOKABLE bool
   isPluginWindowVisible(const QString &pluginId) const;
 
-  // External DSP Plugins (.clap) & Built-in EQ Management
-  void setDspManager(adapters::DspManager *manager);
-  [[nodiscard]] adapters::DspManager *dspManager() const {
-    return m_dspManager;
-  }
-
+  // Equalizer & DSP Management
   [[nodiscard]] bool isEqEnabled() const;
   Q_INVOKABLE void setEqEnabled(bool enabled);
   [[nodiscard]] qreal eqPreampDb() const;
@@ -1268,6 +1294,26 @@ public:
   [[nodiscard]] int eqBandCount() const;
   Q_INVOKABLE void setEqBandCount(int count);
   [[nodiscard]] QVariantList eqBandLabels() const;
+
+  [[nodiscard]] int eqMode() const;
+  Q_INVOKABLE void setEqMode(int mode);
+  [[nodiscard]] QVariantList peqBands() const;
+  Q_INVOKABLE void setPeqBand(int index, int type, qreal freq, qreal gain,
+                              qreal q, bool enabled);
+  Q_INVOKABLE void addPeqBand(int type = 0, qreal freq = 1000.0,
+                              qreal gain = 0.0, qreal q = 1.414);
+  Q_INVOKABLE void removePeqBand(int index);
+  Q_INVOKABLE void resetPeq();
+  Q_INVOKABLE QVariantList calculateResponseCurve(int numPoints = 128) const;
+  Q_INVOKABLE bool importEqFile(const QString &filePath);
+  Q_INVOKABLE bool importEqText(const QString &content);
+  Q_INVOKABLE QString exportEqText() const;
+  Q_INVOKABLE bool exportEqFile(const QString &filePath) const;
+  Q_INVOKABLE QVariantList searchAutoEq(const QString &query) const;
+  Q_INVOKABLE bool applyAutoEqProfile(const QString &profileId);
+  Q_INVOKABLE void fetchOnlineAutoEq(const QString &url, const QString &model,
+                                     const QString &source);
+  Q_INVOKABLE QString autoEqAttribution() const;
 
   [[nodiscard]] bool isDspMasterEnabled() const;
   Q_INVOKABLE void setDspMasterEnabled(bool enabled);
@@ -1316,6 +1362,7 @@ signals:
   void channelMatrixChanged();
   void channelLevelsChanged();
   void openChannelMatrixRequested();
+  void openVisualizerWindowRequested();
   void undoRedoChanged();
   void playbackRateChanged();
   void loopPointsChanged();
@@ -1332,6 +1379,7 @@ signals:
   void lyricsChanged();
   void activeLyricIndexChanged();
   void visualizerDataChanged();
+  void visualizerStyleChanged();
   void toastRequested(const QString &message, const QString &type);
   void pluginsChanged();
   void eqEnabledChanged();
@@ -1339,6 +1387,9 @@ signals:
   void eqBandGainsChanged();
   void eqPresetChanged();
   void eqBandCountChanged();
+  void eqModeChanged();
+  void peqBandsChanged();
+  void onlineAutoEqLoaded(bool success, const QString &message);
   void dspMasterEnabledChanged();
   void dspRoutingOrderChanged();
   void dspPluginsChanged();
@@ -1432,6 +1483,7 @@ private:
   // Filter lists
   QStringList m_genresList;
   QStringList m_artistsList;
+  int m_totalUntaggedTracks{0};
   std::unordered_map<std::string, int> m_artistTrackCounts;
   std::unordered_map<std::string, int> m_artistAlbumCounts;
 
@@ -1584,7 +1636,6 @@ private:
   class QQmlApplicationEngine *m_qmlEngine{nullptr};
   class QTranslator *m_translator{nullptr};
   adapters::PluginManager *m_pluginManager{nullptr};
-  adapters::DspManager *m_dspManager{nullptr};
   void applyLanguage(const QString &lang);
 
   // Phase 4 State

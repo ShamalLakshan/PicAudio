@@ -61,12 +61,20 @@ public:
                                               const std::string &orderBy = "",
                                               size_t limit = 0) override;
 
+  // Untagged / Loose Tracks & Tag Identification
+  std::vector<core::Track> getUntaggedTracks() override;
+  core::Album getUntaggedAlbumSummary() override;
+  size_t getUntaggedTrackCount() override;
+
+  // CUE Sheet auto-migration & virtual track expansion
+  void checkAndExpandCueSheets();
+
 private:
   bool createTables();
   core::Track parseTrackRow(sqlite3_stmt *stmt);
 
   sqlite3 *m_db{nullptr};
-  std::mutex m_mutex;
+  std::recursive_mutex m_mutex;
   std::string m_dbPath;
   bool m_groupAlbumsByTitle{true};
 };

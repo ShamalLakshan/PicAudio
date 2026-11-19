@@ -1,4 +1,5 @@
 #include "SqliteDatabaseAdapter.hpp"
+#include "audio/CueSheetParser.hpp"
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -74,7 +75,7 @@ std::string extractBaseArtist(const std::string &artist) {
 SqliteDatabaseAdapter::SqliteDatabaseAdapter() = default;
 
 SqliteDatabaseAdapter::~SqliteDatabaseAdapter() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (m_db) {
     sqlite3_close(m_db);
     m_db = nullptr;
@@ -82,7 +83,7 @@ SqliteDatabaseAdapter::~SqliteDatabaseAdapter() {
 }
 
 bool SqliteDatabaseAdapter::initialize(const std::string &dbPath) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   m_dbPath = dbPath;
 
   if (m_db) {
@@ -245,6 +246,7 @@ bool SqliteDatabaseAdapter::createTables() {
     return false;
   }
 
+  checkAndExpandCueSheets();
   return true;
 }
 
@@ -334,7 +336,7 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
   if (tracks.empty())
     return true;
 
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
 
@@ -434,7 +436,7 @@ bool SqliteDatabaseAdapter::saveTracks(const std::vector<core::Track> &tracks) {
 
 std::optional<core::Track>
 SqliteDatabaseAdapter::getTrackById(const std::string &id) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return std::nullopt;
 
@@ -457,7 +459,7 @@ SqliteDatabaseAdapter::getTrackById(const std::string &id) {
 
 std::optional<core::Track>
 SqliteDatabaseAdapter::getTrackByPath(const std::string &path) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return std::nullopt;
 
@@ -480,7 +482,7 @@ SqliteDatabaseAdapter::getTrackByPath(const std::string &path) {
 
 std::vector<core::Track> SqliteDatabaseAdapter::getAllTracks() {
   std::vector<core::Track> list;
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return list;
 
@@ -504,14 +506,21 @@ std::vector<core::Track>
 SqliteDatabaseAdapter::getTracksByAlbum(const std::string &albumTitle,
                                         const std::string &albumArtist) {
   std::vector<core::Track> list;
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return list;
 
   std::string sql;
   bool bindArtist = false;
 
-  if (m_groupAlbumsByTitle) {
+  if (albumTitle == "Untagged & Loose Tracks" ||
+      albumTitle == "alb_special_untagged" || albumTitle == "Unknown Album") {
+    sql = std::string("SELECT ") + TRACK_COLUMNS +
+          " FROM tracks WHERE album = '' OR LOWER(album) = 'unknown album' "
+          "OR LOWER(album) = 'unknown' OR artist = '' "
+          "OR LOWER(artist) = 'unknown artist' OR LOWER(artist) = 'unknown' "
+          "ORDER BY disc_number ASC, track_number ASC, title ASC;";
+  } else if (m_groupAlbumsByTitle) {
     if (albumTitle.empty() || albumTitle == "Unknown Album") {
       sql = std::string("SELECT ") + TRACK_COLUMNS +
             " FROM tracks WHERE (album = '' OR album = 'Unknown Album') "
@@ -564,7 +573,7 @@ SqliteDatabaseAdapter::getTracksByAlbum(const std::string &albumTitle,
 }
 
 bool SqliteDatabaseAdapter::deleteTrack(const std::string &id) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
 
@@ -581,7 +590,7 @@ bool SqliteDatabaseAdapter::deleteTrack(const std::string &id) {
 
 std::vector<core::Album> SqliteDatabaseAdapter::getAllAlbums() {
   std::vector<core::Album> albums;
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return albums;
 
@@ -602,7 +611,8 @@ std::vector<core::Album> SqliteDatabaseAdapter::getAllAlbums() {
             MAX(bit_depth) AS max_bd,
             MAX(codec) AS main_codec
         FROM tracks
-        GROUP BY album, (CASE WHEN album = '' OR album = 'Unknown Album' THEN artist ELSE '' END)
+        WHERE album != '' AND LOWER(album) != 'unknown album' AND LOWER(album) != 'unknown'
+        GROUP BY album
         ORDER BY album ASC;
     )";
   } else {
@@ -627,6 +637,7 @@ std::vector<core::Album> SqliteDatabaseAdapter::getAllAlbums() {
             MAX(bit_depth) AS max_bd,
             MAX(codec) AS main_codec
         FROM tracks
+        WHERE album != '' AND LOWER(album) != 'unknown album' AND LOWER(album) != 'unknown'
         GROUP BY album, COALESCE(NULLIF(NULLIF(album_artist, ''), 'Unknown Artist'), artist)
         ORDER BY album ASC;
     )";
@@ -752,6 +763,14 @@ std::vector<core::Album> SqliteDatabaseAdapter::getAllAlbums() {
 
 std::optional<core::Album>
 SqliteDatabaseAdapter::getAlbumById(const std::string &id) {
+  if (id == "alb_special_untagged" ||
+      id == "alb_Unknown Album_Various / Unknown" ||
+      id == "alb_Unknown Album_Unknown Artist" ||
+      id == "alb_Untagged & Loose Tracks_Various / Unknown") {
+    auto summary = getUntaggedAlbumSummary();
+    if (summary.trackCount > 0)
+      return summary;
+  }
   auto all = getAllAlbums();
   for (const auto &a : all) {
     if (a.id == id)
@@ -765,7 +784,7 @@ SqliteDatabaseAdapter::getAlbumById(const std::string &id) {
 }
 
 bool SqliteDatabaseAdapter::clearLibrary() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
   char *err = nullptr;
@@ -779,7 +798,7 @@ bool SqliteDatabaseAdapter::clearLibrary() {
 }
 
 bool SqliteDatabaseAdapter::optimizeDatabase() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
   char *err = nullptr;
@@ -793,7 +812,7 @@ bool SqliteDatabaseAdapter::optimizeDatabase() {
 }
 
 size_t SqliteDatabaseAdapter::getTrackCount() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return 0;
   const char *sql = "SELECT COUNT(*) FROM tracks;";
@@ -809,20 +828,21 @@ size_t SqliteDatabaseAdapter::getTrackCount() {
 }
 
 size_t SqliteDatabaseAdapter::getAlbumCount() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return 0;
 
   std::string sql;
   if (m_groupAlbumsByTitle) {
-    sql = "SELECT COUNT(DISTINCT CASE "
-          "WHEN album = '' OR album = 'Unknown Album' THEN (album || '::' || "
-          "artist) "
-          "ELSE album END) FROM tracks;";
+    sql = "SELECT COUNT(DISTINCT album) FROM tracks "
+          "WHERE album != '' AND LOWER(album) != 'unknown album' AND "
+          "LOWER(album) != 'unknown';";
   } else {
     sql = "SELECT COUNT(DISTINCT album || '::' || "
-          "COALESCE(NULLIF(NULLIF(album_artist, ''), 'Unknown "
-          "Artist'), artist)) FROM tracks;";
+          "COALESCE(NULLIF(NULLIF(album_artist, ''), 'Unknown Artist'), "
+          "artist)) FROM tracks "
+          "WHERE album != '' AND LOWER(album) != 'unknown album' AND "
+          "LOWER(album) != 'unknown';";
   }
 
   sqlite3_stmt *stmt = nullptr;
@@ -836,8 +856,117 @@ size_t SqliteDatabaseAdapter::getAlbumCount() {
   return count;
 }
 
+std::vector<core::Track> SqliteDatabaseAdapter::getUntaggedTracks() {
+  std::vector<core::Track> list;
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  if (!m_db)
+    return list;
+
+  std::string sql =
+      std::string("SELECT ") + TRACK_COLUMNS +
+      " FROM tracks WHERE album = '' OR LOWER(album) = 'unknown album' "
+      "OR LOWER(album) = 'unknown' OR artist = '' "
+      "OR LOWER(artist) = 'unknown artist' OR LOWER(artist) = 'unknown' "
+      "ORDER BY artist ASC, title ASC;";
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+    return list;
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    list.push_back(parseTrackRow(stmt));
+  }
+  sqlite3_finalize(stmt);
+  return list;
+}
+
+size_t SqliteDatabaseAdapter::getUntaggedTrackCount() {
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  if (!m_db)
+    return 0;
+
+  const char *sql =
+      "SELECT COUNT(*) FROM tracks WHERE album = '' "
+      "OR LOWER(album) = 'unknown album' OR LOWER(album) = 'unknown' "
+      "OR artist = '' OR LOWER(artist) = 'unknown artist' "
+      "OR LOWER(artist) = 'unknown';";
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+    return 0;
+
+  size_t count = 0;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    count = static_cast<size_t>(sqlite3_column_int64(stmt, 0));
+  }
+  sqlite3_finalize(stmt);
+  return count;
+}
+
+core::Album SqliteDatabaseAdapter::getUntaggedAlbumSummary() {
+  core::Album summary;
+  summary.id = "alb_special_untagged";
+  summary.title = "Unknown Album";
+  summary.artist = "Various / Unknown";
+  summary.genre = "Various";
+  summary.isSpecialUntagged = true;
+  summary.qualityBadge = "Mixed";
+  summary.primaryCodec = "Mixed";
+
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  if (!m_db)
+    return summary;
+
+  const char *sql = R"(
+      SELECT 
+          COUNT(*),
+          SUM(duration_ms),
+          MAX(sample_rate),
+          MAX(bit_depth),
+          MAX(codec),
+          MAX(art_hash)
+      FROM tracks
+      WHERE album = '' OR LOWER(album) = 'unknown album' OR LOWER(album) = 'unknown'
+         OR artist = '' OR LOWER(artist) = 'unknown artist' OR LOWER(artist) = 'unknown';
+  )";
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+    return summary;
+
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    summary.trackCount = static_cast<uint32_t>(sqlite3_column_int(stmt, 0));
+    summary.totalDurationMs =
+        static_cast<uint64_t>(sqlite3_column_int64(stmt, 1));
+    summary.maxSampleRate = static_cast<uint32_t>(sqlite3_column_int(stmt, 2));
+    summary.maxBitDepth = static_cast<uint8_t>(sqlite3_column_int(stmt, 3));
+    const char *codec =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
+    if (codec && codec[0] != '\0') {
+      summary.primaryCodec = codec;
+    }
+    const char *art =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
+    if (art && art[0] != '\0') {
+      summary.artHash = art;
+    }
+  }
+  sqlite3_finalize(stmt);
+
+  if (summary.maxSampleRate >= 88200 || summary.maxBitDepth >= 24) {
+    summary.qualityBadge = "Hi-Res Lossless";
+  } else if (summary.primaryCodec == "FLAC" || summary.primaryCodec == "WAV" ||
+             summary.primaryCodec == "ALAC" || summary.primaryCodec == "AIFF") {
+    summary.qualityBadge = "Lossless";
+  } else {
+    summary.qualityBadge = "Mixed";
+  }
+
+  return summary;
+}
+
 void SqliteDatabaseAdapter::setGroupAlbumsByTitle(bool enabled) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   m_groupAlbumsByTitle = enabled;
 }
 
@@ -847,7 +976,7 @@ bool SqliteDatabaseAdapter::groupAlbumsByTitle() const {
 
 bool SqliteDatabaseAdapter::updateTrackRating(const std::string &id,
                                               uint8_t rating) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
 
@@ -865,7 +994,7 @@ bool SqliteDatabaseAdapter::updateTrackRating(const std::string &id,
 
 bool SqliteDatabaseAdapter::updateTrackFavorite(const std::string &id,
                                                 bool isFavorite) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
 
@@ -883,7 +1012,7 @@ bool SqliteDatabaseAdapter::updateTrackFavorite(const std::string &id,
 
 bool SqliteDatabaseAdapter::recordTrackPlayed(const std::string &id,
                                               uint64_t timestamp) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
 
@@ -915,7 +1044,7 @@ bool SqliteDatabaseAdapter::recordTrackPlayed(const std::string &id,
 }
 
 bool SqliteDatabaseAdapter::recordTrackSkipped(const std::string &id) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
 
@@ -934,7 +1063,7 @@ bool SqliteDatabaseAdapter::recordTrackSkipped(const std::string &id) {
 std::vector<std::pair<core::Track, uint64_t>>
 SqliteDatabaseAdapter::getListeningHistory(size_t limit) {
   std::vector<std::pair<core::Track, uint64_t>> history;
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return history;
 
@@ -959,7 +1088,7 @@ SqliteDatabaseAdapter::getListeningHistory(size_t limit) {
 }
 
 bool SqliteDatabaseAdapter::clearListeningHistory() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return false;
 
@@ -969,7 +1098,7 @@ bool SqliteDatabaseAdapter::clearListeningHistory() {
 
 std::vector<core::Track> SqliteDatabaseAdapter::getMissingTracks() {
   std::vector<core::Track> missing;
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return missing;
 
@@ -996,7 +1125,7 @@ size_t SqliteDatabaseAdapter::relocateTracks(const std::string &oldPrefix,
   if (oldPrefix.empty() || newPrefix.empty())
     return 0;
 
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return 0;
 
@@ -1048,7 +1177,7 @@ size_t SqliteDatabaseAdapter::relocateTracks(const std::string &oldPrefix,
 std::vector<core::Track> SqliteDatabaseAdapter::queryTracksDynamic(
     const std::string &whereClause, const std::string &orderBy, size_t limit) {
   std::vector<core::Track> list;
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   if (!m_db)
     return list;
 
@@ -1077,6 +1206,198 @@ std::vector<core::Track> SqliteDatabaseAdapter::queryTracksDynamic(
 
   sqlite3_finalize(stmt);
   return list;
+}
+
+void SqliteDatabaseAdapter::checkAndExpandCueSheets() {
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
+  if (!m_db) {
+    return;
+  }
+
+  // Find non-virtual tracks whose directory might contain a companion .cue
+  // sheet
+  const char *query = "SELECT id, file_path, duration_ms FROM tracks WHERE "
+                      "is_virtual_track = 0;";
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, query, -1, &stmt, nullptr) != SQLITE_OK) {
+    return;
+  }
+
+  struct MonolithicTrackInfo {
+    std::string id;
+    std::string filePath;
+    uint64_t durationMs{0};
+  };
+
+  std::vector<MonolithicTrackInfo> monolithic;
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    MonolithicTrackInfo info;
+    const unsigned char *textId = sqlite3_column_text(stmt, 0);
+    const unsigned char *textPath = sqlite3_column_text(stmt, 1);
+    info.id = textId ? reinterpret_cast<const char *>(textId) : "";
+    info.filePath = textPath ? reinterpret_cast<const char *>(textPath) : "";
+    info.durationMs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2));
+    if (!info.filePath.empty()) {
+      monolithic.push_back(std::move(info));
+    }
+  }
+  sqlite3_finalize(stmt);
+
+  if (monolithic.empty()) {
+    return;
+  }
+
+  for (const auto &item : monolithic) {
+    fs::path p(item.filePath);
+    if (!fs::exists(p) || !fs::is_regular_file(p)) {
+      continue;
+    }
+
+    fs::path dir = p.parent_path();
+    std::vector<fs::path> cueFiles;
+    try {
+      for (const auto &entry : fs::directory_iterator(dir)) {
+        if (entry.is_regular_file()) {
+          std::string ext = entry.path().extension().string();
+          std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+          if (ext == ".cue") {
+            cueFiles.push_back(entry.path());
+          }
+        }
+      }
+    } catch (...) {
+      continue;
+    }
+
+    for (const auto &cueFile : cueFiles) {
+      std::string resolved = CueSheetParser::resolveAudioFile(cueFile.string());
+      bool matches = false;
+      if (!resolved.empty()) {
+        try {
+          if (fs::equivalent(fs::path(resolved), p)) {
+            matches = true;
+          }
+        } catch (...) {
+          if (resolved == item.filePath) {
+            matches = true;
+          }
+        }
+      }
+
+      if (matches) {
+        auto virtualTracks =
+            CueSheetParser::parseFile(cueFile.string(), item.durationMs);
+        if (!virtualTracks.empty()) {
+          // Delete monolithic track directly within existing lock
+          const char *delSql = "DELETE FROM tracks WHERE id = ?;";
+          sqlite3_stmt *delStmt = nullptr;
+          if (sqlite3_prepare_v2(m_db, delSql, -1, &delStmt, nullptr) ==
+              SQLITE_OK) {
+            sqlite3_bind_text(delStmt, 1, item.id.c_str(), -1,
+                              SQLITE_TRANSIENT);
+            sqlite3_step(delStmt);
+            sqlite3_finalize(delStmt);
+          }
+
+          // Insert virtual tracks directly within existing lock
+          const char *insSql = R"(
+            INSERT INTO tracks (
+                id, file_path, title, artist, album, album_artist, genre,
+                year, track_number, disc_number, duration_ms, sample_rate,
+                bit_depth, channels, bitrate, codec, art_hash, file_size, date_added,
+                replaygain_track_gain, replaygain_track_peak, replaygain_album_gain,
+                replaygain_album_peak, has_replaygain, start_time_ms, end_time_ms, is_virtual_track,
+                rating, is_favorite, play_count, skip_count, last_played, comment
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(file_path) DO UPDATE SET
+                title=excluded.title,
+                artist=excluded.artist,
+                album=excluded.album,
+                album_artist=excluded.album_artist,
+                genre=excluded.genre,
+                year=excluded.year,
+                track_number=excluded.track_number,
+                disc_number=excluded.disc_number,
+                duration_ms=excluded.duration_ms,
+                sample_rate=excluded.sample_rate,
+                bit_depth=excluded.bit_depth,
+                channels=excluded.channels,
+                bitrate=excluded.bitrate,
+                codec=excluded.codec,
+                art_hash=excluded.art_hash,
+                file_size=excluded.file_size,
+                start_time_ms=excluded.start_time_ms,
+                end_time_ms=excluded.end_time_ms,
+                is_virtual_track=excluded.is_virtual_track;
+          )";
+
+          sqlite3_stmt *insStmt = nullptr;
+          if (sqlite3_prepare_v2(m_db, insSql, -1, &insStmt, nullptr) ==
+              SQLITE_OK) {
+            for (const auto &t : virtualTracks) {
+              sqlite3_bind_text(insStmt, 1, t.id.c_str(), -1, SQLITE_TRANSIENT);
+              sqlite3_bind_text(insStmt, 2, t.filePath.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_text(insStmt, 3, t.title.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_text(insStmt, 4, t.artist.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_text(insStmt, 5, t.album.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_text(insStmt, 6, t.albumArtist.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_text(insStmt, 7, t.genre.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_int(insStmt, 8, static_cast<int>(t.year));
+              sqlite3_bind_int(insStmt, 9, static_cast<int>(t.trackNumber));
+              sqlite3_bind_int(insStmt, 10, static_cast<int>(t.discNumber));
+              sqlite3_bind_int64(insStmt, 11,
+                                 static_cast<int64_t>(t.durationMs));
+              sqlite3_bind_int(insStmt, 12, static_cast<int>(t.sampleRate));
+              sqlite3_bind_int(insStmt, 13, static_cast<int>(t.bitDepth));
+              sqlite3_bind_int(insStmt, 14, static_cast<int>(t.channels));
+              sqlite3_bind_int(insStmt, 15, static_cast<int>(t.bitrate));
+              sqlite3_bind_text(insStmt, 16, t.codec.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_text(insStmt, 17, t.artHash.c_str(), -1,
+                                SQLITE_TRANSIENT);
+              sqlite3_bind_int64(insStmt, 18,
+                                 static_cast<int64_t>(t.fileSizeBytes));
+              sqlite3_bind_int64(insStmt, 19,
+                                 static_cast<int64_t>(t.dateAdded));
+              sqlite3_bind_double(insStmt, 20,
+                                  static_cast<double>(t.replayGainTrackGain));
+              sqlite3_bind_double(insStmt, 21,
+                                  static_cast<double>(t.replayGainTrackPeak));
+              sqlite3_bind_double(insStmt, 22,
+                                  static_cast<double>(t.replayGainAlbumGain));
+              sqlite3_bind_double(insStmt, 23,
+                                  static_cast<double>(t.replayGainAlbumPeak));
+              sqlite3_bind_int(insStmt, 24, t.hasReplayGain ? 1 : 0);
+              sqlite3_bind_int64(insStmt, 25,
+                                 static_cast<int64_t>(t.startTimeMs));
+              sqlite3_bind_int64(insStmt, 26,
+                                 static_cast<int64_t>(t.endTimeMs));
+              sqlite3_bind_int(insStmt, 27, t.isVirtualTrack ? 1 : 0);
+              sqlite3_bind_int(insStmt, 28, static_cast<int>(t.rating));
+              sqlite3_bind_int(insStmt, 29, t.isFavorite ? 1 : 0);
+              sqlite3_bind_int(insStmt, 30, static_cast<int>(t.playCount));
+              sqlite3_bind_int(insStmt, 31, static_cast<int>(t.skipCount));
+              sqlite3_bind_int64(insStmt, 32,
+                                 static_cast<int64_t>(t.lastPlayed));
+              sqlite3_bind_text(insStmt, 33, t.comment.c_str(), -1,
+                                SQLITE_TRANSIENT);
+
+              sqlite3_step(insStmt);
+              sqlite3_reset(insStmt);
+            }
+            sqlite3_finalize(insStmt);
+          }
+          break; // Audio file expanded for this cue sheet
+        }
+      }
+    }
+  }
 }
 
 } // namespace adapters

@@ -41,6 +41,27 @@ void TrackListModel::loadAllTracks() {
   emit selectionChanged();
 }
 
+void TrackListModel::loadUntaggedTracks() {
+  beginResetModel();
+  m_allTracks.clear();
+  m_filteredTracks.clear();
+  m_selectedIndices.clear();
+  m_searchQuery.clear();
+  m_filterText.clear();
+  m_genreFilter.clear();
+  m_artistFilter.clear();
+  m_albumFilter.clear();
+  m_letterFilter.clear();
+  m_hiResOnly = false;
+  if (m_dbPort) {
+    m_allTracks = m_dbPort->getUntaggedTracks();
+  }
+  m_filteredTracks = m_allTracks;
+  endResetModel();
+  emit countChanged();
+  emit selectionChanged();
+}
+
 void TrackListModel::loadAlbumTracks(const QString &albumTitle,
                                      const QString &albumArtist) {
   beginResetModel();
@@ -423,6 +444,22 @@ QVariant TrackListModel::data(const QModelIndex &index, int role) const {
   case CommentRole: {
     return QString::fromStdString(track.comment);
   }
+  case IsUntaggedRole: {
+    return track.isUntagged();
+  }
+  case IsUnknownArtistRole: {
+    return track.isUnknownArtist();
+  }
+  case IsUnknownAlbumRole: {
+    return track.isUnknownAlbum();
+  }
+  case DisplayTrackNumberRole: {
+    return track.trackNumber > 0 ? QString::number(track.trackNumber)
+                                 : QStringLiteral("-");
+  }
+  case DisplayYearRole: {
+    return track.year > 0 ? QString::number(track.year) : QStringLiteral("-");
+  }
   default:
     return QVariant();
   }
@@ -497,6 +534,13 @@ QVariantMap TrackListModel::getTrackAt(int index) const {
   map["isFavorite"] = t.isFavorite;
   map["lastPlayed"] = static_cast<qint64>(t.lastPlayed);
   map["comment"] = QString::fromStdString(t.comment);
+  map["isUntagged"] = t.isUntagged();
+  map["isUnknownArtist"] = t.isUnknownArtist();
+  map["isUnknownAlbum"] = t.isUnknownAlbum();
+  map["displayTrackNumber"] =
+      t.trackNumber > 0 ? QString::number(t.trackNumber) : QStringLiteral("-");
+  map["displayYear"] =
+      t.year > 0 ? QString::number(t.year) : QStringLiteral("-");
 
   return map;
 }
@@ -534,6 +578,11 @@ QHash<int, QByteArray> TrackListModel::roleNames() const {
   roles[LastPlayedRole] = "lastPlayed";
   roles[LastPlayedFormattedRole] = "lastPlayedFormatted";
   roles[CommentRole] = "comment";
+  roles[IsUntaggedRole] = "isUntagged";
+  roles[IsUnknownArtistRole] = "isUnknownArtist";
+  roles[IsUnknownAlbumRole] = "isUnknownAlbum";
+  roles[DisplayTrackNumberRole] = "displayTrackNumber";
+  roles[DisplayYearRole] = "displayYear";
   return roles;
 }
 

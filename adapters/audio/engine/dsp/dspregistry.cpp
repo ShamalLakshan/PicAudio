@@ -6,8 +6,10 @@
 
 #include "dspregistry.h"
 
+#include "channelmatrixdsp.h"
 #include "downmixtomonodsp.h"
 #include "downmixtostereodsp.h"
+#include "equalizerdsp.h"
 #include "monotostereodsp.h"
 #include "resamplerdsp.h"
 #include "reversestereodsp.h"
@@ -19,78 +21,103 @@
 using namespace Qt::StringLiterals;
 
 namespace PicAudioEngine {
-DspRegistry::DspRegistry()
-{
-    registerBuiltins();
+DspRegistry::DspRegistry() { registerBuiltins(); }
+
+void DspRegistry::registerDsp(const DspNode::Entry &entry) {
+  const std::scoped_lock lock{m_mutex};
+
+  const auto it =
+      std::ranges::find_if(m_entries, [&entry](const auto &regEntry) {
+        return regEntry.id == entry.id;
+      });
+  if (it != m_entries.end()) {
+    return;
+  }
+
+  m_entries.push_back(entry);
 }
 
-void DspRegistry::registerDsp(const DspNode::Entry& entry)
-{
-    const std::scoped_lock lock{m_mutex};
-
-    const auto it = std::ranges::find_if(m_entries, [&entry](const auto& regEntry) { return regEntry.id == entry.id; });
-    if(it != m_entries.end()) {
-        return;
-    }
-
-    m_entries.push_back(entry);
+std::vector<DspNode::Entry> DspRegistry::entries() const {
+  const std::scoped_lock lock{m_mutex};
+  return m_entries;
 }
 
-std::vector<DspNode::Entry> DspRegistry::entries() const
-{
-    const std::scoped_lock lock{m_mutex};
-    return m_entries;
+std::unique_ptr<DspNode> DspRegistry::create(const QString &id) const {
+  const std::scoped_lock lock{m_mutex};
+
+  const auto it = std::ranges::find_if(
+      m_entries, [&id](const auto &entry) { return entry.id == id; });
+  if (it != m_entries.end() && it->factory) {
+    return it->factory();
+  }
+
+  return nullptr;
 }
 
-std::unique_ptr<DspNode> DspRegistry::create(const QString& id) const
-{
-    const std::scoped_lock lock{m_mutex};
-
-    const auto it = std::ranges::find_if(m_entries, [&id](const auto& entry) { return entry.id == id; });
-    if(it != m_entries.end() && it->factory) {
-        return it->factory();
-    }
-
-    return nullptr;
-}
-
-void DspRegistry::registerBuiltins()
-{
-    {
-        auto dsp           = std::make_unique<SkipSilenceDsp>();
-        const QString id   = dsp->id();
-        const QString name = dsp->name();
-        registerDsp({.id = id, .name = name, .factory = []() { return std::make_unique<SkipSilenceDsp>(); }});
-    }
-    {
-        auto dsp           = std::make_unique<ResamplerDsp>();
-        const QString id   = dsp->id();
-        const QString name = u"Resampler (FFmpeg)"_s;
-        registerDsp({.id = id, .name = name, .factory = []() { return std::make_unique<ResamplerDsp>(); }});
-    }
-    {
-        auto dsp           = std::make_unique<MonoToStereoDsp>();
-        const QString id   = dsp->id();
-        const QString name = dsp->name();
-        registerDsp({.id = id, .name = name, .factory = []() { return std::make_unique<MonoToStereoDsp>(); }});
-    }
-    {
-        auto dsp           = std::make_unique<ReverseStereoDsp>();
-        const QString id   = dsp->id();
-        const QString name = dsp->name();
-        registerDsp({.id = id, .name = name, .factory = []() { return std::make_unique<ReverseStereoDsp>(); }});
-    }
-    {
-        auto dsp           = std::make_unique<DownmixToStereoDsp>();
-        const QString id   = dsp->id();
-        const QString name = dsp->name();
-        registerDsp({.id = id, .name = name, .factory = []() { return std::make_unique<DownmixToStereoDsp>(); }});
-    }
-    {
-        auto dsp           = std::make_unique<DownmixToMonoDsp>();
-        const QString id   = dsp->id();
-        const QString name = dsp->name();
-        registerDsp({.id = id, .name = name, .factory = []() { return std::make_unique<DownmixToMonoDsp>(); }});
-    }
+void DspRegistry::registerBuiltins() {
+  {
+    auto dsp = std::make_unique<SkipSilenceDsp>();
+    const QString id = dsp->id();
+    const QString name = dsp->name();
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<SkipSilenceDsp>();
+                 }});
+  }
+  {
+    auto dsp = std::make_unique<ResamplerDsp>();
+    const QString id = dsp->id();
+    const QString name = u"Resampler (FFmpeg)"_s;
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<ResamplerDsp>();
+                 }});
+  }
+  {
+    auto dsp = std::make_unique<MonoToStereoDsp>();
+    const QString id = dsp->id();
+    const QString name = dsp->name();
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<MonoToStereoDsp>();
+                 }});
+  }
+  {
+    auto dsp = std::make_unique<ReverseStereoDsp>();
+    const QString id = dsp->id();
+    const QString name = dsp->name();
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<ReverseStereoDsp>();
+                 }});
+  }
+  {
+    auto dsp = std::make_unique<DownmixToStereoDsp>();
+    const QString id = dsp->id();
+    const QString name = dsp->name();
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<DownmixToStereoDsp>();
+                 }});
+  }
+  {
+    auto dsp = std::make_unique<DownmixToMonoDsp>();
+    const QString id = dsp->id();
+    const QString name = dsp->name();
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<DownmixToMonoDsp>();
+                 }});
+  }
+  {
+    auto dsp = std::make_unique<EqualizerDsp>();
+    const QString id = dsp->id();
+    const QString name = dsp->name();
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<EqualizerDsp>();
+                 }});
+  }
+  {
+    auto dsp = std::make_unique<ChannelMatrixDsp>();
+    const QString id = dsp->id();
+    const QString name = dsp->name();
+    registerDsp({.id = id, .name = name, .factory = []() {
+                   return std::make_unique<ChannelMatrixDsp>();
+                 }});
+  }
 }
 } // namespace PicAudioEngine

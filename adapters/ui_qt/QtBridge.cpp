@@ -1,8 +1,10 @@
 #include "QtBridge.hpp"
 #include "audio/CueSheetParser.hpp"
 #include "audio/WaveformExtractor.hpp"
+#include "audio/dsp/AutoEqDatabase.hpp"
+#include "audio/dsp/EqFileParser.hpp"
 #include "core/services/PlaylistService.hpp"
-#include "dsp/DspManager.hpp"
+#include "dsp/equalizerdsp.h"
 #include "metadata/TagLibMetadataAdapter.hpp"
 #include "plugin/PluginManager.hpp"
 #include "providers/ArtistImageManager.hpp"
@@ -41,6 +43,9 @@ QtBridge::QtBridge(core::PlayerService &player, core::LibraryService &library,
 
   // Initialize hotkeys registry
   initDefaultHotkeys();
+
+  // Initialize AutoEq database
+  adapters::AutoEqDatabase::instance().initialize();
 
   m_albumModel = new AlbumListModel(&m_library.getDatabasePort(), this);
   m_trackModel = new TrackListModel(&m_library.getDatabasePort(), this);
@@ -455,8 +460,8 @@ void QtBridge::setupPositionTimer() {
       // CUE virtual track boundary check
       auto curOpt = m_player.getCurrentTrack();
       if (curOpt.has_value() && curOpt->isVirtualTrack &&
-          curOpt->endTimeMs > curOpt->startTimeMs) {
-        if (m_positionMs >= static_cast<qint64>(curOpt->endTimeMs)) {
+          curOpt->durationMs > 0) {
+        if (m_positionMs >= static_cast<qint64>(curOpt->durationMs)) {
           nextTrack();
         }
       }
@@ -548,6 +553,56 @@ void QtBridge::updateVisualizerData() {
   emit visualizerDataChanged();
   emit channelLevelsChanged();
 }
+
+int QtBridge::visualizerStyle() const {
+  QSettings s(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
+  return s.value(QStringLiteral("visualizer/style"), 1).toInt();
+}
+
+void QtBridge::setVisualizerStyle(int style) {
+  if (style != visualizerStyle()) {
+    QSettings s(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
+    s.setValue(QStringLiteral("visualizer/style"), style);
+    emit visualizerStyleChanged();
+  }
+}
+
+QString QtBridge::activeVisualizerName() const {
+  if (m_pluginManager) {
+    const auto plugins = m_pluginManager->getDiscoveredPlugins();
+    for (const auto &p : plugins) {
+      if (p.loaded && p.enabled &&
+          p.capabilities.contains(QStringLiteral("visualizer"))) {
+        return p.name;
+      }
+    }
+  }
+  return QStringLiteral("Internal Spectrum");
+}
+
+bool QtBridge::hasActiveVisualizerPlugin() const {
+  if (m_pluginManager) {
+    const auto plugins = m_pluginManager->getDiscoveredPlugins();
+    for (const auto &p : plugins) {
+      if (p.loaded && p.enabled &&
+          p.capabilities.contains(QStringLiteral("visualizer"))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void QtBridge::openVisualizerView() {
+  setVisualizerStyle(1);
+  if (m_tabModel) {
+    m_tabModel->updateActiveView(QStringLiteral("now_playing_default"));
+  }
+  showToast(tr("Switched to Visualizer view (%1)").arg(activeVisualizerName()),
+            QStringLiteral("info"));
+}
+
+void QtBridge::openVisualizerWindow() { emit openVisualizerWindowRequested(); }
 
 QString QtBridge::formatTime(qint64 ms) {
   if (ms < 0)
@@ -698,6 +753,9 @@ void QtBridge::refreshLibraryStats() {
         artists.insert(a.toStdString());
         m_artistTrackCounts[a.toLower().toStdString()]++;
       }
+    } else {
+      artists.insert(core::Track::UNKNOWN_ARTIST);
+      m_artistTrackCounts["unknown artist"]++;
     }
   }
 
@@ -715,8 +773,19 @@ void QtBridge::refreshLibraryStats() {
     m_genresList.append(QString::fromStdString(g));
 
   m_artistsList.clear();
+  bool hasUnknownArtist = false;
+  if (artists.find(core::Track::UNKNOWN_ARTIST) != artists.end()) {
+    hasUnknownArtist = true;
+    artists.erase(core::Track::UNKNOWN_ARTIST);
+  }
+  if (hasUnknownArtist || m_totalUntaggedTracks > 0) {
+    m_artistsList.append(QString::fromStdString(core::Track::UNKNOWN_ARTIST));
+  }
   for (const auto &a : artists)
     m_artistsList.append(QString::fromStdString(a));
+
+  m_totalUntaggedTracks =
+      static_cast<int>(m_library.getDatabasePort().getUntaggedTrackCount());
 
   emit libraryStatsChanged();
 }
@@ -1028,8 +1097,46 @@ void QtBridge::applyLayoutPreset(const QString &presetId) {
   }
 }
 
+void QtBridge::openUntaggedTracks() {
+  m_selectedAlbumTitle = QStringLiteral("Unknown Album");
+  m_selectedAlbumArtist = QStringLiteral("Various / Unknown");
+  m_selectedAlbumYear = "";
+  m_selectedAlbumGenre = QStringLiteral("Various");
+  m_selectedAlbumQuality = QStringLiteral("Mixed");
+  m_selectedAlbumDuration = "";
+  m_selectedAlbumTrackCount = m_totalUntaggedTracks;
+  m_selectedAlbumArtHash = "";
+
+  m_albumDetailTrackModel->loadUntaggedTracks();
+  emit selectedAlbumChanged();
+}
+
+void QtBridge::playUntaggedTracks() {
+  auto untagged = m_library.getDatabasePort().getUntaggedTracks();
+  if (!untagged.empty()) {
+    m_player.playQueue(untagged, 0);
+    updatePlaybackState(untagged[0]);
+    syncQueueModel();
+  }
+}
+
+void QtBridge::queueUntaggedTracks() {
+  auto untagged = m_library.getDatabasePort().getUntaggedTracks();
+  if (!untagged.empty()) {
+    m_player.queueLast(untagged);
+    syncQueueModel();
+  }
+}
+
 void QtBridge::openAlbumDetails(const QString &albumTitle,
                                 const QString &albumArtist) {
+  if (albumTitle == "Unknown Album" ||
+      albumTitle == "Untagged & Loose Tracks" ||
+      albumTitle == "alb_special_untagged") {
+    openUntaggedTracks();
+    return;
+  }
+
   auto albumOpt = m_library.getDatabasePort().getAlbumById(
       "alb_" + albumTitle.toStdString() + "_" + albumArtist.toStdString());
   if (albumOpt) {
@@ -1527,10 +1634,6 @@ void QtBridge::updatePlaybackState(const core::Track &track) {
       track.hasReplayGain, track.replayGainTrackGain, track.replayGainTrackPeak,
       track.replayGainAlbumGain, track.replayGainAlbumPeak, true);
 
-  if (track.isVirtualTrack && track.startTimeMs > 0) {
-    seek(track.startTimeMs);
-  }
-
   m_positionTimer->start();
   emit playbackChanged();
   emit positionChanged();
@@ -1783,8 +1886,13 @@ void QtBridge::setSleepSmoothFadeOut(bool enable) {
 void QtBridge::loadWaveform(const QString &filePath) {
   if (filePath.isEmpty() || !m_waveformExtractor)
     return;
+  QString cleanPath = filePath;
+  int cueIdx = cleanPath.indexOf("#cue:");
+  if (cueIdx >= 0) {
+    cleanPath = cleanPath.left(cueIdx);
+  }
   m_waveformExtractor->extractPeaksAsync(
-      filePath.toStdString(), 128, [this](std::vector<float> peaks) {
+      cleanPath.toStdString(), 128, [this](std::vector<float> peaks) {
         QMetaObject::invokeMethod(
             this,
             [this, peaks = std::move(peaks)]() {
@@ -2741,6 +2849,14 @@ void QtBridge::handleDropOnQueue(const QList<QUrl> &urls) {
   tracks.reserve(files.size());
 
   for (const QString &file : files) {
+    if (file.endsWith(QStringLiteral(".cue"), Qt::CaseInsensitive)) {
+      auto cueTracks = adapters::CueSheetParser::parseFile(file.toStdString());
+      for (const auto &ct : cueTracks) {
+        m_library.getDatabasePort().saveTrack(ct);
+        tracks.push_back(ct);
+      }
+      continue;
+    }
     auto trackOpt =
         m_library.getMetadataExtractor().extract(file.toStdString());
     if (trackOpt) {
@@ -2839,6 +2955,16 @@ void QtBridge::openCueSheet(const QString &cueFilePath) {
   auto cueTracks = adapters::CueSheetParser::parseFile(cleanPath.toStdString());
   if (cueTracks.empty())
     return;
+
+  std::string companionPath = cueTracks.front().filePath;
+  auto cueTagPos = companionPath.find("#cue:");
+  if (cueTagPos != std::string::npos) {
+    companionPath = companionPath.substr(0, cueTagPos);
+  }
+  auto existingOpt = m_library.getDatabasePort().getTrackByPath(companionPath);
+  if (existingOpt.has_value() && !existingOpt->isVirtualTrack) {
+    m_library.getDatabasePort().deleteTrack(existingOpt->id);
+  }
 
   for (const auto &t : cueTracks) {
     m_library.getDatabasePort().saveTrack(t);
@@ -5541,7 +5667,13 @@ void QtBridge::loadLyricsForTrack(const QString &filePath) {
     return;
   }
 
-  QFileInfo fileInfo(filePath);
+  QString cleanPath = filePath;
+  int cueIdx = cleanPath.indexOf("#cue:");
+  if (cueIdx >= 0) {
+    cleanPath = cleanPath.left(cueIdx);
+  }
+
+  QFileInfo fileInfo(cleanPath);
   QString basePath = fileInfo.path() + "/" + fileInfo.completeBaseName();
 
   // Try sidecar .lrc or .txt first
@@ -5733,7 +5865,7 @@ void QtBridge::setPluginManager(adapters::PluginManager *manager) {
   m_pluginManager = manager;
   if (m_pluginManager) {
     connect(m_pluginManager, &adapters::PluginManager::pluginsChanged, this,
-            &QtBridge::pluginsChanged);
+            &QtBridge::pluginsChanged, Qt::QueuedConnection);
   }
 }
 
@@ -5758,6 +5890,7 @@ QVariantList QtBridge::getDiscoveredPlugins() const {
     map[QStringLiteral("libraryPath")] = p.libraryPath;
     map[QStringLiteral("enabled")] = p.enabled;
     map[QStringLiteral("loaded")] = p.loaded;
+    map[QStringLiteral("isPendingRemoval")] = p.isPendingRemoval;
     map[QStringLiteral("loadError")] = p.loadError;
     map[QStringLiteral("isCompatible")] =
         p.loadError.isEmpty() ||
@@ -5807,6 +5940,69 @@ void QtBridge::scanPlugins() {
     emit pluginsChanged();
     showToast(tr("Rescanned plugins directory"), QStringLiteral("success"));
   }
+}
+
+bool QtBridge::installPlugin(const QString &filePath) {
+  if (!m_pluginManager) {
+    showToast(tr("Plugin manager is not initialized."),
+              QStringLiteral("error"));
+    return false;
+  }
+
+  QString cleanPath = filePath.trimmed();
+  const QUrl url(cleanPath);
+  if (url.isValid() &&
+      (url.isLocalFile() || cleanPath.startsWith(QLatin1String("file:")))) {
+    cleanPath = url.toLocalFile();
+  }
+
+  adapters::PluginInstallResult result;
+  const bool ok = m_pluginManager->installPluginBundle(cleanPath, result);
+  emit pluginsChanged();
+
+  if (ok) {
+    showToast(
+        result.message.isEmpty()
+            ? tr("Plugin '%1' installed successfully.").arg(result.pluginName)
+            : result.message,
+        QStringLiteral("success"));
+  } else {
+    showToast(result.message.isEmpty() ? tr("Failed to install plugin bundle.")
+                                       : result.message,
+              QStringLiteral("error"));
+  }
+  return ok;
+}
+
+bool QtBridge::removePlugin(const QString &pluginId) {
+  if (!m_pluginManager) {
+    return false;
+  }
+  QString err;
+  const bool ok = m_pluginManager->removePlugin(pluginId, err);
+  emit pluginsChanged();
+  if (ok) {
+    if (err.isEmpty()) {
+      showToast(tr("Plugin '%1' removed successfully.").arg(pluginId),
+                QStringLiteral("info"));
+    } else {
+      showToast(err, QStringLiteral("warning"));
+    }
+  } else {
+    showToast(err.isEmpty() ? tr("Failed to remove plugin '%1'.").arg(pluginId)
+                            : err,
+              QStringLiteral("error"));
+  }
+  return ok;
+}
+
+bool QtBridge::isPluginPendingRemoval(const QString &pluginId) const {
+  return m_pluginManager && m_pluginManager->isPluginPendingRemoval(pluginId);
+}
+
+QStringList QtBridge::getPendingRemovalPlugins() const {
+  return m_pluginManager ? m_pluginManager->getPendingRemovals()
+                         : QStringList{};
 }
 
 QVariantMap QtBridge::getPluginDetails(const QString &pluginId) const {
@@ -5877,27 +6073,6 @@ bool QtBridge::isPluginWindowVisible(const QString &pluginId) const {
   return m_pluginManager->isPluginWindowVisible(pluginId);
 }
 
-void QtBridge::setDspManager(adapters::DspManager *manager) {
-  if (m_dspManager == manager) {
-    return;
-  }
-  if (m_dspManager) {
-    disconnect(m_dspManager, nullptr, this, nullptr);
-  }
-  m_dspManager = manager;
-  if (m_dspManager) {
-    connect(m_dspManager, &adapters::DspManager::dspPluginsChanged, this,
-            &QtBridge::dspPluginsChanged);
-    connect(m_dspManager, &adapters::DspManager::dspMasterEnabledChanged, this,
-            &QtBridge::dspMasterEnabledChanged);
-    connect(m_dspManager, &adapters::DspManager::routingOrderChanged, this,
-            &QtBridge::dspRoutingOrderChanged);
-  }
-  emit dspPluginsChanged();
-  emit dspMasterEnabledChanged();
-  emit dspRoutingOrderChanged();
-}
-
 bool QtBridge::isEqEnabled() const { return m_player.isEqEnabled(); }
 
 void QtBridge::setEqEnabled(bool enabled) {
@@ -5932,6 +6107,7 @@ void QtBridge::setEqBandGain(int bandIndex, qreal gainDb) {
       bandIndex < static_cast<int>(m_player.getEqBandCount())) {
     m_player.setEqBandGain(static_cast<size_t>(bandIndex),
                            static_cast<float>(gainDb));
+    emit eqPresetChanged();
     emit eqBandGainsChanged();
     scheduleDspAndEqSettingsSave();
   }
@@ -5949,6 +6125,7 @@ void QtBridge::setEqBandCount(int count) {
     m_player.setEqBandCount(static_cast<size_t>(count));
     emit eqBandCountChanged();
     emit eqBandGainsChanged();
+    emit eqPresetChanged();
     scheduleDspAndEqSettingsSave();
   }
 }
@@ -5970,6 +6147,7 @@ void QtBridge::setEqPreset(const QString &preset) {
   m_player.setEqPreset(preset.toStdString());
   emit eqPresetChanged();
   emit eqBandGainsChanged();
+  emit eqPreampDbChanged();
   scheduleDspAndEqSettingsSave();
 }
 
@@ -5981,114 +6159,304 @@ void QtBridge::resetEq() {
   scheduleDspAndEqSettingsSave();
 }
 
-bool QtBridge::isDspMasterEnabled() const {
-  if (m_dspManager) {
-    return m_dspManager->isDspMasterEnabled();
+int QtBridge::eqMode() const { return m_player.getEqMode(); }
+
+void QtBridge::setEqMode(int mode) {
+  if (eqMode() != mode) {
+    m_player.setEqMode(mode);
+    emit eqModeChanged();
+    scheduleDspAndEqSettingsSave();
   }
-  return m_player.isDspMasterEnabled();
 }
 
-void QtBridge::setDspMasterEnabled(bool enabled) {
-  if (m_dspManager) {
-    m_dspManager->setDspMasterEnabled(enabled);
-  }
-  m_player.setDspMasterEnabled(enabled);
-  emit dspMasterEnabledChanged();
-  scheduleDspAndEqSettingsSave();
-}
-
-int QtBridge::dspRoutingOrder() const {
-  if (m_dspManager) {
-    return static_cast<int>(m_dspManager->getRoutingOrder());
-  }
-  return m_player.getDspRoutingOrder();
-}
-
-void QtBridge::setDspRoutingOrder(int order) {
-  if (m_dspManager) {
-    m_dspManager->setRoutingOrder(
-        static_cast<adapters::DspManager::RoutingOrder>(order));
-  }
-  m_player.setDspRoutingOrder(order);
-  emit dspRoutingOrderChanged();
-  scheduleDspAndEqSettingsSave();
-}
-
-QVariantList QtBridge::discoveredDspPlugins() const {
+QVariantList QtBridge::peqBands() const {
+  auto bands = m_player.getPeqBands();
   QVariantList list;
-  if (!m_dspManager) {
-    return list;
-  }
-  for (const auto &p : m_dspManager->getDiscoveredPlugins()) {
+  for (const auto &b : bands) {
     QVariantMap map;
-    map[QStringLiteral("id")] = QString::fromStdString(p.id);
-    map[QStringLiteral("name")] = QString::fromStdString(p.name);
-    map[QStringLiteral("vendor")] = QString::fromStdString(p.vendor);
-    map[QStringLiteral("version")] = QString::fromStdString(p.version);
-    map[QStringLiteral("description")] = QString::fromStdString(p.description);
-    map[QStringLiteral("libraryPath")] = QString::fromStdString(p.libraryPath);
-    map[QStringLiteral("hasGui")] = p.hasGui;
-    map[QStringLiteral("enabled")] = p.enabled;
-    map[QStringLiteral("isLoaded")] = p.isLoaded;
+    map[QStringLiteral("type")] = static_cast<int>(b.type);
+    map[QStringLiteral("frequency")] = static_cast<double>(b.frequency);
+    map[QStringLiteral("gainDb")] = static_cast<double>(b.gainDb);
+    map[QStringLiteral("q")] = static_cast<double>(b.q);
+    map[QStringLiteral("enabled")] = b.enabled;
     list.append(map);
   }
   return list;
 }
 
-QString QtBridge::primaryDspDirectory() const {
-  if (m_dspManager) {
-    return QString::fromStdString(m_dspManager->getPrimaryDspDirectory());
+void QtBridge::setPeqBand(int index, int type, qreal freq, qreal gain, qreal q,
+                          bool enabled) {
+  auto bands = m_player.getPeqBands();
+  if (index >= 0 && index < static_cast<int>(bands.size())) {
+    bands[index].type = static_cast<core::EqFilterType>(type);
+    bands[index].frequency = static_cast<float>(freq);
+    bands[index].gainDb = static_cast<float>(gain);
+    bands[index].q = static_cast<float>(q);
+    bands[index].enabled = enabled;
+    m_player.setPeqBands(bands);
+    emit peqBandsChanged();
+    scheduleDspAndEqSettingsSave();
   }
-  return QString();
 }
 
-void QtBridge::openDspDirectory() {
-  if (m_dspManager) {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(
-        QString::fromStdString(m_dspManager->getPrimaryDspDirectory())));
+void QtBridge::addPeqBand(int type, qreal freq, qreal gain, qreal q) {
+  auto bands = m_player.getPeqBands();
+  if (bands.size() < 32) {
+    core::PeqFilterBand b;
+    b.type = static_cast<core::EqFilterType>(type);
+    b.frequency = static_cast<float>(freq);
+    b.gainDb = static_cast<float>(gain);
+    b.q = static_cast<float>(q);
+    b.enabled = true;
+    bands.push_back(b);
+    m_player.setPeqBands(bands);
+    emit peqBandsChanged();
+    scheduleDspAndEqSettingsSave();
   }
 }
 
-void QtBridge::scanDspPlugins() {
-  if (m_dspManager) {
-    m_dspManager->scanAndLoadPlugins();
-    emit dspPluginsChanged();
-    showToast(tr("Rescanned external DSP directory"),
-              QStringLiteral("success"));
+void QtBridge::removePeqBand(int index) {
+  auto bands = m_player.getPeqBands();
+  if (index >= 0 && index < static_cast<int>(bands.size())) {
+    bands.erase(bands.begin() + index);
+    m_player.setPeqBands(bands);
+    emit peqBandsChanged();
+    scheduleDspAndEqSettingsSave();
   }
 }
+
+void QtBridge::resetPeq() {
+  std::vector<core::PeqFilterBand> defaults;
+  defaults.push_back({core::EqFilterType::LowShelf, 80.0f, 0.0f, 0.71f, true});
+  defaults.push_back({core::EqFilterType::Peaking, 250.0f, 0.0f, 1.414f, true});
+  defaults.push_back(
+      {core::EqFilterType::Peaking, 1000.0f, 0.0f, 1.414f, true});
+  defaults.push_back(
+      {core::EqFilterType::Peaking, 4000.0f, 0.0f, 1.414f, true});
+  defaults.push_back(
+      {core::EqFilterType::HighShelf, 10000.0f, 0.0f, 0.71f, true});
+  m_player.setPeqBands(defaults);
+  setEqPreampDb(0.0);
+  emit peqBandsChanged();
+  scheduleDspAndEqSettingsSave();
+}
+
+QVariantList QtBridge::calculateResponseCurve(int numPoints) const {
+  if (numPoints <= 0) {
+    numPoints = 128;
+  }
+  std::vector<float> freqs;
+  freqs.reserve(numPoints);
+  const double minF = 20.0;
+  const double maxF = 20000.0;
+  const double logMin = std::log10(minF);
+  const double logMax = std::log10(maxF);
+
+  for (int i = 0; i < numPoints; ++i) {
+    double t = static_cast<double>(i) / (numPoints - 1);
+    double f = std::pow(10.0, logMin + t * (logMax - logMin));
+    freqs.push_back(static_cast<float>(f));
+  }
+
+  auto bands = m_player.getPeqBands();
+  std::vector<PicAudioEngine::PeqFilterSpec> specs;
+  specs.reserve(bands.size());
+  for (const auto &b : bands) {
+    PicAudioEngine::PeqFilterSpec s;
+    s.type = static_cast<PicAudioEngine::PeqFilterType>(b.type);
+    s.frequency = b.frequency;
+    s.gainDb = b.gainDb;
+    s.q = b.q;
+    s.enabled = b.enabled;
+    specs.push_back(s);
+  }
+
+  auto resp = PicAudioEngine::EqualizerDsp::calculateResponse(
+      specs, static_cast<float>(eqPreampDb()), freqs, 44100);
+
+  QVariantList list;
+  list.reserve(numPoints);
+  for (size_t i = 0; i < resp.size(); ++i) {
+    QVariantMap pt;
+    pt[QStringLiteral("f")] = static_cast<double>(freqs[i]);
+    pt[QStringLiteral("db")] = static_cast<double>(resp[i]);
+    list.append(pt);
+  }
+  return list;
+}
+
+bool QtBridge::importEqFile(const QString &filePath) {
+  auto parsed = adapters::EqFileParser::parseFile(filePath.toStdString());
+  if (!parsed.success) {
+    emit toastRequested("Failed to import EQ: " +
+                            QString::fromStdString(parsed.errorMessage),
+                        QStringLiteral("error"));
+    return false;
+  }
+
+  setEqPreampDb(parsed.preampDb);
+  if (parsed.mode == 1) {
+    setEqMode(1);
+    m_player.setPeqBands(parsed.peqBands);
+    emit peqBandsChanged();
+  } else {
+    setEqMode(0);
+    setEqBandCount(static_cast<int>(parsed.graphicBandCount));
+    m_player.setEqBandGains(parsed.graphicGains);
+    emit eqBandGainsChanged();
+  }
+  emit toastRequested(
+      QStringLiteral("Equalizer configuration imported successfully"),
+      QStringLiteral("success"));
+  return true;
+}
+
+bool QtBridge::importEqText(const QString &content) {
+  auto parsed = adapters::EqFileParser::parse(content.toStdString());
+  if (!parsed.success) {
+    emit toastRequested("Failed to import EQ: " +
+                            QString::fromStdString(parsed.errorMessage),
+                        QStringLiteral("error"));
+    return false;
+  }
+
+  setEqPreampDb(parsed.preampDb);
+  if (parsed.mode == 1) {
+    setEqMode(1);
+    m_player.setPeqBands(parsed.peqBands);
+    emit peqBandsChanged();
+  } else {
+    setEqMode(0);
+    setEqBandCount(static_cast<int>(parsed.graphicBandCount));
+    m_player.setEqBandGains(parsed.graphicGains);
+    emit eqBandGainsChanged();
+  }
+  emit toastRequested(
+      QStringLiteral("Equalizer configuration loaded successfully"),
+      QStringLiteral("success"));
+  return true;
+}
+
+QString QtBridge::exportEqText() const {
+  return QString::fromStdString(adapters::EqFileParser::exportEqualizerApo(
+      m_player.getPeqBands(), static_cast<float>(eqPreampDb()),
+      "PicAudio Custom Profile"));
+}
+
+bool QtBridge::exportEqFile(const QString &filePath) const {
+  QString content = exportEqText();
+  QFile file(filePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    return false;
+  }
+  QTextStream out(&file);
+  out << content;
+  return true;
+}
+
+QVariantList QtBridge::searchAutoEq(const QString &query) const {
+  auto profiles = adapters::AutoEqDatabase::instance().search(query);
+  QVariantList list;
+  for (const auto &p : profiles) {
+    QVariantMap map;
+    map[QStringLiteral("id")] = p.id;
+    map[QStringLiteral("model")] = p.model;
+    map[QStringLiteral("source")] = p.source;
+    map[QStringLiteral("target")] = p.target;
+    map[QStringLiteral("formFactor")] = p.formFactor;
+    map[QStringLiteral("preampDb")] = static_cast<double>(p.preampDb);
+    map[QStringLiteral("filterCount")] = static_cast<int>(p.filters.size());
+    list.append(map);
+  }
+  return list;
+}
+
+bool QtBridge::applyAutoEqProfile(const QString &profileId) {
+  auto opt = adapters::AutoEqDatabase::instance().getProfile(profileId);
+  if (!opt.has_value()) {
+    emit toastRequested(QStringLiteral("AutoEq profile not found"),
+                        QStringLiteral("error"));
+    return false;
+  }
+
+  const auto &p = *opt;
+  setEqMode(1); // Switch to PEQ mode
+  setEqPreampDb(p.preampDb);
+  m_player.setPeqBands(p.filters);
+  m_player.setEqPreset((p.model + " (" + p.source + ")").toStdString());
+  emit eqPresetChanged();
+  emit peqBandsChanged();
+  scheduleDspAndEqSettingsSave();
+  emit toastRequested(QStringLiteral("Applied EQ profile for ") + p.model,
+                      QStringLiteral("success"));
+  return true;
+}
+
+void QtBridge::fetchOnlineAutoEq(const QString &url, const QString &model,
+                                 const QString &source) {
+  adapters::AutoEqDatabase::instance().fetchOnlineProfile(
+      url, model, source, [this, model](bool success, const auto &profile) {
+        if (success) {
+          applyAutoEqProfile(profile.id);
+          emit onlineAutoEqLoaded(true, QStringLiteral("Fetched profile for ") +
+                                            model);
+        } else {
+          emit onlineAutoEqLoaded(
+              false, QStringLiteral("Failed to fetch online profile"));
+        }
+      });
+}
+
+QString QtBridge::autoEqAttribution() const {
+  return adapters::AutoEqDatabase::attributionText();
+}
+
+bool QtBridge::isDspMasterEnabled() const {
+  return m_player.isDspMasterEnabled();
+}
+
+void QtBridge::setDspMasterEnabled(bool enabled) {
+  m_player.setDspMasterEnabled(enabled);
+  emit dspMasterEnabledChanged();
+  scheduleDspAndEqSettingsSave();
+}
+
+int QtBridge::dspRoutingOrder() const { return m_player.getDspRoutingOrder(); }
+
+void QtBridge::setDspRoutingOrder(int order) {
+  m_player.setDspRoutingOrder(order);
+  emit dspRoutingOrderChanged();
+  scheduleDspAndEqSettingsSave();
+}
+
+QVariantList QtBridge::discoveredDspPlugins() const { return QVariantList{}; }
+
+QString QtBridge::primaryDspDirectory() const { return QString(); }
+
+void QtBridge::openDspDirectory() {}
+
+void QtBridge::scanDspPlugins() {}
 
 bool QtBridge::setDspPluginEnabled(const QString &pluginId, bool enabled) {
-  if (m_dspManager) {
-    return m_dspManager->setPluginEnabled(pluginId.toStdString(), enabled);
-  }
+  Q_UNUSED(pluginId);
+  Q_UNUSED(enabled);
   return false;
 }
 
-void QtBridge::setAllDspPluginsEnabled(bool enabled) {
-  if (m_dspManager) {
-    m_dspManager->setAllPluginsEnabled(enabled);
-  }
-}
+void QtBridge::setAllDspPluginsEnabled(bool enabled) { Q_UNUSED(enabled); }
 
 bool QtBridge::showDspPluginWindow(const QString &pluginId) {
-  if (m_dspManager) {
-    return m_dspManager->showPluginWindow(pluginId.toStdString());
-  }
+  Q_UNUSED(pluginId);
   return false;
 }
 
 bool QtBridge::hideDspPluginWindow(const QString &pluginId) {
-  if (m_dspManager) {
-    return m_dspManager->hidePluginWindow(pluginId.toStdString());
-  }
+  Q_UNUSED(pluginId);
   return false;
 }
 
 bool QtBridge::isDspPluginWindowVisible(const QString &pluginId) const {
-  if (m_dspManager) {
-    return m_dspManager->isPluginWindowVisible(pluginId.toStdString());
-  }
+  Q_UNUSED(pluginId);
   return false;
 }
 
@@ -6097,6 +6465,9 @@ void QtBridge::loadDspAndEqSettings() {
   s.beginGroup("audio_dsp");
   bool eqEn = s.value("eqEnabled", true).toBool();
   m_player.setEqEnabled(eqEn);
+
+  int mode = s.value("eqMode", 0).toInt();
+  m_player.setEqMode(mode);
 
   int bandCount = s.value("eqBandCount", 10).toInt();
   if (bandCount == 10 || bandCount == 15 || bandCount == 31) {
@@ -6107,10 +6478,9 @@ void QtBridge::loadDspAndEqSettings() {
   m_player.setEqPreampGain(pre);
 
   QString preset = s.value("eqPreset", "Flat").toString();
-  m_player.setEqPreset(preset.toStdString());
 
   QVariant bandVar = s.value("eqBands");
-  if (bandVar.isValid()) {
+  if (preset == QStringLiteral("Custom") && bandVar.isValid()) {
     QVariantList bandList = bandVar.toList();
     std::vector<float> gains;
     for (const auto &v : bandList) {
@@ -6119,6 +6489,42 @@ void QtBridge::loadDspAndEqSettings() {
     if (!gains.empty()) {
       m_player.setEqBandGains(gains);
     }
+  } else {
+    m_player.setEqPreset(preset.toStdString());
+  }
+
+  QString peqJson = s.value("peqBands").toString();
+  if (!peqJson.isEmpty()) {
+    QJsonDocument doc = QJsonDocument::fromJson(peqJson.toUtf8());
+    if (doc.isArray()) {
+      std::vector<core::PeqFilterBand> bands;
+      for (const auto &v : doc.array()) {
+        if (v.isObject()) {
+          QJsonObject o = v.toObject();
+          core::PeqFilterBand b;
+          b.type = static_cast<core::EqFilterType>(o.value("type").toInt(0));
+          b.frequency = static_cast<float>(o.value("freq").toDouble(1000.0));
+          b.gainDb = static_cast<float>(o.value("gain").toDouble(0.0));
+          b.q = static_cast<float>(o.value("q").toDouble(1.414));
+          b.enabled = o.value("enabled").toBool(true);
+          bands.push_back(b);
+        }
+      }
+      m_player.setPeqBands(bands);
+    }
+  } else {
+    std::vector<core::PeqFilterBand> defaults;
+    defaults.push_back(
+        {core::EqFilterType::LowShelf, 80.0f, 0.0f, 0.71f, true});
+    defaults.push_back(
+        {core::EqFilterType::Peaking, 250.0f, 0.0f, 1.414f, true});
+    defaults.push_back(
+        {core::EqFilterType::Peaking, 1000.0f, 0.0f, 1.414f, true});
+    defaults.push_back(
+        {core::EqFilterType::Peaking, 4000.0f, 0.0f, 1.414f, true});
+    defaults.push_back(
+        {core::EqFilterType::HighShelf, 10000.0f, 0.0f, 0.71f, true});
+    m_player.setPeqBands(defaults);
   }
 
   bool dspEn = s.value("dspMasterEnabled", true).toBool();
@@ -6127,6 +6533,14 @@ void QtBridge::loadDspAndEqSettings() {
   int order = s.value("dspRoutingOrder", 0).toInt();
   setDspRoutingOrder(order);
   s.endGroup();
+
+  emit eqEnabledChanged();
+  emit eqModeChanged();
+  emit eqBandCountChanged();
+  emit eqPreampDbChanged();
+  emit eqPresetChanged();
+  emit eqBandGainsChanged();
+  emit peqBandsChanged();
 }
 
 void QtBridge::scheduleDspAndEqSettingsSave() {
@@ -6148,10 +6562,25 @@ void QtBridge::saveDspAndEqSettings() {
   QSettings s("PicAudio", "PicAudio");
   s.beginGroup("audio_dsp");
   s.setValue("eqEnabled", isEqEnabled());
+  s.setValue("eqMode", eqMode());
   s.setValue("eqBandCount", eqBandCount());
   s.setValue("eqPreampDb", static_cast<double>(eqPreampDb()));
   s.setValue("eqPreset", eqPreset());
   s.setValue("eqBands", eqBandGains());
+
+  QJsonArray peqArray;
+  for (const auto &b : m_player.getPeqBands()) {
+    QJsonObject obj;
+    obj[QStringLiteral("type")] = static_cast<int>(b.type);
+    obj[QStringLiteral("freq")] = static_cast<double>(b.frequency);
+    obj[QStringLiteral("gain")] = static_cast<double>(b.gainDb);
+    obj[QStringLiteral("q")] = static_cast<double>(b.q);
+    obj[QStringLiteral("enabled")] = b.enabled;
+    peqArray.append(obj);
+  }
+  s.setValue("peqBands", QString::fromUtf8(QJsonDocument(peqArray).toJson(
+                             QJsonDocument::Compact)));
+
   s.setValue("dspMasterEnabled", isDspMasterEnabled());
   s.setValue("dspRoutingOrder", dspRoutingOrder());
   s.endGroup();

@@ -111,8 +111,13 @@ QPixmap AlbumArtImageProvider::requestPixmap(const QString &id, QSize *size,
   }
 
   // 3. Direct audio file path check
-  if (m_extractor && QFile::exists(id)) {
-    auto artOpt = m_extractor->extractArtwork(key);
+  QString directPath = id;
+  int cueIdx = directPath.indexOf("#cue:");
+  if (cueIdx >= 0) {
+    directPath = directPath.left(cueIdx);
+  }
+  if (m_extractor && QFile::exists(directPath)) {
+    auto artOpt = m_extractor->extractArtwork(directPath.toStdString());
     if (artOpt.has_value() && !artOpt->data.empty()) {
       QPixmap pix;
       if (pix.loadFromData(reinterpret_cast<const uchar *>(artOpt->data.data()),

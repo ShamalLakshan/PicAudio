@@ -420,3 +420,202 @@ TEST_F(Phase4LibraryTest, TrackListModel_LoadArtistTracksAcrossMultipleAlbums) {
   EXPECT_EQ(model.tracks()[0].artist, "Queen");
   EXPECT_EQ(model.tracks()[1].artist, "queen");
 }
+
+TEST_F(Phase4LibraryTest, TrackEntity_UnknownHelpersAndCanonicalTags) {
+  core::Track properTrack;
+  properTrack.title = "Time";
+  properTrack.artist = "Pink Floyd";
+  properTrack.album = "The Dark Side of the Moon";
+  EXPECT_FALSE(properTrack.isUnknownAlbum());
+  EXPECT_FALSE(properTrack.isUnknownArtist());
+  EXPECT_FALSE(properTrack.isUntagged());
+  EXPECT_TRUE(properTrack.hasProperTags());
+
+  core::Track missingAlbum;
+  missingAlbum.title = "Voice Memo 01";
+  missingAlbum.artist = "Unknown Artist";
+  missingAlbum.album = "Unknown Album";
+  EXPECT_TRUE(missingAlbum.isUnknownAlbum());
+  EXPECT_TRUE(missingAlbum.isUnknownArtist());
+  EXPECT_TRUE(missingAlbum.isUntagged());
+  EXPECT_FALSE(missingAlbum.hasProperTags());
+
+  core::Track emptyAlbum;
+  emptyAlbum.title = "Sample Sound";
+  emptyAlbum.artist = "Foley Artist";
+  emptyAlbum.album = "";
+  EXPECT_TRUE(emptyAlbum.isUnknownAlbum());
+  EXPECT_FALSE(emptyAlbum.isUnknownArtist());
+  EXPECT_TRUE(emptyAlbum.isUntagged());
+
+  core::Track caseInsensitiveUnknown;
+  caseInsensitiveUnknown.album = "<Unknown>";
+  caseInsensitiveUnknown.artist = "UNKNOWN ARTIST";
+  EXPECT_TRUE(caseInsensitiveUnknown.isUnknownAlbum());
+  EXPECT_TRUE(caseInsensitiveUnknown.isUnknownArtist());
+}
+
+TEST_F(Phase4LibraryTest, Database_UntaggedSeparationFromAlbums) {
+  adapters::SqliteDatabaseAdapter db;
+  ASSERT_TRUE(db.initialize(dbPath));
+
+  // 1. Regular album tracks
+  core::Track t1;
+  t1.id = "trk_alb1_1";
+  t1.filePath = "/music/album1/01.flac";
+  t1.title = "Track 1";
+  t1.artist = "Artist A";
+  t1.album = "Greatest Hits";
+  t1.durationMs = 210000;
+  ASSERT_TRUE(db.saveTrack(t1));
+
+  core::Track t2;
+  t2.id = "trk_alb1_2";
+  t2.filePath = "/music/album1/02.flac";
+  t2.title = "Track 2";
+  t2.artist = "Artist A";
+  t2.album = "Greatest Hits";
+  t2.durationMs = 190000;
+  ASSERT_TRUE(db.saveTrack(t2));
+
+  // 2. Loose tracks without proper album tags across different artists
+  core::Track loose1;
+  loose1.id = "loose_1";
+  loose1.filePath = "/music/loose/audio1.mp3";
+  loose1.title = "Loose Song 1";
+  loose1.artist = "Indie Band X";
+  loose1.album = "Unknown Album";
+  loose1.durationMs = 150000;
+  ASSERT_TRUE(db.saveTrack(loose1));
+
+  core::Track loose2;
+  loose2.id = "loose_2";
+  loose2.filePath = "/music/loose/audio2.flac";
+  loose2.title = "Loose Song 2";
+  loose2.artist = "Indie Band Y";
+  loose2.album = ""; // Empty album tag
+  loose2.durationMs = 180000;
+  ASSERT_TRUE(db.saveTrack(loose2));
+
+  core::Track loose3;
+  loose3.id = "loose_3";
+  loose3.filePath = "/music/loose/audio3.wav";
+  loose3.title = "Voice Recording";
+  loose3.artist = "Unknown Artist";
+  loose3.album = "Unknown Album";
+  loose3.durationMs = 60000;
+  ASSERT_TRUE(db.saveTrack(loose3));
+
+  // Verify getAllAlbums only returns genuine albums (1 album: "Greatest Hits")
+  auto albums = db.getAllAlbums();
+  ASSERT_EQ(albums.size(), 1u);
+  EXPECT_EQ(albums[0].title, "Greatest Hits");
+  EXPECT_EQ(albums[0].artist, "Artist A");
+  EXPECT_EQ(albums[0].trackCount, 2u);
+  EXPECT_EQ(db.getAlbumCount(), 1u);
+
+  // Verify getUntaggedTracks returns all 3 untagged/loose tracks
+  auto untagged = db.getUntaggedTracks();
+  EXPECT_EQ(untagged.size(), 3u);
+  EXPECT_EQ(db.getUntaggedTrackCount(), 3u);
+
+  // Verify untagged album summary
+  auto summary = db.getUntaggedAlbumSummary();
+  EXPECT_EQ(summary.title, "Unknown Album");
+  EXPECT_EQ(summary.artist, "Various / Unknown");
+  EXPECT_EQ(summary.trackCount, 3u);
+  EXPECT_EQ(summary.totalDurationMs, 150000u + 180000u + 60000u);
+  EXPECT_TRUE(summary.isSpecialUntagged);
+  EXPECT_TRUE(summary.isUnknown());
+
+  // Verify querying tracks by album for the untagged collection
+  auto queriedUntagged =
+      db.getTracksByAlbum("Unknown Album", "Various / Unknown");
+  EXPECT_EQ(queriedUntagged.size(), 3u);
+}
+
+TEST_F(Phase4LibraryTest, AlbumListModel_UntaggedPropertiesAndSummary) {
+  adapters::SqliteDatabaseAdapter db;
+  ASSERT_TRUE(db.initialize(dbPath));
+
+  core::Track t1;
+  t1.id = "t1";
+  t1.filePath = "/m/a.flac";
+  t1.title = "A";
+  t1.artist = "Art 1";
+  t1.album = "Real Album";
+  ASSERT_TRUE(db.saveTrack(t1));
+
+  core::Track t2;
+  t2.id = "t2";
+  t2.filePath = "/m/b.flac";
+  t2.title = "B";
+  t2.artist = "Unknown Artist";
+  t2.album = "Unknown Album";
+  ASSERT_TRUE(db.saveTrack(t2));
+
+  AlbumListModel model(&db);
+  // Unknown Album is always the first item in the grid, followed by tagged
+  // albums
+  EXPECT_EQ(model.rowCount(), 2);
+  EXPECT_EQ(model.getAlbumAt(0)["title"].toString(), "Unknown Album");
+  EXPECT_TRUE(model.getAlbumAt(0)["isSpecialUntagged"].toBool());
+  EXPECT_TRUE(model.getAlbumAt(0)["isUnknownAlbum"].toBool());
+  EXPECT_EQ(model.getAlbumAt(1)["title"].toString(), "Real Album");
+  EXPECT_TRUE(model.hasUntaggedContent());
+  EXPECT_EQ(model.untaggedCount(), 1);
+
+  auto summary = model.untaggedSummary();
+  EXPECT_EQ(summary["title"].toString(), "Unknown Album");
+  EXPECT_EQ(summary["trackCount"].toInt(), 1);
+  EXPECT_TRUE(summary["isSpecialUntagged"].toBool());
+
+  // Filter to show untagged only
+  model.setShowUntaggedOnly(true);
+  EXPECT_EQ(model.rowCount(), 1);
+  EXPECT_EQ(model.getAlbumAt(0)["title"].toString(), "Unknown Album");
+  EXPECT_TRUE(model.getAlbumAt(0)["isSpecialUntagged"].toBool());
+
+  model.resetAllFilters();
+  EXPECT_EQ(model.rowCount(), 2);
+  EXPECT_EQ(model.getAlbumAt(0)["title"].toString(), "Unknown Album");
+  EXPECT_EQ(model.getAlbumAt(1)["title"].toString(), "Real Album");
+}
+
+TEST_F(Phase4LibraryTest, TrackListModel_LoadUntaggedTracksAndRoles) {
+  adapters::SqliteDatabaseAdapter db;
+  ASSERT_TRUE(db.initialize(dbPath));
+
+  core::Track t1;
+  t1.id = "tagged_1";
+  t1.filePath = "/music/song1.flac";
+  t1.title = "Tagged Song";
+  t1.artist = "Good Artist";
+  t1.album = "Good Album";
+  t1.trackNumber = 5;
+  t1.year = 2022;
+  ASSERT_TRUE(db.saveTrack(t1));
+
+  core::Track t2;
+  t2.id = "untagged_1";
+  t2.filePath = "/music/loose.mp3";
+  t2.title = "loose";
+  t2.artist = "Unknown Artist";
+  t2.album = "Unknown Album";
+  t2.trackNumber = 0;
+  t2.year = 0;
+  ASSERT_TRUE(db.saveTrack(t2));
+
+  TrackListModel model(&db);
+  model.loadUntaggedTracks();
+
+  ASSERT_EQ(model.rowCount(), 1);
+  EXPECT_EQ(model.tracks()[0].id, "untagged_1");
+
+  auto map = model.getTrackAt(0);
+  EXPECT_TRUE(map["isUntagged"].toBool());
+  EXPECT_TRUE(map["isUnknownArtist"].toBool());
+  EXPECT_TRUE(map["isUnknownAlbum"].toBool());
+  EXPECT_EQ(map["displayTrackNumber"].toString(), "-");
+  EXPECT_EQ(map["displayYear"].toString(), "-");
+}

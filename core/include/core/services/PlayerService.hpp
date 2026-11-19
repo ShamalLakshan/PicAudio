@@ -252,6 +252,25 @@ public:
                          : std::vector<std::string>{};
   }
 
+  void setEqMode(int mode) {
+    if (m_audioEngine) {
+      m_audioEngine->setEqMode(mode);
+    }
+  }
+  [[nodiscard]] int getEqMode() const {
+    return m_audioEngine ? m_audioEngine->getEqMode() : 0;
+  }
+
+  void setPeqBands(const std::vector<core::PeqFilterBand> &bands) {
+    if (m_audioEngine) {
+      m_audioEngine->setPeqBands(bands);
+    }
+  }
+  [[nodiscard]] std::vector<core::PeqFilterBand> getPeqBands() const {
+    return m_audioEngine ? m_audioEngine->getPeqBands()
+                         : std::vector<core::PeqFilterBand>{};
+  }
+
   void setDspRoutingOrder(int order) {
     if (m_audioEngine) {
       m_audioEngine->setDspRoutingOrder(order);

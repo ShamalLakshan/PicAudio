@@ -35,12 +35,14 @@ set(ENGINE_SOURCES
     decode/decodingcontroller.cpp
     decode/nexttrackpreparer.cpp
 
+    dsp/channelmatrixdsp.cpp
     dsp/downmixtomonodsp.cpp
     dsp/downmixtostereodsp.cpp
     dsp/dspchain.cpp
     dsp/dspchainstore.cpp
     dsp/dspnode.cpp
     dsp/dspregistry.cpp
+    dsp/equalizerdsp.cpp
     dsp/monotostereodsp.cpp
     dsp/processingbuffer.cpp
     dsp/processingbufferlist.cpp

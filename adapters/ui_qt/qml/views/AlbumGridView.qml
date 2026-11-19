@@ -44,11 +44,22 @@ Item {
                     border.color: Theme.panelBorder
                     clip: true
 
+                    VectorIcon {
+                        anchors.centerIn: parent
+                        name: "album"
+                        width: Math.round(48 * Theme.uiScale)
+                        height: Math.round(48 * Theme.uiScale)
+                        color: albCardMouse.containsMouse ? Theme.accent : Theme.textSecondary
+                        visible: (model.isSpecialUntagged || model.isUnknownAlbum || model.title === "Unknown Album") || albImg.status !== Image.Ready
+                    }
+
                     Image {
+                        id: albImg
                         anchors.fill: parent
-                        source: "image://albumart/" + (model.artHash ? model.artHash : model.id)
+                        source: (!model.isSpecialUntagged && !model.isUnknownAlbum && model.title !== "Unknown Album") ? ("image://albumart/" + (model.artHash ? model.artHash : model.id)) : ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
+                        visible: (!model.isSpecialUntagged && !model.isUnknownAlbum && model.title !== "Unknown Album") && status === Image.Ready
                     }
 
                     // Hover Play Button

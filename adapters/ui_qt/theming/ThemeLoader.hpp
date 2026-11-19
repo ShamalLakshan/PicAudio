@@ -38,6 +38,10 @@ struct ThemeTokens {
   QString error{"#ef4444"};
   QString warning{"#f59e0b"};
   QString success{"#22c55e"};
+  QString sliderTrack{"#262626"};
+  QString sliderTrackFilled{"#ffffff"};
+  QString sliderHandle{"#ffffff"};
+  QString sliderHandleHover{"#e5e5e5"};
 
   // Typography
   QString fontFamily{"sans-serif"};
@@ -101,6 +105,12 @@ class ThemeLoader : public QObject {
   Q_PROPERTY(QString danger READ danger NOTIFY themeChanged)
   Q_PROPERTY(QString warning READ warning NOTIFY themeChanged)
   Q_PROPERTY(QString success READ success NOTIFY themeChanged)
+  Q_PROPERTY(QString sliderTrack READ sliderTrack NOTIFY themeChanged)
+  Q_PROPERTY(
+      QString sliderTrackFilled READ sliderTrackFilled NOTIFY themeChanged)
+  Q_PROPERTY(QString sliderHandle READ sliderHandle NOTIFY themeChanged)
+  Q_PROPERTY(
+      QString sliderHandleHover READ sliderHandleHover NOTIFY themeChanged)
 
   // Typography tokens
   Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY themeChanged)
@@ -161,6 +171,14 @@ public:
   [[nodiscard]] QString danger() const { return m_tokens.error; }
   [[nodiscard]] QString warning() const { return m_tokens.warning; }
   [[nodiscard]] QString success() const { return m_tokens.success; }
+  [[nodiscard]] QString sliderTrack() const { return m_tokens.sliderTrack; }
+  [[nodiscard]] QString sliderTrackFilled() const {
+    return m_tokens.sliderTrackFilled;
+  }
+  [[nodiscard]] QString sliderHandle() const { return m_tokens.sliderHandle; }
+  [[nodiscard]] QString sliderHandleHover() const {
+    return m_tokens.sliderHandleHover;
+  }
 
   [[nodiscard]] QString fontFamily() const { return m_tokens.fontFamily; }
   [[nodiscard]] int fontSizeSmall() const {
@@ -245,6 +263,7 @@ signals:
 private:
   void setupWatcher();
   void watchActiveFile(const QString &filePath);
+  void syncAppPalette();
   [[nodiscard]] QString getUserThemesDir() const;
   [[nodiscard]] QStringList getThemeSearchPaths() const;
 

@@ -32,6 +32,8 @@ public:
   ~TagLibMetadataAdapter() override = default;
 
   std::optional<core::Track> extract(const std::string &filePath) override;
+  std::vector<core::Track>
+  extractMultiple(const std::string &filePath) override;
   std::optional<core::ExtractedArtwork>
   extractArtwork(const std::string &filePath) override;
   bool supportsFormat(const std::string &extension) const override;

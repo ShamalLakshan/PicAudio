@@ -17,25 +17,33 @@ Item {
         var sQuery = (bridge.albumModel && bridge.albumModel.searchQuery) ? bridge.albumModel.searchQuery.trim().toLowerCase() : "";
         var lFilter = (bridge.albumModel && bridge.albumModel.letterFilter) ? bridge.albumModel.letterFilter.trim() : "All";
 
-        if (sQuery.length === 0 && (lFilter.length === 0 || lFilter === "All")) {
-            return list;
+        var filtered = list;
+        if (sQuery.length > 0 || (lFilter.length > 0 && lFilter !== "All")) {
+            filtered = list.filter(function(artist) {
+                if (!artist || artist.length === 0) return false;
+                if (sQuery.length > 0) {
+                    if (artist.toLowerCase().indexOf(sQuery) === -1) return false;
+                }
+                if (lFilter.length > 0 && lFilter !== "All") {
+                    var first = artist.charAt(0).toUpperCase();
+                    if (lFilter === "#") {
+                        if (first >= 'A' && first <= 'Z') return false;
+                    } else {
+                        if (first !== lFilter.toUpperCase()) return false;
+                    }
+                }
+                return true;
+            });
         }
 
-        return list.filter(function(artist) {
-            if (!artist || artist.length === 0) return false;
-            if (sQuery.length > 0) {
-                if (artist.toLowerCase().indexOf(sQuery) === -1) return false;
-            }
-            if (lFilter.length > 0 && lFilter !== "All") {
-                var first = artist.charAt(0).toUpperCase();
-                if (lFilter === "#") {
-                    if (first >= 'A' && first <= 'Z') return false;
-                } else {
-                    if (first !== lFilter.toUpperCase()) return false;
-                }
-            }
-            return true;
-        });
+        var unknownIdx = filtered.indexOf("Unknown Artist");
+        if (unknownIdx > 0) {
+            var copy = filtered.slice();
+            var item = copy.splice(unknownIdx, 1)[0];
+            copy.unshift(item);
+            return copy;
+        }
+        return filtered;
     }
 
     Connections {
@@ -105,11 +113,12 @@ Item {
                     id: artItem
                     required property string modelData
                     readonly property string artistName: modelData
+                    readonly property bool isUnknown: artItem.artistName === "Unknown Artist"
                     width: artistGrid.cellWidth - Math.round(12 * Theme.uiScale)
                     height: artistGrid.cellHeight - Math.round(12 * Theme.uiScale)
                     radius: Math.round(6 * Theme.uiScale)
                     color: artHover.hovered ? Qt.rgba(1, 1, 1, 0.05) : Theme.surface
-                    border.color: Theme.panelBorder
+                    border.color: artItem.isUnknown ? (artHover.hovered ? Theme.accent : Theme.panelBorder) : Theme.panelBorder
                     border.width: 1
 
                     ColumnLayout {
@@ -134,7 +143,7 @@ Item {
                                 height: Math.round(48 * Theme.uiScale)
                                 name: "artist"
                                 color: artHover.hovered ? Theme.accent : Theme.textSecondary
-                                visible: artistImg.status !== Image.Ready
+                                visible: artItem.isUnknown || artistImg.status !== Image.Ready
                             }
 
                             Image {
@@ -143,8 +152,8 @@ Item {
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: false
-                                source: artItem.artistName ? ("image://artistart/" + encodeURIComponent(artItem.artistName) + (artistsGridRoot.artRevision > 0 ? ("?v=" + artistsGridRoot.artRevision) : "")) : ""
-                                visible: status === Image.Ready
+                                source: (!artItem.isUnknown && artItem.artistName) ? ("image://artistart/" + encodeURIComponent(artItem.artistName) + (artistsGridRoot.artRevision > 0 ? ("?v=" + artistsGridRoot.artRevision) : "")) : ""
+                                visible: !artItem.isUnknown && status === Image.Ready
                             }
                         }
 
@@ -217,7 +226,7 @@ Item {
                                 height: Math.round(42 * Theme.uiScale)
                                 name: "artist"
                                 color: Theme.accent
-                                visible: drillArtistImg.status !== Image.Ready
+                                visible: artistsGridRoot.selectedArtist === "Unknown Artist" || drillArtistImg.status !== Image.Ready
                             }
 
                             Image {
@@ -226,8 +235,8 @@ Item {
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 cache: false
-                                source: artistsGridRoot.selectedArtist ? ("image://artistart/" + encodeURIComponent(artistsGridRoot.selectedArtist) + (artistsGridRoot.artRevision > 0 ? ("?v=" + artistsGridRoot.artRevision) : "")) : ""
-                                visible: status === Image.Ready
+                                source: (artistsGridRoot.selectedArtist && artistsGridRoot.selectedArtist !== "Unknown Artist") ? ("image://artistart/" + encodeURIComponent(artistsGridRoot.selectedArtist) + (artistsGridRoot.artRevision > 0 ? ("?v=" + artistsGridRoot.artRevision) : "")) : ""
+                                visible: artistsGridRoot.selectedArtist !== "Unknown Artist" && status === Image.Ready
                             }
                         }
 

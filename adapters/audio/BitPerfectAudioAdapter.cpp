@@ -9,6 +9,8 @@
 #include <core/track.h>
 #include <utils/settings/settingsmanager.h>
 
+#include "dsp/channelmatrixdsp.h"
+#include "dsp/equalizerdsp.h"
 #include "enginehandler.h"
 #include "input/ffmpeg/ffmpeginput.h"
 #include "input/taglibparser.h"
@@ -57,10 +59,12 @@ struct BitPerfectAudioEngine::Impl {
 
   // Equalizer state
   bool eqEnabled{true};
+  int eqMode{0}; // 0: Graphic, 1: Parametric
   float eqPreampGain{0.0f};
   size_t eqBandCount{10};
   std::string eqPreset{"Flat"};
   std::vector<float> eqBands{10, 0.0f};
+  std::vector<core::PeqFilterBand> peqBands;
   int dspRoutingOrder{0};
   bool dspMasterEnabled{true};
 
@@ -82,12 +86,128 @@ struct BitPerfectAudioEngine::Impl {
   bool gaplessEnabled{true};
   int ditherMode{1};
 
+  // Stable DSP instance IDs
+  static constexpr uint64_t kEqualizerInstanceId = 1001;
+  static constexpr uint64_t kChannelMatrixInstanceId = 1002;
+
+  uint64_t dspSettingsRevision{0};
+  std::array<std::atomic<float>, 8> channelLevels{};
+
   Impl() {
     for (int r = 0; r < 8; ++r) {
       for (int c = 0; c < 8; ++c) {
         channelMatrix[r][c] = (r == c) ? 1.0f : 0.0f;
       }
     }
+    for (auto &lvl : channelLevels) {
+      lvl.store(0.0f, std::memory_order_relaxed);
+    }
+  }
+
+  [[nodiscard]] QByteArray serializeEqSettings() const {
+    QJsonObject root;
+    root[QStringLiteral("bypassed")] = !eqEnabled;
+    root[QStringLiteral("preampDb")] = static_cast<double>(eqPreampGain);
+    root[QStringLiteral("mode")] = eqMode;
+    root[QStringLiteral("bandCount")] = static_cast<int>(eqBandCount);
+    root[QStringLiteral("preset")] = QString::fromStdString(eqPreset);
+    QJsonArray bands;
+    for (float g : eqBands) {
+      bands.append(static_cast<double>(g));
+    }
+    root[QStringLiteral("bands")] = bands;
+
+    QJsonArray filters;
+    for (const auto &b : peqBands) {
+      QJsonObject obj;
+      obj[QStringLiteral("type")] = static_cast<int>(b.type);
+      obj[QStringLiteral("freq")] = static_cast<double>(b.frequency);
+      obj[QStringLiteral("gain")] = static_cast<double>(b.gainDb);
+      obj[QStringLiteral("q")] = static_cast<double>(b.q);
+      obj[QStringLiteral("enabled")] = b.enabled;
+      filters.append(obj);
+    }
+    root[QStringLiteral("filters")] = filters;
+
+    return QJsonDocument(root).toJson(QJsonDocument::Compact);
+  }
+
+  [[nodiscard]] QByteArray serializeChannelMatrixSettings() const {
+    QJsonObject root;
+    root[QStringLiteral("bypassed")] = false;
+    root[QStringLiteral("preset")] = channelPreset;
+    root[QStringLiteral("inChannels")] = 2;
+    root[QStringLiteral("outChannels")] = static_cast<int>(outputChannels);
+    QJsonArray rows;
+    for (int r = 0; r < 8; ++r) {
+      QJsonArray row;
+      for (int c = 0; c < 8; ++c) {
+        row.append(static_cast<double>(channelMatrix[r][c]));
+      }
+      rows.append(row);
+    }
+    root[QStringLiteral("matrix")] = rows;
+    return QJsonDocument(root).toJson(QJsonDocument::Compact);
+  }
+
+  [[nodiscard]] PicAudioEngine::Engine::DspChains buildDspChains() const {
+    PicAudioEngine::Engine::DspDefinition eqDef;
+    eqDef.id = QStringLiteral("equalizer");
+    eqDef.name = QStringLiteral("Parametric Equalizer");
+    eqDef.instanceId = kEqualizerInstanceId;
+    eqDef.hasSettings = true;
+    eqDef.enabled = eqEnabled && dspMasterEnabled;
+    eqDef.settings = serializeEqSettings();
+
+    PicAudioEngine::Engine::DspDefinition matrixDef;
+    matrixDef.id = QStringLiteral("channel_matrix");
+    matrixDef.name = QStringLiteral("Channel Matrix");
+    matrixDef.instanceId = kChannelMatrixInstanceId;
+    matrixDef.hasSettings = true;
+    matrixDef.enabled = dspMasterEnabled;
+    matrixDef.settings = serializeChannelMatrixSettings();
+
+    PicAudioEngine::Engine::DspChains chains;
+    if (dspRoutingOrder == 0) {
+      chains.masterChain.push_back(eqDef);
+      chains.masterChain.push_back(matrixDef);
+    } else {
+      chains.masterChain.push_back(matrixDef);
+      chains.masterChain.push_back(eqDef);
+    }
+    return chains;
+  }
+
+  void applyDspChain() {
+    if (!engineHandler) {
+      return;
+    }
+    engineHandler->setDspChain(buildDspChains(),
+                               QStringLiteral("PicAudio Master Chain"));
+  }
+
+  void dispatchLiveEqUpdate() {
+    if (!engineHandler) {
+      return;
+    }
+    PicAudioEngine::Engine::LiveDspSettingsUpdate update;
+    update.scope = PicAudioEngine::Engine::DspChainScope::Master;
+    update.instanceId = kEqualizerInstanceId;
+    update.settings = serializeEqSettings();
+    update.revision = ++dspSettingsRevision;
+    engineHandler->updateLiveDspSettings(update);
+  }
+
+  void dispatchLiveMatrixUpdate() {
+    if (!engineHandler) {
+      return;
+    }
+    PicAudioEngine::Engine::LiveDspSettingsUpdate update;
+    update.scope = PicAudioEngine::Engine::DspChainScope::Master;
+    update.instanceId = kChannelMatrixInstanceId;
+    update.settings = serializeChannelMatrixSettings();
+    update.revision = ++dspSettingsRevision;
+    engineHandler->updateLiveDspSettings(update);
   }
 };
 
@@ -109,7 +229,8 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
   QDir{}.mkpath(configDir);
   QString settingsFile = configDir + QStringLiteral("/engine_settings.ini");
 
-  m_impl->settings = std::make_shared<PicAudioEngine::SettingsManager>(settingsFile);
+  m_impl->settings =
+      std::make_shared<PicAudioEngine::SettingsManager>(settingsFile);
   m_impl->coreSettings =
       std::make_unique<PicAudioEngine::CoreSettings>(m_impl->settings.get());
 
@@ -140,8 +261,9 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
   // Register Hardware Outputs
 #if defined(PICAUDIO_ENABLE_PIPEWIRE)
   m_impl->engineHandler->addOutput(
-      QStringLiteral("Linux PipeWire Lock-Free Client"),
-      []() { return std::make_unique<PicAudioEngine::Pipewire::PipeWireOutput>(); });
+      QStringLiteral("Linux PipeWire Lock-Free Client"), []() {
+        return std::make_unique<PicAudioEngine::Pipewire::PipeWireOutput>();
+      });
   m_impl->engineHandler->addOutput(QStringLiteral("PipeWire"), []() {
     return std::make_unique<PicAudioEngine::Pipewire::PipeWireOutput>();
   });
@@ -180,6 +302,9 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
   // Initialise output wiring & signal relays
   m_impl->engineHandler->setup();
 
+  // Initialize and attach native DSP master chain
+  m_impl->applyDspChain();
+
   // Create pull-based visualisation session
   if (auto *vs = m_impl->engineHandler->visualisationService()) {
     m_impl->visSession = vs->createSession();
@@ -191,6 +316,13 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
       [this](const PicAudioEngine::LevelFrame &frame) {
         float lvl = (frame.channelCount > 0) ? frame.rms[0] : 0.0f;
         m_impl->currentAudioLevel.store(lvl, std::memory_order_relaxed);
+        for (int i = 0; i < 8; ++i) {
+          float chLvl = (i < frame.channelCount)
+                            ? frame.rms[static_cast<size_t>(i)]
+                            : 0.0f;
+          m_impl->channelLevels[static_cast<size_t>(i)].store(
+              chLvl, std::memory_order_relaxed);
+        }
       });
 
   QObject::connect(
@@ -204,13 +336,14 @@ bool BitPerfectAudioEngine::initialize(uint32_t sampleRate, uint8_t channels) {
         }
       });
 
-  QObject::connect(m_impl->engineHandler.get(),
-                   &PicAudioEngine::EngineHandler::trackBoundaryReached,
-                   [this](const PicAudioEngine::Engine::AboutToFinishContext &) {
-                     if (m_impl->endOfTrackCallback) {
-                       m_impl->endOfTrackCallback();
-                     }
-                   });
+  QObject::connect(
+      m_impl->engineHandler.get(),
+      &PicAudioEngine::EngineHandler::trackBoundaryReached,
+      [this](const PicAudioEngine::Engine::AboutToFinishContext &) {
+        if (m_impl->endOfTrackCallback) {
+          m_impl->endOfTrackCallback();
+        }
+      });
 
   return true;
 }
@@ -220,8 +353,14 @@ bool BitPerfectAudioEngine::load(const std::string &filePath) {
     return false;
   }
 
+  std::string physicalPath = filePath;
+  auto cuePos = physicalPath.find("#cue:");
+  if (cuePos != std::string::npos) {
+    physicalPath = physicalPath.substr(0, cuePos);
+  }
+
   m_impl->currentFilePath = filePath;
-  PicAudioEngine::Track track{QString::fromStdString(filePath)};
+  PicAudioEngine::Track track{QString::fromStdString(physicalPath)};
 
   // Read metadata & audio specs via AudioLoader reader
   if (auto reader = m_impl->audioLoader->loadReaderForTrack(track);
@@ -278,7 +417,8 @@ float BitPerfectAudioEngine::getVolume() const {
   if (!m_impl || !m_impl->settings) {
     return 1.0f;
   }
-  double vol = m_impl->settings->value<PicAudioEngine::Settings::Core::OutputVolume>();
+  double vol =
+      m_impl->settings->value<PicAudioEngine::Settings::Core::OutputVolume>();
   return static_cast<float>(std::clamp(vol, 0.0, 1.0));
 }
 
@@ -414,12 +554,14 @@ void BitPerfectAudioEngine::setAudioBackend(const std::string &backend) {
     QString dev = m_impl->activeDevice.empty()
                       ? QStringLiteral("default")
                       : QString::fromStdString(m_impl->activeDevice);
-    m_impl->engineHandler->applyOutputProfile(
-        PicAudioEngine::Engine::OutputProfileRequest{be, dev});
+    PicAudioEngine::Engine::OutputProfileRequest req{be, dev};
+    req.chain = m_impl->buildDspChains();
+    req.dspPreset = QStringLiteral("PicAudio Master Chain");
+    m_impl->engineHandler->applyOutputProfile(req);
     if (m_impl->settings) {
       using namespace Qt::StringLiterals;
-      m_impl->settings->set<PicAudioEngine::Settings::Core::AudioOutput>(be + u"|"_s +
-                                                                 dev);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::AudioOutput>(
+          be + u"|"_s + dev);
     }
   }
 }
@@ -439,12 +581,14 @@ void BitPerfectAudioEngine::setAudioDevice(const std::string &deviceId) {
                      : QString::fromStdString(m_impl->activeBackend);
     QString dev = deviceId.empty() ? QStringLiteral("default")
                                    : QString::fromStdString(deviceId);
-    m_impl->engineHandler->applyOutputProfile(
-        PicAudioEngine::Engine::OutputProfileRequest{be, dev});
+    PicAudioEngine::Engine::OutputProfileRequest req{be, dev};
+    req.chain = m_impl->buildDspChains();
+    req.dspPreset = QStringLiteral("PicAudio Master Chain");
+    m_impl->engineHandler->applyOutputProfile(req);
     if (m_impl->settings) {
       using namespace Qt::StringLiterals;
-      m_impl->settings->set<PicAudioEngine::Settings::Core::AudioOutput>(be + u"|"_s +
-                                                                 dev);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::AudioOutput>(
+          be + u"|"_s + dev);
     }
   }
 }
@@ -507,6 +651,7 @@ void BitPerfectAudioEngine::setChannelMatrixCoefficient(size_t outCh,
   if (m_impl && outCh < 8 && inCh < 8) {
     m_impl->channelMatrix[outCh][inCh] = gain;
     m_impl->channelPreset = 5; // Custom
+    m_impl->dispatchLiveMatrixUpdate();
   }
 }
 
@@ -570,6 +715,8 @@ void BitPerfectAudioEngine::setChannelMatrixPreset(int preset) {
   default:
     break;
   }
+
+  m_impl->applyDspChain();
 }
 
 int BitPerfectAudioEngine::getChannelMatrixPreset() const {
@@ -591,14 +738,14 @@ void BitPerfectAudioEngine::normalizeChannelMatrix() {
       }
     }
   }
+  m_impl->dispatchLiveMatrixUpdate();
 }
 
 std::vector<float> BitPerfectAudioEngine::getChannelLevels() const {
   std::vector<float> levels(8, 0.0f);
   if (m_impl) {
-    float cur = m_impl->currentAudioLevel.load(std::memory_order_relaxed);
-    for (size_t i = 0; i < m_impl->outputChannels && i < 8; ++i) {
-      levels[i] = cur;
+    for (size_t i = 0; i < 8; ++i) {
+      levels[i] = m_impl->channelLevels[i].load(std::memory_order_relaxed);
     }
   }
   return levels;
@@ -607,6 +754,7 @@ std::vector<float> BitPerfectAudioEngine::getChannelLevels() const {
 void BitPerfectAudioEngine::setOutputChannelCount(uint8_t channels) {
   if (m_impl) {
     m_impl->outputChannels = std::clamp(channels, uint8_t{1}, uint8_t{8});
+    m_impl->applyDspChain();
   }
 }
 
@@ -618,19 +766,7 @@ std::string BitPerfectAudioEngine::getSerializedChannelMatrix() const {
   if (!m_impl) {
     return "{}";
   }
-  QJsonObject root;
-  root["preset"] = m_impl->channelPreset;
-  root["outputChannels"] = m_impl->outputChannels;
-  QJsonArray rows;
-  for (int r = 0; r < 8; ++r) {
-    QJsonArray row;
-    for (int c = 0; c < 8; ++c) {
-      row.append(static_cast<double>(m_impl->channelMatrix[r][c]));
-    }
-    rows.append(row);
-  }
-  root["matrix"] = rows;
-  return QJsonDocument(root).toJson(QJsonDocument::Compact).toStdString();
+  return m_impl->serializeChannelMatrixSettings().toStdString();
 }
 
 bool BitPerfectAudioEngine::setSerializedChannelMatrix(
@@ -643,15 +779,25 @@ bool BitPerfectAudioEngine::setSerializedChannelMatrix(
     return false;
   }
   QJsonObject root = doc.object();
-  m_impl->channelPreset = root["preset"].toInt();
-  m_impl->outputChannels = static_cast<uint8_t>(root["outputChannels"].toInt());
-  QJsonArray rows = root["matrix"].toArray();
-  for (int r = 0; r < 8 && r < rows.size(); ++r) {
-    QJsonArray row = rows[r].toArray();
-    for (int c = 0; c < 8 && c < row.size(); ++c) {
-      m_impl->channelMatrix[r][c] = static_cast<float>(row[c].toDouble());
+  if (root.contains("preset")) {
+    m_impl->channelPreset = root["preset"].toInt();
+  }
+  if (root.contains("outputChannels")) {
+    m_impl->outputChannels =
+        static_cast<uint8_t>(root["outputChannels"].toInt());
+  } else if (root.contains("outChannels")) {
+    m_impl->outputChannels = static_cast<uint8_t>(root["outChannels"].toInt());
+  }
+  if (root.contains("matrix")) {
+    QJsonArray rows = root["matrix"].toArray();
+    for (int r = 0; r < 8 && r < rows.size(); ++r) {
+      QJsonArray row = rows[r].toArray();
+      for (int c = 0; c < 8 && c < row.size(); ++c) {
+        m_impl->channelMatrix[r][c] = static_cast<float>(row[c].toDouble());
+      }
     }
   }
+  m_impl->applyDspChain();
   return true;
 }
 
@@ -659,6 +805,7 @@ void BitPerfectAudioEngine::setEqBandGain(size_t bandIndex, float gainDb) {
   if (m_impl && bandIndex < m_impl->eqBands.size()) {
     m_impl->eqBands[bandIndex] = gainDb;
     m_impl->eqPreset = "Custom";
+    m_impl->dispatchLiveEqUpdate();
   }
 }
 
@@ -672,7 +819,10 @@ float BitPerfectAudioEngine::getEqBandGain(size_t bandIndex) const {
 void BitPerfectAudioEngine::setEqBandGains(const std::vector<float> &gains) {
   if (m_impl) {
     m_impl->eqBands = gains;
-    m_impl->eqPreset = "Custom";
+    bool isAllFlat = std::all_of(gains.begin(), gains.end(),
+                                 [](float g) { return std::abs(g) < 0.001f; });
+    m_impl->eqPreset = isAllFlat ? "Flat" : "Custom";
+    m_impl->dispatchLiveEqUpdate();
   }
 }
 
@@ -683,6 +833,7 @@ std::vector<float> BitPerfectAudioEngine::getEqBandGains() const {
 void BitPerfectAudioEngine::setEqPreampGain(float gainDb) {
   if (m_impl) {
     m_impl->eqPreampGain = gainDb;
+    m_impl->dispatchLiveEqUpdate();
   }
 }
 
@@ -693,6 +844,7 @@ float BitPerfectAudioEngine::getEqPreampGain() const {
 void BitPerfectAudioEngine::setEqEnabled(bool enabled) {
   if (m_impl) {
     m_impl->eqEnabled = enabled;
+    m_impl->applyDspChain();
   }
 }
 
@@ -705,24 +857,12 @@ void BitPerfectAudioEngine::setEqPreset(const std::string &preset) {
     return;
   }
   m_impl->eqPreset = preset;
+  m_impl->eqBands = PicAudioEngine::EqualizerDsp::presetGains(
+      QString::fromStdString(preset), m_impl->eqBandCount);
   if (preset == "Flat") {
-    std::fill(m_impl->eqBands.begin(), m_impl->eqBands.end(), 0.0f);
     m_impl->eqPreampGain = 0.0f;
-  } else if (preset == "Bass Boost") {
-    std::fill(m_impl->eqBands.begin(), m_impl->eqBands.end(), 0.0f);
-    if (m_impl->eqBands.size() >= 3) {
-      m_impl->eqBands[0] = 5.0f;
-      m_impl->eqBands[1] = 3.5f;
-      m_impl->eqBands[2] = 1.5f;
-    }
-  } else if (preset == "Treble Boost") {
-    std::fill(m_impl->eqBands.begin(), m_impl->eqBands.end(), 0.0f);
-    if (m_impl->eqBands.size() >= 10) {
-      m_impl->eqBands[7] = 2.0f;
-      m_impl->eqBands[8] = 4.0f;
-      m_impl->eqBands[9] = 5.0f;
-    }
   }
+  m_impl->dispatchLiveEqUpdate();
 }
 
 std::string BitPerfectAudioEngine::getEqPreset() const {
@@ -732,15 +872,22 @@ std::string BitPerfectAudioEngine::getEqPreset() const {
 void BitPerfectAudioEngine::resetEq() {
   if (m_impl) {
     m_impl->eqPreampGain = 0.0f;
-    std::fill(m_impl->eqBands.begin(), m_impl->eqBands.end(), 0.0f);
+    m_impl->eqPreset = "Flat";
+    m_impl->eqBands.assign(m_impl->eqBandCount, 0.0f);
+    m_impl->dispatchLiveEqUpdate();
   }
-  setEqPreset("Flat");
 }
 
 void BitPerfectAudioEngine::setEqBandCount(size_t bandCount) {
   if (m_impl) {
     m_impl->eqBandCount = bandCount;
-    m_impl->eqBands.resize(bandCount, 0.0f);
+    if (m_impl->eqPreset != "Custom") {
+      m_impl->eqBands = PicAudioEngine::EqualizerDsp::presetGains(
+          QString::fromStdString(m_impl->eqPreset), bandCount);
+    } else {
+      m_impl->eqBands.resize(bandCount, 0.0f);
+    }
+    m_impl->applyDspChain();
   }
 }
 
@@ -750,20 +897,46 @@ size_t BitPerfectAudioEngine::getEqBandCount() const {
 
 std::vector<std::string>
 BitPerfectAudioEngine::getEqBandFrequencyLabels() const {
-  if (!m_impl || m_impl->eqBandCount == 10) {
-    return {"31 Hz", "63 Hz", "125 Hz", "250 Hz", "500 Hz",
-            "1 kHz", "2 kHz", "4 kHz",  "8 kHz",  "16 kHz"};
+  if (!m_impl) {
+    return {};
   }
+  auto qLabels = PicAudioEngine::EqualizerDsp::bandFrequencyLabelsForCount(
+      m_impl->eqBandCount);
   std::vector<std::string> labels;
-  for (size_t i = 0; i < m_impl->eqBandCount; ++i) {
-    labels.push_back("Band " + std::to_string(i + 1));
+  labels.reserve(qLabels.size());
+  for (const auto &lbl : qLabels) {
+    labels.push_back(lbl.toStdString());
   }
   return labels;
+}
+
+void BitPerfectAudioEngine::setEqMode(int mode) {
+  if (m_impl) {
+    m_impl->eqMode = mode;
+    m_impl->dispatchLiveEqUpdate();
+  }
+}
+
+int BitPerfectAudioEngine::getEqMode() const {
+  return m_impl ? m_impl->eqMode : 0;
+}
+
+void BitPerfectAudioEngine::setPeqBands(
+    const std::vector<core::PeqFilterBand> &bands) {
+  if (m_impl) {
+    m_impl->peqBands = bands;
+    m_impl->dispatchLiveEqUpdate();
+  }
+}
+
+std::vector<core::PeqFilterBand> BitPerfectAudioEngine::getPeqBands() const {
+  return m_impl ? m_impl->peqBands : std::vector<core::PeqFilterBand>{};
 }
 
 void BitPerfectAudioEngine::setDspRoutingOrder(int order) {
   if (m_impl) {
     m_impl->dspRoutingOrder = order;
+    m_impl->applyDspChain();
   }
 }
 
@@ -774,6 +947,7 @@ int BitPerfectAudioEngine::getDspRoutingOrder() const {
 void BitPerfectAudioEngine::setDspMasterEnabled(bool enabled) {
   if (m_impl) {
     m_impl->dspMasterEnabled = enabled;
+    m_impl->applyDspChain();
   }
 }
 
@@ -801,7 +975,8 @@ void BitPerfectAudioEngine::setReplayGainPreamp(float taggedDb,
     m_impl->replayGainUntaggedPreamp = untaggedDb;
     if (m_impl->settings) {
       m_impl->settings->set<PicAudioEngine::Settings::Core::RGPreAmp>(taggedDb);
-      m_impl->settings->set<PicAudioEngine::Settings::Core::NonRGPreAmp>(untaggedDb);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::NonRGPreAmp>(
+          untaggedDb);
     }
   }
 }
@@ -861,7 +1036,8 @@ void BitPerfectAudioEngine::setGaplessEnabled(bool enabled) {
   if (m_impl) {
     m_impl->gaplessEnabled = enabled;
     if (m_impl->settings) {
-      m_impl->settings->set<PicAudioEngine::Settings::Core::GaplessPlayback>(enabled);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::GaplessPlayback>(
+          enabled);
     }
   }
 }
@@ -874,7 +1050,8 @@ void BitPerfectAudioEngine::setDitherMode(int mode) {
   if (m_impl) {
     m_impl->ditherMode = mode;
     if (m_impl->settings) {
-      m_impl->settings->set<PicAudioEngine::Settings::Core::OutputDither>(mode != 0);
+      m_impl->settings->set<PicAudioEngine::Settings::Core::OutputDither>(
+          mode != 0);
     }
   }
 }
@@ -895,7 +1072,8 @@ PicAudioEngine::EngineHandler *BitPerfectAudioEngine::engineHandler() const {
   return m_impl ? m_impl->engineHandler.get() : nullptr;
 }
 
-PicAudioEngine::PlayerController *BitPerfectAudioEngine::playerController() const {
+PicAudioEngine::PlayerController *
+BitPerfectAudioEngine::playerController() const {
   return m_impl ? m_impl->playerController.get() : nullptr;
 }
 

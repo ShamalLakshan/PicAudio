@@ -7,7 +7,12 @@ import "../components"
 Item {
     id: root
 
-    property int visualizerStyle: 0 // 0: Fluid Wave, 1: Audio Spectrum Bars
+    property int visualizerStyle: bridge.visualizerStyle
+    onVisualizerStyleChanged: {
+        if (bridge.visualizerStyle !== visualizerStyle) {
+            bridge.visualizerStyle = visualizerStyle;
+        }
+    }
     property int rightPanelTab: 0 // 0: Up Next Queue, 1: Synchronized Lyrics
     readonly property bool hasActiveTrack: bridge.currentTrackTitle.length > 0
     readonly property bool isWideLayout: width >= 860
@@ -307,7 +312,15 @@ Item {
                             spacing: 8
 
                             Text {
-                                text: root.visualizerStyle === 0 ? qsTr("REAL-TIME FLUID HARMONIC WAVEFORM") : qsTr("REAL-TIME MULTI-BAND SPECTRUM EQUALIZER")
+                                text: {
+                                    if (root.visualizerStyle === 0) {
+                                        return qsTr("REAL-TIME FLUID HARMONIC WAVEFORM");
+                                    } else if (bridge.activeVisualizerName.length > 0) {
+                                        return qsTr("%1 • MULTI-BAND SPECTRUM").arg(bridge.activeVisualizerName.toUpperCase());
+                                    } else {
+                                        return qsTr("REAL-TIME MULTI-BAND SPECTRUM EQUALIZER");
+                                    }
+                                }
                                 font.pixelSize: Math.round(10 * Theme.uiScale)
                                 font.bold: true
                                 color: Theme.textMuted
@@ -340,6 +353,39 @@ Item {
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: root.visualizerStyle = (root.visualizerStyle === 0) ? 1 : 0
                                 }
+
+                                ToolTip.visible: vizMouse.containsMouse
+                                ToolTip.text: qsTr("Toggle visualization mode (Waveform vs Spectrum/VU Bars)")
+                            }
+
+                            // Pop-Out Floating Window Button
+                            Rectangle {
+                                Layout.preferredWidth: popOutTxt.implicitWidth + 14
+                                Layout.preferredHeight: Math.round(20 * Theme.uiScale)
+                                radius: Math.round(3 * Theme.uiScale)
+                                color: popOutMouse.containsMouse ? Theme.selection : "transparent"
+                                border.color: Theme.panelBorder
+                                border.width: 1
+
+                                Text {
+                                    id: popOutTxt
+                                    anchors.centerIn: parent
+                                    text: "Pop Out ↗"
+                                    font.pixelSize: Math.round(10 * Theme.uiScale)
+                                    font.bold: true
+                                    color: Theme.textSecondary
+                                }
+
+                                MouseArea {
+                                    id: popOutMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: bridge.openVisualizerWindow()
+                                }
+
+                                ToolTip.visible: popOutMouse.containsMouse
+                                ToolTip.text: qsTr("Open visualizer in a dedicated floating window")
                             }
 
                             Text {
@@ -376,7 +422,7 @@ Item {
                             color: Theme.textSecondary
                         }
 
-                        Slider {
+                        StyledSlider {
                             id: trackSeekSlider
                             Layout.fillWidth: true
                             from: 0

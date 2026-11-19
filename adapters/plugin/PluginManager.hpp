@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PluginInstaller.hpp"
 #include <picaudio/plugin/Defines.hpp>
 #include <picaudio/plugin/ILibraryPlugin.hpp>
 #include <picaudio/plugin/IPlayerPlugin.hpp>
@@ -28,7 +29,8 @@ namespace adapters {
 class ThemeLoader;
 
 /**
- * @brief Descriptor for a custom action button displayed on a plugin's preferences card.
+ * @brief Descriptor for a custom action button displayed on a plugin's
+ * preferences card.
  */
 struct PluginCustomAction {
   QString id;
@@ -57,6 +59,7 @@ struct PluginInfo {
   QVector<PluginCustomAction> customActions;
   bool enabled{true};
   bool loaded{false};
+  bool isPendingRemoval{false};
   QString loadError;
 };
 
@@ -108,6 +111,35 @@ public:
    * @brief Primary writable user plugin directory.
    */
   [[nodiscard]] QString getPrimaryPluginDirectory() const;
+
+  /**
+   * @brief Install a plugin bundle archive (.paplugin or .zip) into the primary
+   * plugins directory.
+   * @param bundleFilePath Filepath to the bundle archive.
+   * @param outResult Populated result structure.
+   * @return true if installation succeeded, false otherwise.
+   */
+  bool installPluginBundle(const QString &bundleFilePath,
+                           PluginInstallResult &outResult);
+
+  /**
+   * @brief Safely remove an installed plugin from disk.
+   * @param pluginId Unique identifier of the plugin.
+   * @param outError Error message if removal fails.
+   * @return true if removed or staged for pending removal on restart.
+   */
+  bool removePlugin(const QString &pluginId, QString &outError);
+
+  /**
+   * @brief Check whether a plugin is staged for removal on next application
+   * start.
+   */
+  [[nodiscard]] bool isPluginPendingRemoval(const QString &pluginId) const;
+
+  /**
+   * @brief Retrieve list of plugin IDs pending removal on next restart.
+   */
+  [[nodiscard]] QStringList getPendingRemovals() const;
 
   // --- Capability Routing Hooks ---
 
@@ -214,8 +246,8 @@ public:
   /**
    * @brief Connects host toast notification callback for UI plugins.
    */
-  void setToastCallback(
-      std::function<void(const QString &, const QString &)> cb);
+  void
+  setToastCallback(std::function<void(const QString &, const QString &)> cb);
 
 signals:
   /**
@@ -253,7 +285,7 @@ private:
   static bool validateApiVersion(const QString &targetVersion,
                                  QString &outError);
 
-  mutable std::mutex m_mutex;
+  mutable std::recursive_mutex m_mutex;
   QStringList m_searchPaths;
   std::vector<LoadedPluginRecord> m_plugins;
   ThemeLoader *m_themeLoader{nullptr};

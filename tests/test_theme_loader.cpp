@@ -87,6 +87,50 @@ TEST_F(ThemeLoaderTest, ValidThemeValidationAndParsing) {
   EXPECT_EQ(tokens.fontFamily, "Roboto");
   EXPECT_EQ(tokens.fontSizeBase, 12);
   EXPECT_EQ(tokens.spacingSmall, 5);
+  // Unspecified slider tokens gracefully fall back to matching base tokens
+  EXPECT_EQ(tokens.sliderTrack, tokens.surfaceElevated);
+  EXPECT_EQ(tokens.sliderTrackFilled, tokens.accent);
+  EXPECT_EQ(tokens.sliderHandle, tokens.accent);
+  EXPECT_EQ(tokens.sliderHandleHover, tokens.accentHover);
+}
+
+TEST_F(ThemeLoaderTest, SliderTokensExplicitAndFallback) {
+  QString explicitJson = QStringLiteral(R"({
+        "meta": {
+            "name": "Slider Test",
+            "author": "Tester",
+            "version": "1.0",
+            "apiVersion": "0.1"
+        },
+        "colors": {
+            "background": "#000000",
+            "surface": "#111111",
+            "surfaceElevated": "#222222",
+            "panelBorder": "#333333",
+            "accent": "#444444",
+            "accentHover": "#555555",
+            "textPrimary": "#ffffff",
+            "textSecondary": "#aaaaaa",
+            "textMuted": "#888888",
+            "selection": "#333333",
+            "error": "#ff0000",
+            "warning": "#ffaa00",
+            "success": "#00ff00",
+            "sliderTrack": "#123456",
+            "sliderTrackFilled": "#234567",
+            "sliderHandle": "#345678",
+            "sliderHandleHover": "#456789"
+        }
+    })");
+
+  QJsonDocument doc = QJsonDocument::fromJson(explicitJson.toUtf8());
+  ASSERT_TRUE(doc.isObject());
+  adapters::ThemeTokens tokens =
+      adapters::ThemeLoader::parseThemeJson(doc.object());
+  EXPECT_EQ(tokens.sliderTrack, "#123456");
+  EXPECT_EQ(tokens.sliderTrackFilled, "#234567");
+  EXPECT_EQ(tokens.sliderHandle, "#345678");
+  EXPECT_EQ(tokens.sliderHandleHover, "#456789");
 }
 
 TEST_F(ThemeLoaderTest, MalformedJsonSyntaxFallback) {

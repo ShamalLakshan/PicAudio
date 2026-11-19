@@ -27,6 +27,7 @@ add_executable(picaudio_tests
     test_phase4_library.cpp
     test_tab_service.cpp
     test_phase6_ui.cpp
+    test_peq_autoeq.cpp
 )
 
 target_include_directories(picaudio_tests PRIVATE

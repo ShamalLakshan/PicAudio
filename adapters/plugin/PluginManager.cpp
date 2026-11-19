@@ -26,7 +26,7 @@ PluginManager::PluginManager(QObject *parent) : QObject(parent) {
 PluginManager::~PluginManager() { unloadAllPlugins(); }
 
 void PluginManager::initialize(const QStringList &extraSearchPaths) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   m_searchPaths.clear();
 
   for (const auto &path : extraSearchPaths) {
@@ -67,8 +67,10 @@ void PluginManager::initialize(const QStringList &extraSearchPaths) {
     m_searchPaths.append(localShareParakeet);
   }
 
-  // Ensure the primary directory exists
-  QDir().mkpath(getPrimaryPluginDirectory());
+  // Ensure the primary directory exists and clean pending removals
+  const QString primaryDir = getPrimaryPluginDirectory();
+  QDir().mkpath(primaryDir);
+  PluginInstaller::processPendingRemovals(primaryDir);
 }
 
 QString PluginManager::getPrimaryPluginDirectory() const {
@@ -77,7 +79,7 @@ QString PluginManager::getPrimaryPluginDirectory() const {
 }
 
 QStringList PluginManager::getPluginDirectories() const {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   return m_searchPaths;
 }
 
@@ -156,7 +158,8 @@ bool PluginManager::parseManifest(const QString &manifestPath,
   info.customActions.clear();
   if (obj.contains(QStringLiteral("actions")) &&
       obj.value(QStringLiteral("actions")).isArray()) {
-    const QJsonArray actionsArr = obj.value(QStringLiteral("actions")).toArray();
+    const QJsonArray actionsArr =
+        obj.value(QStringLiteral("actions")).toArray();
     for (const auto &actVal : actionsArr) {
       if (actVal.isObject()) {
         const QJsonObject actObj = actVal.toObject();
@@ -243,11 +246,15 @@ void PluginManager::discoverInDirectory(const QString &dirPath) {
     }
 
     info.libraryPath = libraryCandidate;
+    info.isPendingRemoval = PluginInstaller::isPendingRemoval(info.id);
 
     LoadedPluginRecord record;
     record.info = info;
 
-    if (parsed) {
+    if (record.info.isPendingRemoval) {
+      record.info.enabled = false;
+      record.info.loadError = QStringLiteral("Pending removal on restart.");
+    } else if (parsed) {
       if (info.libraryPath.isEmpty() || !QFile::exists(info.libraryPath)) {
         record.info.loadError =
             QStringLiteral("Dynamic library file not found in plugin folder.");
@@ -512,7 +519,7 @@ void PluginManager::unloadPluginRecord(LoadedPluginRecord &record) {
 }
 
 void PluginManager::unloadAllPlugins() {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     unloadPluginRecord(record);
   }
@@ -520,51 +527,68 @@ void PluginManager::unloadAllPlugins() {
 }
 
 void PluginManager::scanAndLoadPlugins() {
-  std::lock_guard<std::mutex> lock(m_mutex);
-  for (const auto &path : m_searchPaths) {
-    discoverInDirectory(path);
+  {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    for (const auto &path : m_searchPaths) {
+      discoverInDirectory(path);
+    }
   }
   emit pluginsChanged();
 }
 
 QVector<PluginInfo> PluginManager::getDiscoveredPlugins() const {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   QVector<PluginInfo> result;
   result.reserve(static_cast<qsizetype>(m_plugins.size()));
   for (const auto &record : m_plugins) {
-    result.append(record.info);
+    PluginInfo info = record.info;
+    if (PluginInstaller::isPendingRemoval(info.id)) {
+      info.isPendingRemoval = true;
+    }
+    result.append(info);
   }
   return result;
 }
 
 bool PluginManager::setPluginEnabled(const QString &id, bool enabled) {
-  std::lock_guard<std::mutex> lock(m_mutex);
-  for (auto &record : m_plugins) {
-    if (record.info.id == id) {
-      if (record.info.enabled == enabled) {
-        return true;
+  bool changed = false;
+  {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    for (auto &record : m_plugins) {
+      if (record.info.id == id) {
+        if (record.info.enabled == enabled) {
+          return true;
+        }
+
+        record.info.enabled = enabled;
+        QSettings s(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
+        s.setValue(QStringLiteral("plugins/%1/enabled").arg(id), enabled);
+
+        if (enabled && !record.info.loaded) {
+          loadPluginFromRecord(record);
+        } else if (!enabled && record.info.loaded) {
+          unloadPluginRecord(record);
+        }
+
+        changed = true;
+        break;
       }
-
-      record.info.enabled = enabled;
-      QSettings s(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
-      s.setValue(QStringLiteral("plugins/%1/enabled").arg(id), enabled);
-
-      if (enabled && !record.info.loaded) {
-        loadPluginFromRecord(record);
-      } else if (!enabled && record.info.loaded) {
-        unloadPluginRecord(record);
-      }
-
-      emit pluginsChanged();
-      return true;
     }
+  }
+
+  if (changed) {
+    emit pluginsChanged();
+    return true;
   }
   return false;
 }
 
 void PluginManager::routeAudioBuffer(const float *buffer, size_t frames,
                                      uint32_t sampleRate, uint8_t channels) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::unique_lock<std::recursive_mutex> lock(m_mutex, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    return;
+  }
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.visualizer) {
       try {
@@ -584,7 +608,7 @@ size_t PluginManager::getFrequencyBands(float *outBands, size_t maxBands) {
     return 0;
   }
 
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.visualizer) {
       try {
@@ -601,7 +625,10 @@ size_t PluginManager::getFrequencyBands(float *outBands, size_t maxBands) {
 
 void PluginManager::routePreDsp(float *buffer, size_t frames,
                                 uint32_t sampleRate, uint8_t channels) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::unique_lock<std::recursive_mutex> lock(m_mutex, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    return;
+  }
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.playerPort) {
       try {
@@ -614,7 +641,10 @@ void PluginManager::routePreDsp(float *buffer, size_t frames,
 
 void PluginManager::routePostDsp(float *buffer, size_t frames,
                                  uint32_t sampleRate, uint8_t channels) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::unique_lock<std::recursive_mutex> lock(m_mutex, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    return;
+  }
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.playerPort) {
       try {
@@ -627,7 +657,7 @@ void PluginManager::routePostDsp(float *buffer, size_t frames,
 
 void PluginManager::routeTrackStarted(
     const picaudio::plugin::PicAudioTrackInfo &track) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.playerPort) {
       try {
@@ -640,7 +670,7 @@ void PluginManager::routeTrackStarted(
 
 void PluginManager::routePlaybackStateChanged(
     picaudio::plugin::PicAudioPlaybackState state) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.playerPort) {
       try {
@@ -653,7 +683,7 @@ void PluginManager::routePlaybackStateChanged(
 
 std::string PluginManager::routeFetchLyrics(const std::string &artist,
                                             const std::string &title) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   std::vector<char> buffer(65536, 0);
 
   for (auto &record : m_plugins) {
@@ -673,7 +703,7 @@ std::string PluginManager::routeFetchLyrics(const std::string &artist,
 
 void PluginManager::routeTrackScrobbled(
     const picaudio::plugin::PicAudioTrackInfo &track, uint64_t timestamp) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.libraryPort) {
       try {
@@ -686,7 +716,7 @@ void PluginManager::routeTrackScrobbled(
 
 void PluginManager::routeTrackIndexed(
     const picaudio::plugin::PicAudioTrackInfo &track) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.libraryPort) {
       try {
@@ -698,7 +728,7 @@ void PluginManager::routeTrackIndexed(
 }
 
 void PluginManager::setThemeLoader(ThemeLoader *themeLoader) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   m_themeLoader = themeLoader;
   if (m_themeLoader) {
     for (auto &record : m_plugins) {
@@ -733,7 +763,7 @@ void PluginManager::onPluginThemeUpdate(
   if (!hostContext || !tokens || count == 0)
     return;
   auto *self = static_cast<PluginManager *>(hostContext);
-  std::lock_guard<std::mutex> lock(self->m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(self->m_mutex);
   if (!self->m_themeLoader)
     return;
 
@@ -748,7 +778,7 @@ void PluginManager::onPluginThemeUpdate(
 }
 
 void PluginManager::routeBaseThemeChanged(const QString &themeId) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   const std::string themeStr = themeId.toStdString();
   for (auto &record : m_plugins) {
     if (record.info.loaded && record.info.enabled && record.themePort) {
@@ -771,15 +801,15 @@ void PluginManager::hostShowToast(void *hostContext, const char *message,
                                   const char *level) {
   auto *self = static_cast<PluginManager *>(hostContext);
   if (self && self->m_toastCallback && message) {
-    self->m_toastCallback(
-        QString::fromUtf8(message),
-        level ? QString::fromUtf8(level) : QStringLiteral("info"));
+    self->m_toastCallback(QString::fromUtf8(message),
+                          level ? QString::fromUtf8(level)
+                                : QStringLiteral("info"));
   }
 }
 
 bool PluginManager::triggerPluginAction(const QString &pluginId,
                                         const QString &actionId) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.id == pluginId && record.info.loaded &&
         record.info.enabled && record.uiPort) {
@@ -795,7 +825,7 @@ bool PluginManager::triggerPluginAction(const QString &pluginId,
 }
 
 bool PluginManager::showPluginWindow(const QString &pluginId) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.id == pluginId && record.info.loaded &&
         record.info.enabled && record.uiPort) {
@@ -810,7 +840,7 @@ bool PluginManager::showPluginWindow(const QString &pluginId) {
 }
 
 bool PluginManager::hidePluginWindow(const QString &pluginId) {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (auto &record : m_plugins) {
     if (record.info.id == pluginId && record.info.loaded &&
         record.info.enabled && record.uiPort) {
@@ -825,7 +855,7 @@ bool PluginManager::hidePluginWindow(const QString &pluginId) {
 }
 
 bool PluginManager::isPluginWindowVisible(const QString &pluginId) const {
-  std::lock_guard<std::mutex> lock(m_mutex);
+  std::lock_guard<std::recursive_mutex> lock(m_mutex);
   for (const auto &record : m_plugins) {
     if (record.info.id == pluginId && record.info.loaded &&
         record.info.enabled && record.uiPort) {
@@ -846,6 +876,126 @@ void PluginManager::setNavigateCallback(std::function<void(int)> cb) {
 void PluginManager::setToastCallback(
     std::function<void(const QString &, const QString &)> cb) {
   m_toastCallback = std::move(cb);
+}
+
+bool PluginManager::installPluginBundle(const QString &bundleFilePath,
+                                        PluginInstallResult &outResult) {
+  bool success = false;
+  {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    const QString primaryDir = getPrimaryPluginDirectory();
+    const bool ok =
+        PluginInstaller::installBundle(bundleFilePath, primaryDir, outResult);
+    if (!ok) {
+      return false;
+    }
+
+    // Unload previous instance if it was running
+    auto it = std::find_if(m_plugins.begin(), m_plugins.end(),
+                           [&](const LoadedPluginRecord &r) {
+                             return r.info.id == outResult.pluginId;
+                           });
+    if (it != m_plugins.end()) {
+      unloadPluginRecord(*it);
+      m_plugins.erase(it);
+    }
+
+    // Load the installed plugin
+    const QString pluginSubDir =
+        primaryDir + QLatin1Char('/') + outResult.pluginId;
+    const QString manifestPath = pluginSubDir + QStringLiteral("/plugin.json");
+    if (QFile::exists(manifestPath)) {
+      PluginInfo info;
+      info.directory = pluginSubDir;
+      if (parseManifest(manifestPath, info)) {
+        QSettings s(QStringLiteral("PicAudio"), QStringLiteral("PicAudio"));
+        const QString settingKey =
+            QStringLiteral("plugins/%1/enabled").arg(info.id);
+        info.enabled = s.value(settingKey, true).toBool();
+
+        QString libraryCandidate;
+        if (!info.entryPoint.isEmpty()) {
+          libraryCandidate = pluginSubDir + QLatin1Char('/') + info.entryPoint;
+        } else {
+          const QStringList candidateNames = {
+              pluginSubDir + QStringLiteral("/lib%1.so").arg(info.id),
+              pluginSubDir + QStringLiteral("/%1.so").arg(info.id),
+              pluginSubDir + QStringLiteral("/%1.dll").arg(info.id),
+              pluginSubDir + QStringLiteral("/lib%1.dylib").arg(info.id),
+              pluginSubDir + QStringLiteral("/plugin.so"),
+              pluginSubDir + QStringLiteral("/plugin.dll")};
+          for (const auto &cand : candidateNames) {
+            if (QFile::exists(cand)) {
+              libraryCandidate = cand;
+              break;
+            }
+          }
+          if (libraryCandidate.isEmpty()) {
+            const QFileInfoList libs =
+                QDir(pluginSubDir)
+                    .entryInfoList(QStringList{QStringLiteral("*.so"),
+                                               QStringLiteral("*.dll"),
+                                               QStringLiteral("*.dylib")},
+                                   QDir::Files);
+            if (!libs.isEmpty()) {
+              libraryCandidate = libs.first().absoluteFilePath();
+            }
+          }
+        }
+
+        info.libraryPath = libraryCandidate;
+        LoadedPluginRecord record;
+        record.info = info;
+
+        if (info.libraryPath.isEmpty() || !QFile::exists(info.libraryPath)) {
+          record.info.loadError = QStringLiteral(
+              "Dynamic library file not found in plugin folder.");
+        } else if (record.info.enabled) {
+          loadPluginFromRecord(record);
+        }
+
+        m_plugins.push_back(std::move(record));
+      }
+    }
+    success = true;
+  }
+
+  if (success) {
+    emit pluginsChanged();
+  }
+  return success;
+}
+
+bool PluginManager::removePlugin(const QString &pluginId, QString &outError) {
+  bool ok = false;
+  {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    auto it = std::find_if(
+        m_plugins.begin(), m_plugins.end(),
+        [&](const LoadedPluginRecord &r) { return r.info.id == pluginId; });
+
+    QString dirPath;
+    if (it != m_plugins.end()) {
+      dirPath = it->info.directory;
+      unloadPluginRecord(*it);
+      m_plugins.erase(it);
+    } else {
+      dirPath = getPrimaryPluginDirectory() + QLatin1Char('/') + pluginId;
+    }
+
+    ok = PluginInstaller::removePlugin(pluginId, dirPath, outError);
+  }
+
+  emit pluginsChanged();
+  return ok;
+}
+
+bool PluginManager::isPluginPendingRemoval(const QString &pluginId) const {
+  return PluginInstaller::isPendingRemoval(pluginId);
+}
+
+QStringList PluginManager::getPendingRemovals() const {
+  return PluginInstaller::getPendingRemovals();
 }
 
 } // namespace adapters

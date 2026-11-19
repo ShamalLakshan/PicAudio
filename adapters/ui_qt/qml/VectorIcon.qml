@@ -157,7 +157,7 @@ Canvas {
             ctx.lineTo(w * 0.8, h * 0.15);
             ctx.lineTo(w * 0.8, h * 0.6);
             ctx.stroke();
-        } else if (name === "disc") {
+        } else if (name === "disc" || name === "album") {
             ctx.beginPath();
             ctx.arc(w * 0.5, h * 0.5, w * 0.42, 0, Math.PI * 2);
             ctx.stroke();
