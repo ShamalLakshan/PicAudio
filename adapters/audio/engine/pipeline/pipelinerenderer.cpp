@@ -7,8 +7,8 @@
 #include "pipelinerenderer.h"
 
 #include "audioanalysisbus.h"
-#include "core/engine/levelframe.h"
 #include "dsp/dspregistry.h"
+#include "levelframe.h"
 
 #include <core/engine/audioutils.h>
 #include <utils/timeconstants.h>

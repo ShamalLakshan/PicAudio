@@ -8,7 +8,7 @@
 
 #include "fycore_export.h"
 
-#include "core/engine/output/fadecontroller.h"
+#include "fadecontroller.h"
 
 #include <core/engine/enginedefs.h>
 

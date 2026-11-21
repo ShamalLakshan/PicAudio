@@ -6,7 +6,7 @@
 
 #include "fadecontroller.h"
 
-#include "core/engine/pipeline/audiopipelinefader.h"
+#include "audiopipelinefader.h"
 
 namespace PicAudioEngine {
 FadeController::FadeController(AudioPipelineFader* pipelineFader)

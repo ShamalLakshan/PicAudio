@@ -5,11 +5,14 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_TIMEDAUDIOFIFO_H
+#define PICAUDIO_ENGINE_TIMEDAUDIOFIFO_H
 
 #include "fycore_export.h"
 
+#include "audiostream.h"
+
 #include <core/engine/audiobuffer.h>
-#include <core/engine/pipeline/audiostream.h>
 
 #include <cstdint>
 #include <span>
@@ -115,3 +118,4 @@ private:
     uint64_t m_epoch;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_TIMEDAUDIOFIFO_H

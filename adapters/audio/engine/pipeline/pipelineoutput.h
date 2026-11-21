@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PIPELINEOUTPUT_H
+#define PICAUDIO_ENGINE_PIPELINEOUTPUT_H
 
 #include "buffereddspstage.h"
 #include "outputpump.h"
@@ -107,3 +109,4 @@ private:
     int m_bufferFrames;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PIPELINEOUTPUT_H

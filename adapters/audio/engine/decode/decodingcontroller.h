@@ -5,15 +5,17 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DECODINGCONTROLLER_H
+#define PICAUDIO_ENGINE_DECODINGCONTROLLER_H
 
 #include "fycore_export.h"
 
+#include "audiostream.h"
 #include "decodercontext.h"
 
 #include <core/engine/audioinput.h>
 #include <core/engine/audioloader.h>
 #include <core/engine/enginedefs.h>
-#include <core/engine/pipeline/audiostream.h>
 #include <core/track.h>
 
 #include <optional>
@@ -125,3 +127,4 @@ private:
     std::unique_ptr<DecodingControllerPrivate> p;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_DECODINGCONTROLLER_H

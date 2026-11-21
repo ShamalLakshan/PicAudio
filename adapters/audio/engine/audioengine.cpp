@@ -9,7 +9,7 @@
 #include "audioanalysisbus.h"
 #include "audiopipeline.h"
 #include "audioutils.h"
-#include "core/engine/pipeline/audiostream.h"
+#include "audiostream.h"
 #include "core/playback/trackplaybacksettings.h"
 #include "decodingcontroller.h"
 #include "dsp/dspregistry.h"

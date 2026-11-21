@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOBUFFER_H
+#define PICAUDIO_ENGINE_AUDIOBUFFER_H
 
 #include "fycore_export.h"
 
@@ -92,3 +94,4 @@ private:
 };
 using AudioData = std::vector<AudioBuffer>;
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOBUFFER_H

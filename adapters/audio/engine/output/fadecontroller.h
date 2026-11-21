@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_FADECONTROLLER_H
+#define PICAUDIO_ENGINE_FADECONTROLLER_H
 
 #include "fycore_export.h"
 
@@ -98,3 +100,4 @@ private:
     bool m_activeFadeIsOut;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_FADECONTROLLER_H

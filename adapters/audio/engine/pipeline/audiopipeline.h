@@ -6,12 +6,15 @@
 
 #pragma once
 
+#ifndef PICAUDIO_ENGINE_AUDIOPIPELINE_H
+#define PICAUDIO_ENGINE_AUDIOPIPELINE_H
+
 #include "fycore_export.h"
 
 #include "audiopipelinefader.h"
 #include "buffereddspstage.h"
-#include "core/engine/output/outputfader.h"
-#include "core/engine/pipeline/audiostream.h"
+#include "outputfader.h"
+#include "audiostream.h"
 #include "mixer/audiomixer.h"
 #include "orphanstreamtracker.h"
 #include "pipelineoutput.h"
@@ -672,3 +675,5 @@ private:
     std::deque<OutputQueueSpan> m_backendOutputQueue;
 };
 } // namespace PicAudioEngine
+
+#endif // PICAUDIO_ENGINE_AUDIOPIPELINE_H

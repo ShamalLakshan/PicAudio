@@ -150,6 +150,7 @@ target_include_directories(picaudio_engine PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/decode
     ${CMAKE_CURRENT_SOURCE_DIR}/dsp
     ${CMAKE_CURRENT_SOURCE_DIR}/output
+    ${CMAKE_CURRENT_SOURCE_DIR}/output/postprocessor
     ${CMAKE_CURRENT_SOURCE_DIR}/pipeline
     ${CMAKE_CURRENT_SOURCE_DIR}/pipeline/mixer
     ${CMAKE_CURRENT_SOURCE_DIR}/outputs

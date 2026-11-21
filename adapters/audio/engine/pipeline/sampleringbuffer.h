@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_SAMPLERINGBUFFER_H
+#define PICAUDIO_ENGINE_SAMPLERINGBUFFER_H
 
 #include "fycore_export.h"
 
@@ -44,3 +46,4 @@ private:
     size_t m_size;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_SAMPLERINGBUFFER_H

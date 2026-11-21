@@ -5,12 +5,13 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PIPELINERENDERER_H
+#define PICAUDIO_ENGINE_PIPELINERENDERER_H
 
+#include "dspchain.h"
 #include "mixer/audiomixer.h"
+#include "outputfader.h"
 #include "pipelineoutput.h"
-
-#include "core/engine/dsp/dspchain.h"
-#include "core/engine/output/outputfader.h"
 
 #include <chrono>
 #include <cstddef>
@@ -153,3 +154,4 @@ private:
     AudioFormat m_outputFormat;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PIPELINERENDERER_H

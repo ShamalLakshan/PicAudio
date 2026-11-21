@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_OUTPUTFADER_H
+#define PICAUDIO_ENGINE_OUTPUTFADER_H
 
 #include "fycore_export.h"
 
@@ -63,3 +65,4 @@ private:
     Engine::FadeCurve m_curve;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_OUTPUTFADER_H

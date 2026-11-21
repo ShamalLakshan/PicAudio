@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_MIXERTIMELINE_H
+#define PICAUDIO_ENGINE_MIXERTIMELINE_H
 
 #include "audiomixer.h"
 
@@ -32,3 +34,4 @@ PICAUDIO_ENGINE_EXPORT void consumeRange(std::span<const TimedAudioFifo::Timelin
 [[nodiscard]] PICAUDIO_ENGINE_EXPORT bool startNs(const std::vector<AudioMixer::TimelineSegment>& segments,
                                          uint64_t& startNsOut);
 } // namespace PicAudioEngine::Timeline
+#endif // PICAUDIO_ENGINE_MIXERTIMELINE_H

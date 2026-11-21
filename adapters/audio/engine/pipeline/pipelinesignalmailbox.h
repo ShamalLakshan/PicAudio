@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PIPELINESIGNALMAILBOX_H
+#define PICAUDIO_ENGINE_PIPELINESIGNALMAILBOX_H
 
 #include "fycore_export.h"
 
@@ -47,3 +49,4 @@ private:
     std::atomic<int> m_signalWakeEventType;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PIPELINESIGNALMAILBOX_H

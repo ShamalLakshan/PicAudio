@@ -5,11 +5,13 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_MIXEROUTPUT_H
+#define PICAUDIO_ENGINE_MIXEROUTPUT_H
 
 #include "audiomixer.h"
+#include "timedaudiofifo.h"
 
 #include <core/engine/dsp/processingbuffer.h>
-#include <core/engine/pipeline/timedaudiofifo.h>
 
 #include <array>
 #include <span>
@@ -60,3 +62,4 @@ private:
     std::array<TimedAudioFifo::TimelineChunk, 1> m_silenceTimeline;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_MIXEROUTPUT_H

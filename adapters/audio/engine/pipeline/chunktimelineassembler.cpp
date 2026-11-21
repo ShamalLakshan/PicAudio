@@ -6,7 +6,7 @@
 
 #include "chunktimelineassembler.h"
 
-#include "core/engine/audioconverter.h"
+#include "audioconverter.h"
 #include <utils/timeconstants.h>
 
 #include <cstddef>

@@ -6,6 +6,9 @@
 
 #pragma once
 
+#ifndef PICAUDIO_ENGINE_TRACKPROCESSOR_H
+#define PICAUDIO_ENGINE_TRACKPROCESSOR_H
+
 #include "fycore_export.h"
 
 #include <core/engine/audioformat.h>
@@ -42,3 +45,5 @@ public:
     virtual void reset() = 0;
 };
 } // namespace PicAudioEngine
+
+#endif // PICAUDIO_ENGINE_TRACKPROCESSOR_H

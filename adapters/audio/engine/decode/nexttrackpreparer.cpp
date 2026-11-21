@@ -6,8 +6,8 @@
 
 #include "nexttrackpreparer.h"
 
-#include "core/engine/enginehelpers.h"
 #include "decodercontext.h"
+#include "enginehelpers.h"
 
 #include <core/engine/audioloader.h>
 

@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_ENGINECONTROLLER_H
+#define PICAUDIO_ENGINE_ENGINECONTROLLER_H
 
 #include "fycore_export.h"
 
@@ -106,3 +108,4 @@ Q_SIGNALS:
     void finished();
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_ENGINECONTROLLER_H

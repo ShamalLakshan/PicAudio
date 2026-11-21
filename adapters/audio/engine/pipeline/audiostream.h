@@ -6,6 +6,9 @@
 
 #pragma once
 
+#ifndef PICAUDIO_ENGINE_AUDIOSTREAM_H
+#define PICAUDIO_ENGINE_AUDIOSTREAM_H
+
 #include "fycore_export.h"
 
 #include <utils/lockfreeringbuffer.h>
@@ -275,3 +278,5 @@ private:
     static std::atomic<StreamId> s_nextId;
 };
 } // namespace PicAudioEngine
+
+#endif // PICAUDIO_ENGINE_AUDIOSTREAM_H

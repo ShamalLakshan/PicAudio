@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PIPELINETIMELINE_H
+#define PICAUDIO_ENGINE_PIPELINETIMELINE_H
 
 #include "audiostream.h"
 
@@ -137,3 +139,4 @@ private:
     bool m_hasMasterRateObservation;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PIPELINETIMELINE_H

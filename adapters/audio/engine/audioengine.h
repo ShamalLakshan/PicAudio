@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOENGINE_H
+#define PICAUDIO_ENGINE_AUDIOENGINE_H
 
 #include "fycore_export.h"
 
@@ -557,3 +559,4 @@ private:
     InputBufferingState m_inputBuffering;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOENGINE_H

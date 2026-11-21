@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_ENGINEDEFS_H
+#define PICAUDIO_ENGINE_ENGINEDEFS_H
 
 #include <core/engine/audiooutput.h>
 #include <core/engine/fadingdefs.h>
@@ -343,3 +345,4 @@ Q_DECLARE_METATYPE(PicAudioEngine::PcmFrame)
 Q_DECLARE_METATYPE(PicAudioEngine::Engine::LiveDspSettingsUpdate)
 Q_DECLARE_METATYPE(PicAudioEngine::Engine::OutputDeviceProfiles)
 Q_DECLARE_METATYPE(PicAudioEngine::Engine::OutputProfileRequest)
+#endif // PICAUDIO_ENGINE_ENGINEDEFS_H

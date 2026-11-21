@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_OUTPUTPUMP_H
+#define PICAUDIO_ENGINE_OUTPUTPUMP_H
 
 #include "fycore_export.h"
 
@@ -61,3 +63,4 @@ private:
     Config m_config;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_OUTPUTPUMP_H

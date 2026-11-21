@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PIPELINETHREADHOST_H
+#define PICAUDIO_ENGINE_PIPELINETHREADHOST_H
 
 #include <utils/compatutils.h>
 
@@ -79,3 +81,4 @@ private:
     mutable std::atomic<size_t> m_queuedCommandCount;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PIPELINETHREADHOST_H

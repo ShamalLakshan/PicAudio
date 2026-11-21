@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOPIPELINEFADER_H
+#define PICAUDIO_ENGINE_AUDIOPIPELINEFADER_H
 
 #include <core/engine/enginedefs.h>
 
@@ -24,3 +26,4 @@ public:
     [[nodiscard]] virtual bool faderIsFading() const                              = 0;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOPIPELINEFADER_H

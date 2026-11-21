@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOFORMAT_H
+#define PICAUDIO_ENGINE_AUDIOFORMAT_H
 
 #include "fycore_export.h"
 
@@ -132,3 +134,4 @@ private:
     std::array<ChannelPosition, MaxChannels> m_channelLayout;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOFORMAT_H

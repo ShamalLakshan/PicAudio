@@ -6,7 +6,7 @@
 
 #include "positioncoordinator.h"
 
-#include "core/engine/enginehelpers.h"
+#include "enginehelpers.h"
 
 #include <QLoggingCategory>
 

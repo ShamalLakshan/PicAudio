@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOINPUT_H
+#define PICAUDIO_ENGINE_AUDIOINPUT_H
 
 #include "fycore_export.h"
 
@@ -497,3 +499,4 @@ using ArchiveReaderCreator = std::function<std::unique_ptr<ArchiveReader>()>;
 Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::AudioDecoder::DecoderOptions)
 Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::AudioDecoder::PlaybackHints)
 Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::AudioReader::WriteOptions)
+#endif // PICAUDIO_ENGINE_AUDIOINPUT_H

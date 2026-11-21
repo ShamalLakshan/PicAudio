@@ -6,8 +6,8 @@
 
 #include "buffereddspstage.h"
 
+#include "audioconverter.h"
 #include "chunktimelineassembler.h"
-#include "core/engine/audioconverter.h"
 #include <utils/timeconstants.h>
 
 #include <cstring>

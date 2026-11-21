@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_NEXTTRACKPREPARER_H
+#define PICAUDIO_ENGINE_NEXTTRACKPREPARER_H
 
 #include "fycore_export.h"
 
-#include "core/engine/pipeline/audiostream.h"
+#include "audiostream.h"
 
 #include <core/engine/audioformat.h>
 #include <core/engine/audioinput.h>
@@ -134,3 +136,4 @@ private:
     AudioDecoder* m_activeDecoder;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_NEXTTRACKPREPARER_H

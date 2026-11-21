@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOOUTPUT_H
+#define PICAUDIO_ENGINE_AUDIOOUTPUT_H
 
 #include "fycore_export.h"
 
@@ -163,3 +165,4 @@ Q_SIGNALS:
 };
 using OutputCreator = std::function<std::unique_ptr<AudioOutput>()>;
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOOUTPUT_H

@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_ENGINEHELPERS_H
+#define PICAUDIO_ENGINE_ENGINEHELPERS_H
 
 #include "fycore_export.h"
 
-#include "core/engine/audioformat.h"
+#include "audioformat.h"
 
 #include <limits>
 
@@ -40,3 +42,4 @@ PICAUDIO_ENGINE_EXPORT AudioFormat normaliseChannelLayout(const AudioFormat& for
     return lhs > (std::numeric_limits<uint64_t>::max() - rhs) ? std::numeric_limits<uint64_t>::max() : lhs + rhs;
 }
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_ENGINEHELPERS_H

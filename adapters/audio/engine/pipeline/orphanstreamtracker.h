@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_ORPHANSTREAMTRACKER_H
+#define PICAUDIO_ENGINE_ORPHANSTREAMTRACKER_H
 
 #include "audiostream.h"
 
@@ -47,3 +49,4 @@ private:
     std::optional<std::chrono::steady_clock::time_point> m_drainDeadline;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_ORPHANSTREAMTRACKER_H

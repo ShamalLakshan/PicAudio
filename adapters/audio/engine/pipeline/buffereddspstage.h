@@ -6,6 +6,9 @@
 
 #pragma once
 
+#ifndef PICAUDIO_ENGINE_BUFFEREDDSPSTAGE_H
+#define PICAUDIO_ENGINE_BUFFEREDDSPSTAGE_H
+
 #include "fycore_export.h"
 
 #include "timedaudiofifo.h"
@@ -78,3 +81,5 @@ private:
     std::vector<TimelineChunk> m_timelineScratch;
 };
 } // namespace PicAudioEngine
+
+#endif // PICAUDIO_ENGINE_BUFFEREDDSPSTAGE_H

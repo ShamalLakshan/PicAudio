@@ -6,11 +6,14 @@
 
 #pragma once
 
+#ifndef PICAUDIO_ENGINE_AUDIOMIXER_H
+#define PICAUDIO_ENGINE_AUDIOMIXER_H
+
 #include "fycore_export.h"
 
-#include "core/engine/output/postprocessor/trackprocessor.h"
-#include "core/engine/pipeline/audiostream.h"
-#include "core/engine/pipeline/buffereddspstage.h"
+#include "audiostream.h"
+#include "buffereddspstage.h"
+#include "output/postprocessor/trackprocessor.h"
 
 #include <core/engine/dsp/dspnode.h>
 #include <core/engine/dsp/processingbuffer.h>
@@ -380,3 +383,5 @@ private:
     std::unique_ptr<MixerOutput> m_output;
 };
 } // namespace PicAudioEngine
+
+#endif // PICAUDIO_ENGINE_AUDIOMIXER_H

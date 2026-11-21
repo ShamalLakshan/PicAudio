@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DECODERCONTEXT_H
+#define PICAUDIO_ENGINE_DECODERCONTEXT_H
 
 #include "fycore_export.h"
 
-#include "core/engine/pipeline/audiostream.h"
+#include "audiostream.h"
 
 #include <core/engine/audioformat.h>
 #include <core/engine/audioinput.h>
@@ -145,3 +147,4 @@ private:
     std::vector<double> m_decodeScratch;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_DECODERCONTEXT_H

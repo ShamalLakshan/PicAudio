@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_POSITIONCOORDINATOR_H
+#define PICAUDIO_ENGINE_POSITIONCOORDINATOR_H
 
 #include "fycore_export.h"
 
-#include "core/engine/pipeline/audiopipeline.h"
+#include "audiopipeline.h"
 
 #include <core/engine/enginedefs.h>
 
@@ -80,3 +82,4 @@ private:
     StreamId m_gaplessHoldStreamId;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_POSITIONCOORDINATOR_H
