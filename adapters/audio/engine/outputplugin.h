@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_OUTPUTPLUGIN_H
+#define PICAUDIO_ENGINE_OUTPUTPLUGIN_H
 
-#include <core/engine/audiooutput.h>
+#include "audiooutput.h"
 
 #include <QtPlugin>
 
@@ -27,3 +29,4 @@ public:
 } // namespace PicAudioEngine
 
 Q_DECLARE_INTERFACE(PicAudioEngine::OutputPlugin, "com.picaudio.engine.plugin.output")
+#endif // PICAUDIO_ENGINE_OUTPUTPLUGIN_H

@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DSPREGISTRY_H
+#define PICAUDIO_ENGINE_DSPREGISTRY_H
 
-#include <core/engine/dsp/dspnode.h>
+#include "dspnode.h"
 
 #include <QString>
 
@@ -39,3 +41,4 @@ private:
     std::vector<DspNode::Entry> m_entries;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_DSPREGISTRY_H

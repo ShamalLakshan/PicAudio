@@ -1,9 +1,11 @@
 #pragma once
+#ifndef PICAUDIO_ENGINE_EQUALIZERDSP_H
+#define PICAUDIO_ENGINE_EQUALIZERDSP_H
 
 #include "fycore_export.h"
 #include <array>
 #include <atomic>
-#include <core/engine/dsp/dspnode.h>
+#include "dspnode.h"
 #include <mutex>
 #include <vector>
 
@@ -145,3 +147,4 @@ private:
 };
 
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_EQUALIZERDSP_H

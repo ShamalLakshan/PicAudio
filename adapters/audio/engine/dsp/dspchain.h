@@ -5,12 +5,14 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DSPCHAIN_H
+#define PICAUDIO_ENGINE_DSPCHAIN_H
 
 #include "fycore_export.h"
 
-#include <core/engine/audioformat.h>
-#include <core/engine/dsp/dspnode.h>
-#include <core/engine/dsp/processingbufferlist.h>
+#include "audioformat.h"
+#include "dspnode.h"
+#include "processingbufferlist.h"
 
 #include <vector>
 
@@ -114,3 +116,4 @@ private:
     std::vector<DspNodePtr> m_nodes;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_DSPCHAIN_H

@@ -5,12 +5,15 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_VISUALISATIONBACKEND_H
+#define PICAUDIO_ENGINE_VISUALISATIONBACKEND_H
 
 #include "fycore_export.h"
 
+#include "visualisationservice.h"
+
 #include <core/engine/dsp/realfft.h>
 #include <core/engine/pcmframe.h>
-#include <core/engine/visualisationservice.h>
 
 #include <atomic>
 #include <chrono>
@@ -157,3 +160,4 @@ private:
     mutable std::vector<float> m_magnitudeScratch;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_VISUALISATIONBACKEND_H

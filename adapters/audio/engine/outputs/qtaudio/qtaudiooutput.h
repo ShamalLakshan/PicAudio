@@ -1,4 +1,6 @@
 #pragma once
+#ifndef PICAUDIO_ENGINE_QTAUDIOOUTPUT_H
+#define PICAUDIO_ENGINE_QTAUDIOOUTPUT_H
 
 #include <core/engine/audiooutput.h>
 #include <QAudioDevice>
@@ -48,3 +50,4 @@ private:
 };
 
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_QTAUDIOOUTPUT_H

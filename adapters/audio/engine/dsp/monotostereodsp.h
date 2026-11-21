@@ -5,9 +5,11 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_MONOTOSTEREODSP_H
+#define PICAUDIO_ENGINE_MONOTOSTEREODSP_H
 
-#include <core/engine/dsp/dspnode.h>
-#include <core/engine/dsp/processingbuffer.h>
+#include "dspnode.h"
+#include "processingbuffer.h"
 
 namespace PicAudioEngine {
 class MonoToStereoDsp : public DspNode
@@ -24,3 +26,4 @@ private:
     AudioFormat m_format;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_MONOTOSTEREODSP_H

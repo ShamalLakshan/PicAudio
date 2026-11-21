@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_FADINGDEFS_H
+#define PICAUDIO_ENGINE_FADINGDEFS_H
 
 #include "fycore_export.h"
 
@@ -88,3 +90,4 @@ Q_DECLARE_METATYPE(PicAudioEngine::Engine::FadeCurve)
 Q_DECLARE_METATYPE(PicAudioEngine::Engine::FadeSpec)
 Q_DECLARE_METATYPE(PicAudioEngine::Engine::FadingValues)
 Q_DECLARE_METATYPE(PicAudioEngine::Engine::CrossfadingValues)
+#endif // PICAUDIO_ENGINE_FADINGDEFS_H

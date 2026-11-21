@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_CORESETTINGS_H
+#define PICAUDIO_ENGINE_CORESETTINGS_H
 
 #include "fycore_export.h"
 
@@ -88,3 +90,4 @@ enum CoreSettings : uint32_t
 Q_ENUM_NS(CoreSettings)
 } // namespace Settings::Core
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_CORESETTINGS_H

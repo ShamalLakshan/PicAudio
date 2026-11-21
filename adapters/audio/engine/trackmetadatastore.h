@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_TRACKMETADATASTORE_H
+#define PICAUDIO_ENGINE_TRACKMETADATASTORE_H
 
 #include "fycore_export.h"
 
-#include <core/stringpool.h>
+#include "stringpool.h"
 
 namespace PicAudioEngine {
 /*!
@@ -40,3 +42,4 @@ private:
     StringPool m_stringPool;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_TRACKMETADATASTORE_H

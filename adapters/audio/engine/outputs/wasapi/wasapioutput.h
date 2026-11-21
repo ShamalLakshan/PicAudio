@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_WASAPIOUTPUT_H
+#define PICAUDIO_ENGINE_WASAPIOUTPUT_H
 
-#include <core/engine/audiooutput.h>
+#include "audiooutput.h"
 
 #include <audioclient.h>
 #include <ksmedia.h>
@@ -120,3 +122,4 @@ private:
     WAVEFORMATEXTENSIBLE m_waveFormat;
 };
 } // namespace PicAudioEngine::Wasapi
+#endif // PICAUDIO_ENGINE_WASAPIOUTPUT_H

@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DSPCHAINSTORE_H
+#define PICAUDIO_ENGINE_DSPCHAINSTORE_H
 
 #include "fycore_export.h"
 
@@ -67,3 +69,4 @@ private:
     std::unordered_map<uint64_t, uint64_t> m_liveRevisionByKey;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_DSPCHAINSTORE_H

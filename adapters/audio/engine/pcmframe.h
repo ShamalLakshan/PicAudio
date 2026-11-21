@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PCMFRAME_H
+#define PICAUDIO_ENGINE_PCMFRAME_H
 
-#include <core/engine/audioformat.h>
+#include "audioformat.h"
 
 #include <array>
 #include <chrono>
@@ -49,3 +51,4 @@ struct PcmFrame
     }
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PCMFRAME_H

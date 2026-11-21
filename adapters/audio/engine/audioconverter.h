@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOCONVERTER_H
+#define PICAUDIO_ENGINE_AUDIOCONVERTER_H
 
 #include "fycore_export.h"
 
-#include <core/engine/audiobuffer.h>
+#include "audiobuffer.h"
 
 namespace PicAudioEngine {
 class AudioFormat;
@@ -34,3 +36,4 @@ PICAUDIO_ENGINE_EXPORT bool convert(const AudioFormat& inputFormat, const std::b
 
 } // namespace Audio
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOCONVERTER_H

@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_TRACK_H
+#define PICAUDIO_ENGINE_TRACK_H
 
 #include "fycore_export.h"
 
@@ -475,3 +477,4 @@ Q_DECLARE_METATYPE(PicAudioEngine::TrackList)
 Q_DECLARE_METATYPE(PicAudioEngine::TrackIds)
 Q_DECLARE_METATYPE(PicAudioEngine::Track::Stats)
 Q_DECLARE_OPERATORS_FOR_FLAGS(PicAudioEngine::Track::Stats)
+#endif // PICAUDIO_ENGINE_TRACK_H

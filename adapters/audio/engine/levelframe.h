@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_LEVELFRAME_H
+#define PICAUDIO_ENGINE_LEVELFRAME_H
 
 #include <array>
 #include <chrono>
@@ -28,3 +30,4 @@ struct LevelFrame
     std::chrono::steady_clock::time_point presentationTime;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_LEVELFRAME_H

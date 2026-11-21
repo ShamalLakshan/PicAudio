@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DOWNMIXTOMONODSP_H
+#define PICAUDIO_ENGINE_DOWNMIXTOMONODSP_H
 
-#include <core/engine/dsp/dspnode.h>
+#include "dspnode.h"
 
 namespace PicAudioEngine {
 class DownmixToMonoDsp : public DspNode
@@ -23,3 +25,4 @@ private:
     AudioFormat m_format;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_DOWNMIXTOMONODSP_H

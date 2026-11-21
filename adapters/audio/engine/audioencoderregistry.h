@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOENCODERREGISTRY_H
+#define PICAUDIO_ENGINE_AUDIOENCODERREGISTRY_H
 
 #include "fycore_export.h"
 
-#include <core/engine/audioencoder.h>
+#include "audioencoder.h"
 
 #include <optional>
 #include <vector>
@@ -42,3 +44,4 @@ private:
     std::unique_ptr<AudioEncoderRegistryPrivate> p;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOENCODERREGISTRY_H

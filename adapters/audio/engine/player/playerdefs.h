@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PLAYERDEFS_H
+#define PICAUDIO_ENGINE_PLAYERDEFS_H
 
 #include "fycore_export.h"
 
@@ -94,3 +96,4 @@ Q_DECLARE_METATYPE(PicAudioEngine::Player::TrackChangeContext)
 Q_DECLARE_METATYPE(PicAudioEngine::Player::TrackChangeRequest)
 Q_DECLARE_METATYPE(PicAudioEngine::Player::UpcomingTrack)
 Q_DECLARE_METATYPE(PicAudioEngine::Player::PlaybackSnapshot)
+#endif // PICAUDIO_ENGINE_PLAYERDEFS_H

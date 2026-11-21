@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_CONSTANTS_H
+#define PICAUDIO_ENGINE_CONSTANTS_H
 
 namespace PicAudioEngine::Constants {
 constexpr auto RecordSeparator = "\036";
@@ -88,3 +90,4 @@ constexpr auto ArtistPicture = "%artistpicture%";
 constexpr auto RatingEditor  = "%rating_editor%";
 constexpr auto LoveEditor    = "%love_editor%";
 } // namespace PicAudioEngine::Constants
+#endif // PICAUDIO_ENGINE_CONSTANTS_H

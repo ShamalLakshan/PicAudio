@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOCLOCK_H
+#define PICAUDIO_ENGINE_AUDIOCLOCK_H
 
 #include "fycore_export.h"
 
@@ -112,3 +114,4 @@ private:
     bool m_publishTimerGapLogActive;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOCLOCK_H

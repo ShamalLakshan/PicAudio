@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_STRINGPOOL_H
+#define PICAUDIO_ENGINE_STRINGPOOL_H
 
 #include "fycore_export.h"
 
@@ -94,3 +96,4 @@ private:
     std::unique_ptr<StringPoolPrivate> p;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_STRINGPOOL_H

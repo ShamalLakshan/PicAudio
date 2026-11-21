@@ -1,4 +1,6 @@
 #pragma once
+#ifndef PICAUDIO_ENGINE_COREPATHS_H
+#define PICAUDIO_ENGINE_COREPATHS_H
 
 #include "fycore_export.h"
 #include <QString>
@@ -12,3 +14,4 @@ PICAUDIO_ENGINE_EXPORT QStringList pluginPaths();
 PICAUDIO_ENGINE_EXPORT QString userPluginsPath();
 PICAUDIO_ENGINE_EXPORT QString translationsPath();
 } // namespace PicAudioEngine::Core
+#endif // PICAUDIO_ENGINE_COREPATHS_H

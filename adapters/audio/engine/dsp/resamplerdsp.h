@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_RESAMPLERDSP_H
+#define PICAUDIO_ENGINE_RESAMPLERDSP_H
 
-#include <core/engine/dsp/dspnode.h>
-#include <core/engine/dsp/processingbuffer.h>
-#include <core/engine/dsp/resamplersettings.h>
+#include "dspnode.h"
+#include "processingbuffer.h"
+#include "resamplersettings.h"
 
 #include <cstdint>
 #include <set>
@@ -75,3 +77,4 @@ private:
     QString m_filteredRatesText;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_RESAMPLERDSP_H

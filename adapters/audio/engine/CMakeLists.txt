@@ -104,11 +104,11 @@ set(ENGINE_SOURCES
     playlist/playlisthandler.cpp
     library/libraryutils.cpp
 
-    include/core/coresettings.h
-    include/core/engine/audiooutput.h
-    include/core/engine/enginecontroller.h
-    include/core/engine/enginedefs.h
-    include/core/player/playerdefs.h
+    coresettings.h
+    audiooutput.h
+    enginecontroller.h
+    enginedefs.h
+    player/playerdefs.h
     control/playbackphase.h
 
     pffft/pffft.c

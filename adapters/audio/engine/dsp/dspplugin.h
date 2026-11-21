@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DSPPLUGIN_H
+#define PICAUDIO_ENGINE_DSPPLUGIN_H
 
-#include <core/engine/dsp/dspnode.h>
+#include "dspnode.h"
 
 #include <QtPlugin>
 
@@ -27,3 +29,4 @@ public:
 } // namespace PicAudioEngine
 
 Q_DECLARE_INTERFACE(PicAudioEngine::DspPlugin, "com.picaudio.engine.plugin.dsp")
+#endif // PICAUDIO_ENGINE_DSPPLUGIN_H

@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_REALFFT_H
+#define PICAUDIO_ENGINE_REALFFT_H
 
 #include "fycore_export.h"
 
@@ -41,3 +43,4 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 } // namespace PicAudioEngine::Dsp
+#endif // PICAUDIO_ENGINE_REALFFT_H

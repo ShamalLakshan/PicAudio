@@ -4,7 +4,7 @@
  * Licensed under GNU General Public License version 3.
  */
 
-#include <core/engine/visualisationservice.h>
+#include "visualisationservice.h"
 
 #include "dsp/resamplerdsp.h"
 #include "visualisationbackend.h"

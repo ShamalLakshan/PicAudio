@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PLAYBACKPHASE_H
+#define PICAUDIO_ENGINE_PLAYBACKPHASE_H
 
 #include <QObject>
 
@@ -55,3 +57,4 @@ Q_ENUM_NS(Phase)
     return phase == Phase::FadingToPause || phase == Phase::FadingToStop || phase == Phase::FadingToManualChange;
 }
 } // namespace PicAudioEngine::Playback
+#endif // PICAUDIO_ENGINE_PLAYBACKPHASE_H

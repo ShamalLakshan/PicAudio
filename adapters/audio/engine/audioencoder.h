@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOENCODER_H
+#define PICAUDIO_ENGINE_AUDIOENCODER_H
 
 #include "fycore_export.h"
 
-#include <core/engine/audiobuffer.h>
+#include "audiobuffer.h"
 #include <core/engine/conversion/conversiondefs.h>
 
 #include <QString>
@@ -84,3 +86,4 @@ public:
 
 using EncoderCreator = std::function<std::unique_ptr<AudioEncoder>()>;
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOENCODER_H

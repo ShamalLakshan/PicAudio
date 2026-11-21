@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_INTERNALCORESETTINGS_H
+#define PICAUDIO_ENGINE_INTERNALCORESETTINGS_H
 
 #include "fycore_export.h"
 
@@ -130,3 +132,4 @@ private:
     SettingsManager* m_settings;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_INTERNALCORESETTINGS_H

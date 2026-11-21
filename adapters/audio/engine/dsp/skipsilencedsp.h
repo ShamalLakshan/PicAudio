@@ -5,9 +5,11 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_SKIPSILENCEDSP_H
+#define PICAUDIO_ENGINE_SKIPSILENCEDSP_H
 
-#include <core/engine/dsp/dspnode.h>
-#include <core/engine/dsp/processingbuffer.h>
+#include "dspnode.h"
+#include "processingbuffer.h"
 
 #include <atomic>
 #include <cstdint>
@@ -83,3 +85,4 @@ private:
     bool m_haveSeenNonSilence;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_SKIPSILENCEDSP_H

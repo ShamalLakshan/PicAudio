@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PLAYLISTHANDLER_H
+#define PICAUDIO_ENGINE_PLAYLISTHANDLER_H
 
 #include "fycore_export.h"
 
@@ -164,3 +166,4 @@ private:
 } // namespace PicAudioEngine
 
 Q_DECLARE_METATYPE(PicAudioEngine::PlaylistTrackChangeSource)
+#endif // PICAUDIO_ENGINE_PLAYLISTHANDLER_H

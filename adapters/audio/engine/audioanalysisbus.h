@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOANALYSISBUS_H
+#define PICAUDIO_ENGINE_AUDIOANALYSISBUS_H
 
-#include <core/engine/enginedefs.h>
-#include <core/engine/levelframe.h>
-#include <core/engine/pcmframe.h>
+#include "enginedefs.h"
+#include "levelframe.h"
+#include "pcmframe.h"
 #include <utils/compatutils.h>
 #include <utils/lockfreeringbuffer.h>
 
@@ -141,3 +143,4 @@ private:
     AudioFormat m_hopFormat;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_AUDIOANALYSISBUS_H

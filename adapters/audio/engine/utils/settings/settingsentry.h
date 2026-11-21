@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_SETTINGSENTRY_H
+#define PICAUDIO_ENGINE_SETTINGSENTRY_H
 
 #include "fyutils_export.h"
 
@@ -66,3 +68,4 @@ private:
     bool m_wasChanged;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_SETTINGSENTRY_H

@@ -5,10 +5,12 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PROCESSINGBUFFERLIST_H
+#define PICAUDIO_ENGINE_PROCESSINGBUFFERLIST_H
 
 #include "fycore_export.h"
 
-#include <core/engine/dsp/processingbuffer.h>
+#include "processingbuffer.h"
 
 #include <vector>
 
@@ -38,3 +40,4 @@ private:
     std::vector<ProcessingBuffer> m_chunks;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PROCESSINGBUFFERLIST_H

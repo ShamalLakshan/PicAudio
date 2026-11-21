@@ -5,13 +5,14 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_ENGINEHANDLER_H
+#define PICAUDIO_ENGINE_ENGINEHANDLER_H
 
-#include "core/playback/playbackstatestore.h"
-
-#include <core/engine/enginecontroller.h>
-#include <core/engine/enginedefs.h>
-#include <core/engine/visualisationservice.h>
-#include <core/player/playerdefs.h>
+#include "enginecontroller.h"
+#include "enginedefs.h"
+#include "player/playbackstatestore.h"
+#include "player/playerdefs.h"
+#include "visualisationservice.h"
 
 #include <QBasicTimer>
 #include <QMetaMethod>
@@ -221,3 +222,4 @@ private:
     std::optional<uint64_t> m_pendingStartupRestoreItemId;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_ENGINEHANDLER_H

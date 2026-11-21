@@ -5,11 +5,13 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PROCESSINGBUFFER_H
+#define PICAUDIO_ENGINE_PROCESSINGBUFFER_H
 
 #include "fycore_export.h"
 
-#include <core/engine/audiobuffer.h>
-#include <core/engine/audioformat.h>
+#include "audiobuffer.h"
+#include "audioformat.h"
 
 #include <span>
 #include <vector>
@@ -64,3 +66,4 @@ private:
     uint64_t m_sourceFrameDurationNs;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PROCESSINGBUFFER_H

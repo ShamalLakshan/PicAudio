@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_INPUTPLUGIN_H
+#define PICAUDIO_ENGINE_INPUTPLUGIN_H
 
-#include <core/engine/audioinput.h>
+#include "audioinput.h"
 
 #include <QtPlugin>
 
@@ -36,3 +38,4 @@ public:
 } // namespace PicAudioEngine
 
 Q_DECLARE_INTERFACE(PicAudioEngine::InputPlugin, "com.picaudio.engine.plugin.input")
+#endif // PICAUDIO_ENGINE_INPUTPLUGIN_H

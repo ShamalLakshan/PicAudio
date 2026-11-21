@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_REVERSESTEREODSP_H
+#define PICAUDIO_ENGINE_REVERSESTEREODSP_H
 
-#include <core/engine/dsp/dspnode.h>
+#include "dspnode.h"
 
 namespace PicAudioEngine {
 class ReverseStereoDsp : public DspNode
@@ -22,3 +24,4 @@ private:
     AudioFormat m_format;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_REVERSESTEREODSP_H

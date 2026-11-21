@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PLAYERCONTROLLER_H
+#define PICAUDIO_ENGINE_PLAYERCONTROLLER_H
 
 #include "fycore_export.h"
 
@@ -223,3 +225,4 @@ private:
     std::unique_ptr<PlayerControllerPrivate> p;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PLAYERCONTROLLER_H

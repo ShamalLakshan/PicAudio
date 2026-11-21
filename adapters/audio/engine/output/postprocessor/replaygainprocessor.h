@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_REPLAYGAINPROCESSOR_H
+#define PICAUDIO_ENGINE_REPLAYGAINPROCESSOR_H
 
 #include "fycore_export.h"
 
@@ -77,3 +79,4 @@ private:
     bool m_active;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_REPLAYGAINPROCESSOR_H

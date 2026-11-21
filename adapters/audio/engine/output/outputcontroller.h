@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_OUTPUTCONTROLLER_H
+#define PICAUDIO_ENGINE_OUTPUTCONTROLLER_H
 
-#include <core/engine/audiooutput.h>
+#include "audiooutput.h"
 
 #include <functional>
 
@@ -55,3 +57,4 @@ private:
     QString m_outputDevice;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_OUTPUTCONTROLLER_H

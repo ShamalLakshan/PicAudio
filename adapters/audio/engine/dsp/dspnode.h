@@ -5,11 +5,13 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_DSPNODE_H
+#define PICAUDIO_ENGINE_DSPNODE_H
 
 #include "fycore_export.h"
 
-#include <core/engine/audioformat.h>
-#include <core/engine/dsp/processingbufferlist.h>
+#include "audioformat.h"
+#include "processingbufferlist.h"
 
 #include <cstdint>
 
@@ -146,3 +148,4 @@ private:
 
 using DspNodePtr = std::unique_ptr<DspNode>;
 }; // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_DSPNODE_H

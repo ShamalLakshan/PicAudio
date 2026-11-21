@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_SETTINGSMANAGER_H
+#define PICAUDIO_ENGINE_SETTINGSMANAGER_H
 
 #include "fyutils_export.h"
 
@@ -563,3 +565,4 @@ private:
     SettingsDialogController* m_settingsDialog;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_SETTINGSMANAGER_H

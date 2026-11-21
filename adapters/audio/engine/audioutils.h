@@ -5,8 +5,10 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_AUDIOUTILS_H
+#define PICAUDIO_ENGINE_AUDIOUTILS_H
 
-#include <core/engine/audioformat.h>
+#include "audioformat.h"
 
 #include <chrono>
 
@@ -19,3 +21,4 @@ bool inputFormatsMatch(const AudioFormat& lhs, const AudioFormat& rhs);
 bool outputFormatsMatch(const AudioFormat& lhs, const AudioFormat& rhs);
 bool shouldAutomaticallyDither(SampleFormat input, SampleFormat output);
 } // namespace PicAudioEngine::Audio
+#endif // PICAUDIO_ENGINE_AUDIOUTILS_H

@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_VISUALISATIONSERVICE_H
+#define PICAUDIO_ENGINE_VISUALISATIONSERVICE_H
 
 #include "fycore_export.h"
 
@@ -193,3 +195,4 @@ private:
     std::unique_ptr<VisualisationServicePrivate> p;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_VISUALISATIONSERVICE_H

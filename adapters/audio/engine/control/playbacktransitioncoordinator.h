@@ -5,6 +5,8 @@
  */
 
 #pragma once
+#ifndef PICAUDIO_ENGINE_PLAYBACKTRANSITIONCOORDINATOR_H
+#define PICAUDIO_ENGINE_PLAYBACKTRANSITIONCOORDINATOR_H
 
 #include "fycore_export.h"
 
@@ -109,3 +111,4 @@ private:
     std::optional<PendingInitialSeek> m_pendingInitialSeek;
 };
 } // namespace PicAudioEngine
+#endif // PICAUDIO_ENGINE_PLAYBACKTRANSITIONCOORDINATOR_H
